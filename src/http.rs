@@ -159,10 +159,30 @@ async fn api(State(s): State<AppState>, req: Request) -> Response {
     };
     tokio::task::spawn_blocking(move || {
         let path = parts.uri.path();
-        if parts.method == Method::POST
-            && (path == "/_/api/login" || path.starts_with("/api/auth/"))
-        {
-            let key = format!("auth:{}:{}", path, s.client_ip(peer, &parts.headers));
+        // Validate the operation before allocating persistent limiter state.
+        let auth_operation = match path {
+            "/_/api/login" => Some("/_/api/login"),
+            "/api/auth/magic-link" => Some("/api/auth/magic-link"),
+            "/api/auth/logout" => Some("/api/auth/logout"),
+            "/api/auth/passkeys/authenticate/options" => {
+                Some("/api/auth/passkeys/authenticate/options")
+            }
+            "/api/auth/passkeys/authenticate/verify" => {
+                Some("/api/auth/passkeys/authenticate/verify")
+            }
+            "/api/auth/passkeys/register/options" => Some("/api/auth/passkeys/register/options"),
+            "/api/auth/passkeys/register/verify" => Some("/api/auth/passkeys/register/verify"),
+            _ if path.starts_with("/api/auth/") => {
+                return error(
+                    StatusCode::NOT_FOUND,
+                    "not_found",
+                    "unknown authentication route",
+                );
+            }
+            _ => None,
+        };
+        if let Some(operation) = auth_operation.filter(|_| parts.method == Method::POST) {
+            let key = format!("auth:{}:{}", operation, s.client_ip(peer, &parts.headers));
             let now = crate::domain::instant(chrono::Utc::now());
             if !s.store.rate_limit(&key, 20, &now).unwrap_or(false) {
                 return error(
@@ -425,9 +445,14 @@ fn api_result(
             "If this account is eligible, a sign-in link has been sent.",
         ));
     }
-    if *method == Method::POST && path.starts_with("/api/auth/passkeys/authenticate/") {
+    if *method == Method::POST
+        && matches!(
+            path,
+            "/api/auth/passkeys/authenticate/options" | "/api/auth/passkeys/authenticate/verify"
+        )
+    {
         let w = crate::passkeys::webauthn(&s.origin).map_err(db_error)?;
-        if path.ends_with("/options") {
+        if path == "/api/auth/passkeys/authenticate/options" {
             let i: EmailInput = decode(body)?;
             return Ok(
                 Json(db.passkey_auth_options(&w, &i.email, &now).map_err(|_| {
@@ -440,7 +465,7 @@ fn api_result(
                 .into_response(),
             );
         }
-        if path.ends_with("/verify") {
+        if path == "/api/auth/passkeys/authenticate/verify" {
             let i: PasskeyVerify = decode(body)?;
             let (user, session) = db.passkey_auth_verify(&w, i, &now).map_err(|_| {
                 error(

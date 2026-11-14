@@ -74,7 +74,12 @@
   });
   let outcome: Outcome = $state({ kind: "idle" });
   let command: Command = $state({ kind: "none" });
-  let authenticated = $state(false);
+  type Session =
+    | { kind: "discovering" }
+    | { kind: "failed"; error: Extract<Outcome, { kind: "error" }> }
+    | { kind: "anonymous" }
+    | { kind: "authenticated" };
+  let session: Session = $state({ kind: "discovering" });
   let generation = 0;
   const section = (): Section =>
     page.kind === "account" ? "account" : "links";
@@ -98,7 +103,13 @@
     command = { kind: "none" };
     outcome = { kind: "idle" };
   }
+  function beginCommand(next: Exclude<Command, { kind: "none" }>) {
+    generation++;
+    command = next;
+    outcome = { kind: "idle" };
+  }
   async function loadLinks() {
+    if (session.kind !== "authenticated") return;
     setPage({
       kind: "links",
       state: { kind: "pending" },
@@ -113,7 +124,7 @@
       result.error.kind === "http" &&
       [401, 403].includes(result.error.status)
     ) {
-      authenticated = false;
+      session = { kind: "anonymous" };
       setPage({ kind: "auth", mode: { kind: "magic", email: "" } });
       return;
     }
@@ -149,23 +160,21 @@
       return;
     }
     const request = ++generation;
+    session = { kind: "discovering" };
     const result = await api.me();
     if (request !== generation) return;
     if (result.kind === "ok") {
-      authenticated = true;
+      session = { kind: "authenticated" };
       await loadLinks();
     } else if (
       result.error.kind === "http" &&
       [401, 403].includes(result.error.status)
-    )
+    ) {
+      session = { kind: "anonymous" };
       setPage({ kind: "auth", mode: { kind: "magic", email: "" } });
-    else
-      page = {
-        kind: "links",
-        state: failureOutcome(result.error),
-        search: "",
-        selected: [],
-      };
+    } else {
+      session = { kind: "failed", error: failureOutcome(result.error) };
+    }
   }
   onMount(() => {
     void start();
@@ -197,7 +206,7 @@
     const result = await authenticatePasskey(api, email);
     if (request !== generation) return;
     if (notify(result, "Signed in.")) {
-      authenticated = true;
+      session = { kind: "authenticated" };
       await loadLinks();
     }
   }
@@ -216,13 +225,13 @@
     };
   }
   async function logout() {
-    if (outcome.kind === "pending") return;
-    const request = generation;
+    // Signing out supersedes page-owned work; it does not undo server mutations.
+    const request = ++generation;
     outcome = { kind: "pending" };
     const result = await api.logout();
     if (request !== generation) return;
     if (notify(result, "Signed out.")) {
-      authenticated = false;
+      session = { kind: "anonymous" };
       setPage({ kind: "auth", mode: { kind: "magic", email: "" } });
     }
   }
@@ -273,14 +282,16 @@
         await navigator.clipboard.writeText(
           `https://${address.domain}/${address.short_code}`,
         );
+        if (request !== generation) return;
         outcome = { kind: "success", message: "Short address copied." };
       } catch {
+        if (request !== generation) return;
         outcome = {
           kind: "error",
           message: "Clipboard unavailable. Select and copy the short address.",
         };
       }
-    } else if (action === "delete") command = { kind: "delete-link", id };
+    } else if (action === "delete") beginCommand({ kind: "delete-link", id });
     else if (action === "toggle") {
       outcome = { kind: "pending" };
       const result = await api.patch(id, { enabled: !link.enabled });
@@ -345,6 +356,7 @@
   }
   async function importLinks() {
     if (page.kind !== "import" || outcome.kind === "pending") return;
+    const request = generation;
     const rows = parseBulk(page.text);
     if (!rows.length || rows.some((row) => row.kind === "invalid")) return;
     const items = rows.flatMap((row) => {
@@ -359,6 +371,7 @@
     if (items.length !== rows.length) return;
     outcome = { kind: "pending" };
     const result = await api.bulk({ items });
+    if (request !== generation) return;
     if (result.kind === "failed") {
       notify(result, "");
       return;
@@ -373,7 +386,11 @@
         .flatMap((row) => {
           const source = rows[row.index];
           return source?.kind === "valid"
-            ? [`${source.destination},${source.alias}`]
+            ? [
+                [source.destination, source.alias]
+                  .map((cell) => `"${cell.replaceAll('"', '""')}"`)
+                  .join(","),
+              ]
             : [];
         })
         .join("\n"),
@@ -384,7 +401,7 @@
           message: result.value.items
             .map(
               (row) =>
-                `Row ${row.index + 1}: ${row.status === "created" ? "created" : row.error.message}`,
+                `Row ${rows[row.index]?.row ?? row.index + 1}: ${row.status === "created" ? "created" : row.error.message}`,
             )
             .join(" · "),
         }
@@ -394,6 +411,9 @@
         };
   }
   async function readFile(file: File) {
+    if (page.kind !== "import") return;
+    const request = ++generation;
+    outcome = { kind: "idle" };
     if (file.size > 1024 * 1024) {
       outcome = {
         kind: "error",
@@ -403,8 +423,10 @@
     }
     try {
       const text = await file.text();
+      if (request !== generation) return;
       if (page.kind === "import") page = { kind: "import", text };
     } catch {
+      if (request !== generation) return;
       outcome = { kind: "error", message: "Could not read the selected file." };
     }
   }
@@ -472,6 +494,7 @@
   async function confirmCommand() {
     if (command.kind === "none" || outcome.kind === "pending") return;
     const target = command;
+    const request = generation;
     outcome = { kind: "pending" };
     let result: Result<unknown>;
     try {
@@ -503,6 +526,7 @@
           ids: [...target.ids],
           action,
         });
+        if (request !== generation) return;
         if (bulkResult.kind === "ok") {
           const failures = bulkResult.value.items.filter(
             (item) => item.status === "failed",
@@ -521,6 +545,7 @@
         result = bulkResult;
       } else return;
     } catch (error) {
+      if (request !== generation) return;
       outcome = {
         kind: "error",
         reason: "validation",
@@ -528,10 +553,11 @@
       };
       return;
     }
+    if (request !== generation) return;
     if (!notify(result, "Action completed.")) return;
     command = { kind: "none" };
     if (target.kind === "signout") {
-      authenticated = false;
+      session = { kind: "anonymous" };
       setPage({ kind: "auth", mode: { kind: "magic", email: "" } });
     } else await loadLinks();
   }
@@ -539,7 +565,7 @@
 
 <AppShell
   section={section()}
-  {authenticated}
+  authenticated={session.kind === "authenticated"}
   onnav={navigate}
   onlogout={logout}
 >
@@ -549,13 +575,21 @@
       onchange={commandValue}
       onconfirm={confirmCommand}
       oncancel={() => {
+        generation++;
         command = { kind: "none" };
         outcome = { kind: "idle" };
       }}
     />{:else if page.kind !== "auth" && page.kind !== "editor" && page.kind !== "import" && page.kind !== "account"}<ResourceStatus
       state={outcome}
     />{/if}
-  {#if page.kind === "links"}<Dashboard
+  {#if session.kind === "discovering" && page.kind !== "not-found"}<ResourceStatus
+      state={{ kind: "pending" }}
+    />
+  {:else if session.kind === "failed"}<ResourceStatus
+      state={session.error}
+      onretry={start}
+    />
+  {:else if page.kind === "links"}<Dashboard
       state={mapResource(page.state, (links) =>
         filterLinks(
           links.map(linkRow),
@@ -581,7 +615,7 @@
       onaction={action}
       onbulk={(action) => {
         if (page.kind === "links")
-          command = { kind: "bulk", ids: page.selected, action, value: "" };
+          beginCommand({ kind: "bulk", ids: page.selected, action, value: "" });
       }}
       onretry={loadLinks}
     />
@@ -598,7 +632,7 @@
         class="mt-lh"
         onclick={() => {
           if (page.kind === "editor" && page.mode.kind === "edit")
-            command = { kind: "remove-password", id: page.mode.id };
+            beginCommand({ kind: "remove-password", id: page.mode.id });
         }}>Remove existing password</button
       >{/if}
   {:else if page.kind === "import"}<BulkImport
@@ -648,7 +682,7 @@
       }}
       onsave={saveAccount}
       onenroll={enroll}
-      onsignout={() => (command = { kind: "signout" })}
+      onsignout={() => beginCommand({ kind: "signout" })}
       onlogout={logout}
     />
   {:else}<PublicPage

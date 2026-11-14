@@ -22,6 +22,7 @@
   let generation = 0;
   async function load(kind: AdminView["kind"]) {
     const request = ++generation;
+    command = { kind: "none" };
     session = {
       kind: "authenticated",
       view: { kind, state: { kind: "pending" } },
@@ -78,14 +79,18 @@
   });
   async function login() {
     if (session.kind !== "login" || outcome.kind === "pending") return;
+    const request = generation;
     outcome = { kind: "pending" };
     const result = await api.adminLogin({ token: session.token });
+    if (request !== generation) return;
     if (result.kind === "ok") await load("users");
     else outcome = failureOutcome(result.error);
   }
   async function logout() {
+    const request = ++generation;
     outcome = { kind: "pending" };
     const result = await api.adminLogout();
+    if (request !== generation) return;
     if (result.kind === "ok") {
       generation++;
       session = { kind: "login", token: "" };
@@ -122,6 +127,7 @@
   async function confirm() {
     if (command.kind === "none" || outcome.kind === "pending") return;
     const c = command;
+    const request = generation;
     const n = c.value.trim() ? Number(c.value) : null;
     if (
       c.kind === "user" &&
@@ -155,6 +161,7 @@
                 ...(c.action === "quota" ? { link_quota: n } : {}),
                 ...(c.action === "retention" ? { retention_days: n } : {}),
               });
+    if (request !== generation) return;
     if (result.kind === "failed") {
       outcome = failureOutcome(result.error);
       return;
@@ -200,6 +207,7 @@
         }}
         onconfirm={confirm}
         oncancel={() => {
+          generation++;
           command = { kind: "none" };
           outcome = { kind: "idle" };
         }}
@@ -208,10 +216,12 @@
       view={session.view}
       outcome={command.kind === "none" ? outcome : { kind: "idle" }}
       oncreate={() => {
+        generation++;
         command = { kind: "create", value: "" };
         outcome = { kind: "idle" };
       }}
       onuser={(action, id) => {
+        generation++;
         command = { kind: "user", action, id, value: "" };
         outcome = { kind: "idle" };
       }}
