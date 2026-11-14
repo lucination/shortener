@@ -23,6 +23,8 @@ def main():
     options = args.parse_args()
     env = dict(line.split("=", 1) for line in pathlib.Path(options.env).read_text().splitlines() if line and not line.startswith("#"))
     base = env["APP_ORIGIN"]
+    mailpit = env.get("MAILPIT_API_ORIGIN", "http://127.0.0.1:8025")
+    assert urllib.parse.urlparse(mailpit).hostname in ("localhost", "127.0.0.1"), "Mailpit API is local-only"
     assert urllib.parse.urlparse(base).hostname in ("localhost", "127.0.0.1"), "smoke is local-only"
     smtp = env.get("SMTP_HOST", "127.0.0.1")
     assert smtp in ("localhost", "127.0.0.1"), "never submit smoke mail externally"
@@ -62,10 +64,10 @@ def main():
     assert request("/api/auth/magic-link", "POST", {"email": email})[0] == 200
     token = None
     for _ in range(50):
-        messages = json.load(urllib.request.urlopen("http://127.0.0.1:8025/api/v1/messages"))["messages"]
+        messages = json.load(urllib.request.urlopen(mailpit + "/api/v1/messages"))["messages"]
         for item in messages:
             if any(recipient["Address"] == email for recipient in item["To"]):
-                mail = json.load(urllib.request.urlopen("http://127.0.0.1:8025/api/v1/message/" + item["ID"]))
+                mail = json.load(urllib.request.urlopen(mailpit + "/api/v1/message/" + item["ID"]))
                 token = re.search(r"/auth/verify\?token=([a-f0-9]+)", mail["Text"]).group(1)
         if token:
             break
