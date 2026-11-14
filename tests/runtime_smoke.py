@@ -56,10 +56,10 @@ def main():
         raise AssertionError("Loco did not become healthy")
 
     assert request("/api/me")[0] == 401
-    assert request("/api/admin/login", "POST", {"token": env["ADMIN_TOKEN"]})[0] == 200
+    assert request("/_/api/login", "POST", {"token": env["ADMIN_TOKEN"]})[0] == 200
     unique = uuid.uuid4().hex[:10]
     email = "smoke-" + unique + "@example.test"
-    status, user, _ = request("/api/admin/users", "POST", {"email": email, "retention_days": 7, "link_quota": 10})
+    status, user, _ = request("/_/api/users", "POST", {"email": email, "retention_days": 7, "link_quota": 10})
     assert status == 201, (status, user)
     assert request("/api/auth/magic-link", "POST", {"email": email})[0] == 200
     token = None
@@ -88,10 +88,10 @@ def main():
     assert status == 200 and stats["humans"] == 1 and stats["previews"] == 1, stats
     assert request(f"/api/links/{link['id']}/events")[1]["total"] == 2
     assert request("/api/links")[1]["total"] == 1
-    assert request(f"/api/admin/users/{user['id']}", "PATCH", {"suspended": True})[0] == 200
+    assert request(f"/_/api/users/{user['id']}", "PATCH", {"suspended": True})[0] == 200
     assert request("/api/me")[0] == 401
     assert request("/" + alias)[0] == 404
-    assert request(f"/api/admin/users/{user['id']}", "PATCH", {"suspended": False})[0] == 200
+    assert request(f"/_/api/users/{user['id']}", "PATCH", {"suspended": False})[0] == 200
     assert request("/" + alias)[0] == 302
     receipt = {"user_id": user["id"], "link_id": link["id"], "alias": alias, "destination": link["destination"], "smtp": "Mailpit actual delivery", "checks": ["native Loco health", "admin session", "admin-only account creation", "SMTP magic-link delivery", "HttpOnly redirect cookie", "one-time token", "owned create", "302 repeated query merge", "preview not counted as human", "stats and events", "suspension revocation and generic 404", "reactivation"]}
     pathlib.Path(options.receipt).write_text(json.dumps(receipt, indent=2) + "\n")

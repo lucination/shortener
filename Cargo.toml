@@ -12,7 +12,7 @@ tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ts-rs = { version = "11", features = ["serde-json-impl", "no-serde-warnings"] }
-rusqlite = { version = "0.37", features = ["bundled"] }
+rusqlite = { version = "0.41", features = ["bundled"] }
 chrono = { version = "0.4", features = ["serde"] }
 url = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
@@ -26,6 +26,7 @@ webauthn-rs = { version = "0.5", features = ["danger-allow-state-serialisation",
 tower-http = { version = "0.6", features = ["fs"] }
 tracing = "0.1"
 reqwest = { version = "0.12", default-features = false, features = ["blocking"] }
+maxminddb = "0.27"
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }

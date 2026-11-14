@@ -1,0 +1,13 @@
+.git
+.hermes
+**/node_modules
+**/.svelte-kit
+**/build
+**/storybook-static
+**/test-results
+target
+**/*.sqlite*
+**/*.db*
+**/.env*
+**/*preview*.env
+**/*smoke*.env

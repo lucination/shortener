@@ -8,7 +8,7 @@ export type ApiError =
   | { kind: "contract"; message: string };
 export type Result<T> =
   { kind: "ok"; value: T } | { kind: "failed"; error: ApiError };
-export function createApi(fetcher: typeof fetch) {
+function createRequest(fetcher: typeof fetch) {
   async function request<T>(
     path: string,
     parser: z.ZodType<T>,
@@ -77,6 +77,10 @@ export function createApi(fetcher: typeof fetch) {
           },
         };
   }
+  return request;
+}
+export function createApi(fetcher: typeof fetch) {
+  const request = createRequest(fetcher);
   const dates = (range: DateRange) =>
     new URLSearchParams({ from: range.from, to: range.to }).toString();
   return {
@@ -111,27 +115,6 @@ export function createApi(fetcher: typeof fetch) {
     logout: () => request("/api/auth/logout", schema.messageSchema, "POST", {}),
     magic: (body: DTO.EmailInput) =>
       request("/api/auth/magic-link", schema.messageSchema, "POST", body),
-    adminLogin: (body: DTO.TokenInput) =>
-      request("/api/admin/login", schema.messageSchema, "POST", body),
-    adminLogout: () =>
-      request("/api/admin/logout", schema.messageSchema, "POST", {}),
-    users: () => request("/api/admin/users", schema.userListSchema),
-    createUser: (body: DTO.UserInput) =>
-      request("/api/admin/users", schema.userSchema, "POST", body),
-    patchUser: (id: number, body: DTO.UserPatch) =>
-      request(`/api/admin/users/${id}`, schema.userSchema, "PATCH", body),
-    removeUser: (id: number) =>
-      request(`/api/admin/users/${id}`, schema.messageSchema, "DELETE"),
-    signoutUser: (id: number) =>
-      request(
-        `/api/admin/users/${id}/sign-out-everywhere`,
-        schema.messageSchema,
-        "POST",
-        {},
-      ),
-    adminLinks: () => request("/api/admin/links", schema.linkListSchema),
-    adminEvents: () => request("/api/admin/events", schema.eventListSchema),
-    usage: () => request("/api/admin/usage", schema.usageSchema),
     registrationOptions: () =>
       request(
         "/api/auth/passkeys/register/options",
@@ -163,3 +146,30 @@ export function createApi(fetcher: typeof fetch) {
   };
 }
 export type Api = ReturnType<typeof createApi>;
+
+export function createAdminApi(fetcher: typeof fetch) {
+  const request = createRequest(fetcher);
+  return {
+    adminLogin: (body: DTO.TokenInput) =>
+      request("/_/api/login", schema.messageSchema, "POST", body),
+    adminLogout: () =>
+      request("/_/api/logout", schema.messageSchema, "POST", {}),
+    users: () => request("/_/api/users", schema.userListSchema),
+    createUser: (body: DTO.UserInput) =>
+      request("/_/api/users", schema.userSchema, "POST", body),
+    patchUser: (id: number, body: DTO.UserPatch) =>
+      request(`/_/api/users/${id}`, schema.userSchema, "PATCH", body),
+    removeUser: (id: number) =>
+      request(`/_/api/users/${id}`, schema.messageSchema, "DELETE"),
+    signoutUser: (id: number) =>
+      request(
+        `/_/api/users/${id}/sign-out-everywhere`,
+        schema.messageSchema,
+        "POST",
+        {},
+      ),
+    adminLinks: () => request("/_/api/links", schema.linkListSchema),
+    adminEvents: () => request("/_/api/events", schema.eventListSchema),
+    usage: () => request("/_/api/usage", schema.usageSchema),
+  };
+}

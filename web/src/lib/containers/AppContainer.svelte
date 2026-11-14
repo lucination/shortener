@@ -1,27 +1,20 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import AppShell, { type Section, type Theme } from "../AppShell.svelte";
+  import AppShell, { type Section } from "../AppShell.svelte";
   import Dashboard from "../Dashboard.svelte";
   import LinkEditor from "../LinkEditor.svelte";
   import BulkImport from "../BulkImport.svelte";
   import Analytics from "../Analytics.svelte";
   import AccountPanel from "../AccountPanel.svelte";
   import AuthPanel from "../AuthPanel.svelte";
-  import AdminPanel from "../AdminPanel.svelte";
   import PublicPage from "../PublicPage.svelte";
   import ActionForm, { type ActionFormView } from "../ActionForm.svelte";
   import ResourceStatus from "../ResourceStatus.svelte";
   import { createApi, type Api, type Result } from "../adapters/api";
   import { parseDraft } from "../adapters/draft";
   import { parseBulk } from "../bulk";
-  import {
-    linkRow,
-    linkDraft,
-    statsView,
-    eventRow,
-    userRow,
-  } from "../mappings";
-  import { mapResource, resultResource } from "../resource";
+  import { linkRow, linkDraft, statsView, eventRow } from "../mappings";
+  import { mapResource, resultResource, failureOutcome } from "../resource";
   import {
     filterLinks,
     toggleSelection,
@@ -35,8 +28,6 @@
     type AnalyticsView,
     type DateRange,
     type AuthMode,
-    type AdminView,
-    type UserAction,
   } from "../view-models";
   import type {
     Link,
@@ -62,7 +53,6 @@
         enrollment: import("../view-models").EnrollmentState;
       }
     | { kind: "auth"; mode: AuthMode }
-    | { kind: "admin"; view: AdminView }
     | { kind: "not-found" };
   type Command =
     | { kind: "none" }
@@ -74,8 +64,6 @@
       }
     | { kind: "delete-link"; id: number }
     | { kind: "remove-password"; id: number }
-    | { kind: "user"; id: number; action: UserAction; value: string }
-    | { kind: "create-user"; value: string }
     | { kind: "signout" };
   let { api = createApi(fetch) }: { api?: Api } = $props();
   let page: Page = $state({
@@ -86,22 +74,10 @@
   });
   let outcome: Outcome = $state({ kind: "idle" });
   let command: Command = $state({ kind: "none" });
-  let theme: Theme = $state("system");
+  let authenticated = $state(false);
   let generation = 0;
   const section = (): Section =>
-    page.kind === "account"
-      ? "account"
-      : page.kind === "admin"
-        ? page.view.kind === "users"
-          ? "users"
-          : page.view.kind === "links"
-            ? "admin-links"
-            : page.view.kind === "events"
-              ? "admin-events"
-              : "usage"
-        : page.kind === "auth" && page.mode.kind === "admin"
-          ? "admin-login"
-          : "links";
+    page.kind === "account" ? "account" : "links";
   const initialRange = (): DateRange => {
     const now = new Date();
     const end = now.toISOString().slice(0, 10);
@@ -109,20 +85,11 @@
     start.setUTCDate(start.getUTCDate() - 6);
     return { from: start.toISOString().slice(0, 10), to: end };
   };
-  function changeTheme(value: Theme) {
-    theme = value;
-    document.documentElement.dataset.theme = value;
-    try {
-      localStorage.setItem("shortener-theme", value);
-    } catch {
-      /* Theme remains usable for this session. */
-    }
-  }
   function notify<T>(result: Result<T>, message: string): boolean {
     outcome =
       result.kind === "ok"
         ? { kind: "success", message }
-        : { kind: "error", message: result.error.message };
+        : failureOutcome(result.error);
     return result.kind === "ok";
   }
   function setPage(next: Page) {
@@ -144,8 +111,9 @@
     if (
       result.kind === "failed" &&
       result.error.kind === "http" &&
-      result.error.status === 401
+      [401, 403].includes(result.error.status)
     ) {
+      authenticated = false;
       setPage({ kind: "auth", mode: { kind: "magic", email: "" } });
       return;
     }
@@ -156,60 +124,8 @@
       selected: [],
     };
   }
-  async function loadAdmin(kind: AdminView["kind"]) {
-    setPage({ kind: "admin", view: { kind, state: { kind: "pending" } } });
-    const request = generation;
-    if (kind === "users") {
-      const result = await api.users();
-      if (request === generation)
-        page = {
-          kind: "admin",
-          view: {
-            kind: "users",
-            state: resultResource(result, (value) => value.items.map(userRow)),
-          },
-        };
-    } else if (kind === "links") {
-      const result = await api.adminLinks();
-      if (request === generation)
-        page = {
-          kind: "admin",
-          view: {
-            kind: "links",
-            state: resultResource(result, (value) => value.items.map(linkRow)),
-          },
-        };
-    } else if (kind === "events") {
-      const result = await api.adminEvents();
-      if (request === generation)
-        page = {
-          kind: "admin",
-          view: {
-            kind: "events",
-            state: resultResource(result, (value) => value.items.map(eventRow)),
-          },
-        };
-    } else {
-      const result = await api.usage();
-      if (request === generation)
-        page = {
-          kind: "admin",
-          view: {
-            kind: "usage",
-            state: resultResource(result, (value) => [
-              { label: "Users", count: value.users },
-              { label: "Links", count: value.links },
-              { label: "Redirects", count: value.redirects },
-              { label: "Raw events", count: value.raw_events },
-            ]),
-          },
-        };
-    }
-  }
   async function navigate(target: Section) {
     if (target === "links") await loadLinks();
-    else if (target === "admin-login")
-      setPage({ kind: "auth", mode: { kind: "admin", token: "" } });
     else if (target === "account") {
       const request = ++generation;
       const result = await api.me();
@@ -225,22 +141,9 @@
               : String(result.value.retention_days),
         });
       else notify(result, "");
-    } else
-      await loadAdmin(
-        target === "users"
-          ? "users"
-          : target === "admin-links"
-            ? "links"
-            : target === "usage"
-              ? "usage"
-              : "events",
-      );
+    }
   }
   async function start() {
-    if (location.pathname === "/_/" || location.pathname === "/_") {
-      setPage({ kind: "auth", mode: { kind: "admin", token: "" } });
-      return;
-    }
     if (location.pathname !== "/") {
       setPage({ kind: "not-found" });
       return;
@@ -248,23 +151,23 @@
     const request = ++generation;
     const result = await api.me();
     if (request !== generation) return;
-    if (result.kind === "ok") await loadLinks();
-    else if (result.error.kind === "http" && result.error.status === 401)
+    if (result.kind === "ok") {
+      authenticated = true;
+      await loadLinks();
+    } else if (
+      result.error.kind === "http" &&
+      [401, 403].includes(result.error.status)
+    )
       setPage({ kind: "auth", mode: { kind: "magic", email: "" } });
     else
       page = {
         kind: "links",
-        state: { kind: "error", message: result.error.message },
+        state: failureOutcome(result.error),
         search: "",
         selected: [],
       };
   }
   onMount(() => {
-    try {
-      const stored = localStorage.getItem("shortener-theme");
-      if (stored === "system" || stored === "light" || stored === "dark")
-        changeTheme(stored);
-    } catch {}
     void start();
     return () => {
       generation++;
@@ -279,12 +182,6 @@
       const result = await api.magic({ email: mode.email });
       if (request !== generation) return;
       notify(result, result.kind === "ok" ? result.value.message : "");
-    } else {
-      const result = await api.adminLogin({ token: mode.token });
-      if (request !== generation) return;
-      if (notify(result, "Signed in.")) await loadAdmin("users");
-      else if (page.kind === "auth")
-        page = { kind: "auth", mode: { kind: "admin", token: "" } };
     }
   }
   async function passkeyLogin() {
@@ -299,7 +196,10 @@
     outcome = { kind: "pending" };
     const result = await authenticatePasskey(api, email);
     if (request !== generation) return;
-    if (notify(result, "Signed in.")) await loadLinks();
+    if (notify(result, "Signed in.")) {
+      authenticated = true;
+      await loadLinks();
+    }
   }
   async function enroll() {
     if (page.kind !== "account" || page.enrollment.kind === "enrolling") return;
@@ -319,16 +219,12 @@
     if (outcome.kind === "pending") return;
     const request = generation;
     outcome = { kind: "pending" };
-    const result =
-      section() === "users" ||
-      section() === "admin-links" ||
-      section() === "usage" ||
-      section() === "admin-events"
-        ? await api.adminLogout()
-        : await api.logout();
+    const result = await api.logout();
     if (request !== generation) return;
-    if (notify(result, "Signed out."))
+    if (notify(result, "Signed out.")) {
+      authenticated = false;
       setPage({ kind: "auth", mode: { kind: "magic", email: "" } });
+    }
   }
   async function saveLink() {
     if (page.kind !== "editor" || outcome.kind === "pending") return;
@@ -336,7 +232,11 @@
     const request = generation;
     const parsed = parseDraft(editor.draft);
     if (parsed.kind === "invalid") {
-      outcome = { kind: "error", message: parsed.message };
+      outcome = {
+        kind: "error",
+        reason: "validation",
+        message: parsed.message,
+      };
       return;
     }
     outcome = { kind: "pending" };
@@ -407,6 +307,7 @@
     ) {
       outcome = {
         kind: "error",
+        reason: "validation",
         message: "Choose a valid inclusive date range.",
       };
       return;
@@ -514,6 +415,7 @@
     if (value !== null && (!Number.isSafeInteger(value) || value < 1)) {
       outcome = {
         kind: "error",
+        reason: "validation",
         message: "Retention must be a positive whole number.",
       };
       return;
@@ -535,28 +437,6 @@
   function commandView(
     value: Exclude<Command, { kind: "none" }>,
   ): ActionFormView {
-    if (value.kind === "create-user")
-      return {
-        kind: "value",
-        title: "Add user",
-        description:
-          "Create an account before requesting a magic-link sign in.",
-        label: "Email address",
-        type: "email",
-        value: value.value,
-      };
-    if (
-      value.kind === "user" &&
-      (value.action === "quota" || value.action === "retention")
-    )
-      return {
-        kind: "value",
-        title: `Change user ${value.action}`,
-        description: "Blank restores the server default. Quota may be zero.",
-        label: value.action === "quota" ? "Link quota" : "Retention days",
-        type: "number",
-        value: value.value,
-      };
     if (
       value.kind === "bulk" &&
       (value.action === "expiration" || value.action === "retention")
@@ -581,18 +461,13 @@
               ? "Soft-delete this link?"
               : value.kind === "bulk"
                 ? `${value.action} ${value.ids.length} links?`
-                : `${value.action} user #${value.id}?`,
+                : "Confirm action?",
       description:
         "This action changes the server state only after confirmation. Deleted addresses remain reserved; passkeys are preserved when sessions are revoked.",
     };
   }
   function commandValue(value: string) {
-    if (
-      command.kind === "bulk" ||
-      command.kind === "user" ||
-      command.kind === "create-user"
-    )
-      command = { ...command, value };
+    if (command.kind === "bulk") command = { ...command, value };
   }
   async function confirmCommand() {
     if (command.kind === "none" || outcome.kind === "pending") return;
@@ -610,12 +485,6 @@
       if (target.kind === "delete-link") result = await api.remove(target.id);
       else if (target.kind === "remove-password")
         result = await api.patch(target.id, { password: null });
-      else if (target.kind === "create-user")
-        result = await api.createUser({
-          email: target.value,
-          retention_days: null,
-          link_quota: null,
-        });
       else if (target.kind === "signout")
         result = await api.signoutEverywhere();
       else if (target.kind === "bulk") {
@@ -630,49 +499,48 @@
             : target.action === "retention"
               ? { type: "retention", retention_days: number(target.value) }
               : { type: target.action };
-        result = await api.bulkUpdate({ ids: [...target.ids], action });
-      } else if (target.action === "delete")
-        result = await api.removeUser(target.id);
-      else if (target.action === "signout")
-        result = await api.signoutUser(target.id);
-      else
-        result = await api.patchUser(target.id, {
-          suspended:
-            target.action === "suspend"
-              ? true
-              : target.action === "reactivate"
-                ? false
-                : null,
-          deleted: target.action === "reactivate" ? false : null,
-          ...(target.action === "quota"
-            ? { link_quota: number(target.value, true) }
-            : {}),
-          ...(target.action === "retention"
-            ? { retention_days: number(target.value) }
-            : {}),
+        const bulkResult = await api.bulkUpdate({
+          ids: [...target.ids],
+          action,
         });
+        if (bulkResult.kind === "ok") {
+          const failures = bulkResult.value.items.filter(
+            (item) => item.status === "failed",
+          );
+          if (failures.length) {
+            outcome = {
+              kind: "error",
+              reason: "validation",
+              message: failures
+                .map((item) => `Link #${item.id}: ${item.error.message}`)
+                .join(" · "),
+            };
+            return;
+          }
+        }
+        result = bulkResult;
+      } else return;
     } catch (error) {
       outcome = {
         kind: "error",
+        reason: "validation",
         message: error instanceof Error ? error.message : "Invalid action.",
       };
       return;
     }
     if (!notify(result, "Action completed.")) return;
     command = { kind: "none" };
-    if (target.kind === "signout")
+    if (target.kind === "signout") {
+      authenticated = false;
       setPage({ kind: "auth", mode: { kind: "magic", email: "" } });
-    else if (target.kind === "user" || target.kind === "create-user")
-      await loadAdmin("users");
-    else await loadLinks();
+    } else await loadLinks();
   }
 </script>
 
 <AppShell
   section={section()}
-  {theme}
+  {authenticated}
   onnav={navigate}
-  ontheme={changeTheme}
   onlogout={logout}
 >
   {#if command.kind !== "none"}<ActionForm
@@ -684,7 +552,7 @@
         command = { kind: "none" };
         outcome = { kind: "idle" };
       }}
-    />{:else if page.kind !== "auth" && page.kind !== "editor" && page.kind !== "import" && page.kind !== "account" && page.kind !== "admin"}<ResourceStatus
+    />{:else if page.kind !== "auth" && page.kind !== "editor" && page.kind !== "import" && page.kind !== "account"}<ResourceStatus
       state={outcome}
     />{/if}
   {#if page.kind === "links"}<Dashboard
@@ -782,16 +650,6 @@
       onenroll={enroll}
       onsignout={() => (command = { kind: "signout" })}
       onlogout={logout}
-    />
-  {:else if page.kind === "admin"}<AdminPanel
-      view={page.view}
-      {outcome}
-      oncreate={() => (command = { kind: "create-user", value: "" })}
-      onuser={(action, id) =>
-        (command = { kind: "user", id, action, value: "" })}
-      onretry={() => {
-        if (page.kind === "admin") void loadAdmin(page.view.kind);
-      }}
     />
   {:else}<PublicPage
       page={{ kind: "not-found" }}

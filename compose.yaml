@@ -1,0 +1,22 @@
+services:
+  app:
+    build: .
+    ports: ["127.0.0.1:3000:3000"]
+    environment:
+      APP_ORIGIN: http://localhost:3000
+      SHORT_DOMAIN: localhost
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?Set a random token of at least 32 bytes}
+      ANALYTICS_SECRET: ${ANALYTICS_SECRET:?Set a random secret of at least 32 bytes}
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_FROM: login@shortener.test
+      GLOBAL_RETENTION_DAYS: "90"
+    volumes: ["shortener-data:/app/data"]
+    depends_on: [mailpit]
+  mailpit:
+    image: axllent/mailpit:v1.33.1
+    ports: ["127.0.0.1:8025:8025"]
+    environment:
+      MP_CHECK_VERSION: "false"
+volumes:
+  shortener-data:

@@ -1,5 +1,5 @@
-import type { Resource } from "./view-models";
-import type { Result } from "./adapters/api";
+import type { Resource, Outcome } from "./view-models";
+import type { Result, ApiError } from "./adapters/api";
 export const mapResource = <A, B>(
   state: Resource<A>,
   map: (value: A) => B,
@@ -11,4 +11,19 @@ export const resultResource = <A, B>(
 ): Resource<B> =>
   result.kind === "ok"
     ? { kind: "ready", value: map(result.value) }
-    : { kind: "error", message: result.error.message };
+    : failureOutcome(result.error);
+
+export const failureOutcome = (
+  error: ApiError,
+): Extract<Outcome, { kind: "error" }> => ({
+  kind: "error",
+  message: error.message,
+  reason:
+    error.kind === "network"
+      ? "network"
+      : error.kind === "http" && [401, 403].includes(error.status)
+        ? "authentication"
+        : error.kind === "http" && [400, 409, 422].includes(error.status)
+          ? "validation"
+          : "server",
+});

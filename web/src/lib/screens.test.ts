@@ -5,6 +5,14 @@ import AuthPanel from "./AuthPanel.svelte";
 import AccountPanel from "./AccountPanel.svelte";
 import AdminPanel from "./AdminPanel.svelte";
 import PublicPage from "./PublicPage.svelte";
+it("admin auth variant never renders magic-link explanatory copy", () => {
+  const v = render(AuthPanel, {
+    mode: { kind: "admin", token: "" },
+    outcome: { kind: "idle" },
+  });
+  expect(v.queryByText(/No public signup/)).toBeNull();
+  expect(v.getByText("Administrator token")).toBeTruthy();
+});
 it("analytics emits a bounded date range query", async () => {
   const onrange = vi.fn();
   const v = render(Analytics, {

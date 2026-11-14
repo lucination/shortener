@@ -32,7 +32,11 @@ try {
     page.on("pageerror", (error) => errors.push(error.message));
     await page.route("**/*", (route) => {
       const url = new URL(route.request().url());
-      if (url.origin !== origin || url.pathname.startsWith("/api/")) {
+      if (
+        url.origin !== origin ||
+        url.pathname.startsWith("/api/") ||
+        url.pathname.startsWith("/_/api/")
+      ) {
         requests.push(url.href);
         return route.abort();
       }
@@ -320,14 +324,13 @@ try {
     "Every normal and italic weight loads",
   );
   detail.push({ kind: "font-loads", ...fonts });
-  const theme = await page.evaluate(() => {
-    const result = {};
-    for (const value of ["light", "dark"]) {
-      document.documentElement.dataset.theme = value;
-      result[value] = getComputedStyle(document.body).backgroundColor;
-    }
-    return result;
-  });
+  const theme = {};
+  for (const colorScheme of ["light", "dark"]) {
+    await page.emulateMedia({ colorScheme });
+    theme[colorScheme] = await page.evaluate(
+      () => getComputedStyle(document.body).backgroundColor,
+    );
+  }
   assert.equal(theme.light, "rgb(246, 245, 240)");
   assert.equal(theme.dark, "rgb(28, 30, 34)");
   detail.push({ kind: "themes", ...theme });

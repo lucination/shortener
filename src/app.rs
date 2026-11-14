@@ -73,6 +73,17 @@ impl Hooks for App {
             }
             s.origin = parsed.origin().ascii_serialization();
             s.domain = domain;
+            s.geoip = crate::geoip::GeoIp::open(
+                std::env::var("GEOIP_MMDB")
+                    .ok()
+                    .as_deref()
+                    .map(std::path::Path::new),
+            )
+            .map_err(fail)?;
+            s.global_retention_days = crate::domain::global_retention_days(
+                std::env::var("GLOBAL_RETENTION_DAYS").ok().as_deref(),
+            )
+            .map_err(fail)?;
             s.admin_token = env("ADMIN_TOKEN")?;
             s.analytics_secret = env("ANALYTICS_SECRET")?;
             if s.admin_token.len() < 32 || s.analytics_secret.len() < 32 {
@@ -127,7 +138,7 @@ impl Hooks for App {
             loop {
                 tokio::select! {
                  _=rx.changed()=>break,
-                 _=interval.tick()=>{let db=state.store.clone();let result=tokio::task::spawn_blocking(move||{let now=crate::domain::instant(chrono::Utc::now());db.cleanup(&now,90)}).await;if let Err(e)=result{tracing::error!(error=%e,"cleanup worker failed");}},
+                 _=interval.tick()=>{let db=state.store.clone();let result=tokio::task::spawn_blocking(move||{let now=crate::domain::instant(chrono::Utc::now());db.cleanup(&now,state.global_retention_days)}).await;if let Err(e)=result{tracing::error!(error=%e,"cleanup worker failed");}},
                 }
             }
         });

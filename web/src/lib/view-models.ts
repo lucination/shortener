@@ -1,7 +1,11 @@
 /** Presentation models are not wire DTOs. Backend DTO -> view mappings live in adapters. */
 export type Resource<T> =
   | { kind: "pending" }
-  | { kind: "error"; message: string }
+  | {
+      kind: "error";
+      message: string;
+      reason?: "validation" | "authentication" | "network" | "server";
+    }
   | { kind: "ready"; value: T };
 export type EnrollmentState =
   | { kind: "idle" }
@@ -11,7 +15,11 @@ export type EnrollmentState =
 export type Outcome =
   | { kind: "idle" }
   | { kind: "pending" }
-  | { kind: "error"; message: string }
+  | {
+      kind: "error";
+      message: string;
+      reason?: "validation" | "authentication" | "network" | "server";
+    }
   | { kind: "success"; message: string };
 export type LinkRow = Readonly<{
   id: number;

@@ -21,7 +21,7 @@ async fn api_enforces_auth_and_origin_before_mutation() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/api/admin/login")
+                .uri("/_/api/login")
                 .header("content-type", "application/json")
                 .header("origin", "https://evil.test")
                 .body(Body::from(r#"{"token":"test-admin-token"}"#))
@@ -57,7 +57,7 @@ async fn admin_login_controls_users_without_exposing_token_or_crossing_sessions(
     let bad = json_call(
         app.clone(),
         "POST",
-        "/api/admin/login",
+        "/_/api/login",
         serde_json::json!({"token":"bad"}),
         None,
     )
@@ -66,7 +66,7 @@ async fn admin_login_controls_users_without_exposing_token_or_crossing_sessions(
     let login = json_call(
         app.clone(),
         "POST",
-        "/api/admin/login",
+        "/_/api/login",
         serde_json::json!({"token":"test-admin-token"}),
         None,
     )
@@ -84,7 +84,7 @@ async fn admin_login_controls_users_without_exposing_token_or_crossing_sessions(
     let created = json_call(
         app.clone(),
         "POST",
-        "/api/admin/users",
+        "/_/api/users",
         serde_json::json!({"email":"member@example.test","link_quota":2,"retention_days":7}),
         Some(&cookie),
     )
@@ -108,7 +108,7 @@ async fn admin_login_controls_users_without_exposing_token_or_crossing_sessions(
     let list = json_call(
         app,
         "GET",
-        "/api/admin/users",
+        "/_/api/users",
         serde_json::Value::Null,
         Some(&cookie),
     )
@@ -341,7 +341,7 @@ async fn admin_suspension_and_soft_delete_revoke_sessions_and_hide_redirects_rec
     let r = json_call(
         app.clone(),
         "POST",
-        "/api/admin/login",
+        "/_/api/login",
         serde_json::json!({"token":"test-admin-token"}),
         None,
     )
@@ -356,7 +356,7 @@ async fn admin_suspension_and_soft_delete_revoke_sessions_and_hide_redirects_rec
     let r = json_call(
         app.clone(),
         "GET",
-        "/api/admin/usage",
+        "/_/api/usage",
         serde_json::Value::Null,
         Some(&admin),
     )
@@ -366,7 +366,7 @@ async fn admin_suspension_and_soft_delete_revoke_sessions_and_hide_redirects_rec
     let r = json_call(
         app.clone(),
         "PATCH",
-        "/api/admin/users/1",
+        "/_/api/users/1",
         serde_json::json!({"suspended":true}),
         Some(&admin),
     )
@@ -396,7 +396,7 @@ async fn admin_suspension_and_soft_delete_revoke_sessions_and_hide_redirects_rec
     let r = json_call(
         app.clone(),
         "PATCH",
-        "/api/admin/users/1",
+        "/_/api/users/1",
         serde_json::json!({"suspended":false}),
         Some(&admin),
     )
@@ -405,7 +405,7 @@ async fn admin_suspension_and_soft_delete_revoke_sessions_and_hide_redirects_rec
     let r = json_call(
         app.clone(),
         "DELETE",
-        "/api/admin/users/1",
+        "/_/api/users/1",
         serde_json::Value::Null,
         Some(&admin),
     )
@@ -415,7 +415,7 @@ async fn admin_suspension_and_soft_delete_revoke_sessions_and_hide_redirects_rec
     let r = json_call(
         app,
         "PATCH",
-        "/api/admin/users/1",
+        "/_/api/users/1",
         serde_json::json!({"deleted":false}),
         Some(&admin),
     )
@@ -677,7 +677,7 @@ async fn unknown_hosts_cannot_resolve_domain_aliases_and_malformed_json_is_400()
     let r = json_call(
         app,
         "GET",
-        "/api/admin/users",
+        "/_/api/users",
         serde_json::Value::Null,
         Some(&c),
     )

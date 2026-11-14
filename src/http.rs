@@ -20,6 +20,8 @@ pub struct AppState {
     pub smtp_from: String,
     pub trusted_proxies: Vec<std::net::IpAddr>,
     pub dev_vite_origin: Option<String>,
+    pub global_retention_days: i32,
+    pub geoip: crate::geoip::GeoIp,
 }
 impl AppState {
     pub fn new(store: Store) -> Self {
@@ -35,6 +37,8 @@ impl AppState {
             smtp_from: "login@example.com".into(),
             trusted_proxies: vec![],
             dev_vite_origin: None,
+            global_retention_days: 90,
+            geoip: crate::geoip::GeoIp::default(),
         }
     }
     pub fn configure_dev_proxy(
@@ -110,6 +114,7 @@ pub async fn test_router() -> Router {
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/api/{*path}", any(api))
+        .route("/_/api/{*path}", any(api))
         .fallback(fallback)
         .with_state(state)
 }
@@ -155,7 +160,7 @@ async fn api(State(s): State<AppState>, req: Request) -> Response {
     tokio::task::spawn_blocking(move || {
         let path = parts.uri.path();
         if parts.method == Method::POST
-            && (path == "/api/admin/login" || path.starts_with("/api/auth/"))
+            && (path == "/_/api/login" || path.starts_with("/api/auth/"))
         {
             let key = format!("auth:{}:{}", path, s.client_ip(peer, &parts.headers));
             let now = crate::domain::instant(chrono::Utc::now());
@@ -277,7 +282,7 @@ fn api_result(
     let (path, query) = path.split_once('?').unwrap_or((path, ""));
     let now = crate::domain::instant(chrono::Utc::now());
     let db = &s.store;
-    if path == "/api/admin/login" && *method == Method::POST {
+    if path == "/_/api/login" && *method == Method::POST {
         let input: TokenInput = decode(body)?;
         // HMAC verifier avoids content-dependent comparison of the configured secret.
         use hmac::{Hmac, Mac};
@@ -303,7 +308,7 @@ fn api_result(
             3600,
         ));
     }
-    if path.starts_with("/api/admin/") {
+    if path.starts_with("/_/api/") {
         let token = cookie(h, "short_admin").ok_or_else(|| authority_error(db, h, &now, true))?;
         db.authenticate_admin(&token, &now).map_err(|_| {
             error(
@@ -321,23 +326,23 @@ fn api_result(
         })?;
         let db = &scoped;
         match (method.as_str(), path) {
-            ("POST", "/api/admin/logout") => {
+            ("POST", "/_/api/logout") => {
                 db.logout(&token).map_err(db_error)?;
                 return Ok(set_cookie(message("signed out"), s, "short_admin", "", 0));
             }
-            ("GET", "/api/admin/users") => {
+            ("GET", "/_/api/users") => {
                 return Ok(Json(db.users().map_err(db_error)?).into_response());
             }
-            ("GET", "/api/admin/links") => {
+            ("GET", "/_/api/links") => {
                 return Ok(Json(db.links(None).map_err(db_error)?).into_response());
             }
-            ("GET", "/api/admin/events") => {
-                return Ok(Json(db.events(None).map_err(db_error)?).into_response());
+            ("GET", "/_/api/events") => {
+                return Ok(Json(event_response(db, None, query)?).into_response());
             }
-            ("GET", "/api/admin/usage") => {
+            ("GET", "/_/api/usage") => {
                 return Ok(Json(db.usage().map_err(db_error)?).into_response());
             }
-            ("POST", "/api/admin/users") => {
+            ("POST", "/_/api/users") => {
                 let i: UserInput = decode(body)?;
                 if i.link_quota.is_some_and(|q| q < 0)
                     || i.retention_days
@@ -367,7 +372,7 @@ fn api_result(
             _ => {}
         }
         let seg: Vec<_> = path.trim_matches('/').split('/').collect();
-        if seg.len() >= 4 && seg[..3] == ["api", "admin", "users"] {
+        if seg.len() >= 4 && seg[..3] == ["_", "api", "users"] {
             let id: i32 = seg[3]
                 .parse()
                 .map_err(|_| error(StatusCode::NOT_FOUND, "not_found", "not found"))?;
@@ -604,7 +609,7 @@ fn api_result(
                 return Ok(message("link deleted"));
             }
             ("GET", Some("events")) => {
-                return Ok(Json(db.events(Some(id)).map_err(db_error)?).into_response());
+                return Ok(Json(event_response(db, Some(id), query)?).into_response());
             }
             ("GET", Some("stats")) => {
                 let q: std::collections::HashMap<String, String> =
@@ -787,7 +792,26 @@ fn fallback_sync(
     } else if *method != Method::GET && *method != Method::HEAD {
         return shell(s, StatusCode::NOT_FOUND);
     }
-    if path == "/" || path == "/_" || path.starts_with("/_/") {
+    if path == "/_" {
+        return redirect("/_/");
+    }
+    if let Some(relative) = path.strip_prefix("/_/") {
+        let mut admin = s.clone();
+        admin.static_dir = s.static_dir.join("_");
+        admin.dev_vite_origin = None;
+        if relative.is_empty() {
+            return shell(&admin, StatusCode::OK);
+        }
+        if let Some(response) = static_file(&admin, relative) {
+            return response;
+        }
+        return if relative.contains('.') || relative.starts_with("_app/") {
+            StatusCode::NOT_FOUND.into_response()
+        } else {
+            shell(&admin, StatusCode::NOT_FOUND)
+        };
+    }
+    if path == "/" {
         return shell(s, StatusCode::OK);
     }
     if path.starts_with("/auth/") || path.starts_with("/api/") {
@@ -795,26 +819,8 @@ fn fallback_sync(
     }
     // Canonicalized existing files beat aliases. Missing assets must not receive HTML.
     let relative = path.trim_start_matches('/');
-    if !relative.split('/').any(|p| p == ".." || p == ".") && !relative.contains('%') {
-        let file = s.static_dir.join(relative);
-        if let (Ok(root), Ok(full)) = (s.static_dir.canonicalize(), file.canonicalize()) {
-            if full.starts_with(root) && full.is_file() {
-                if let Ok(bytes) = std::fs::read(&full) {
-                    let mime = match full.extension().and_then(|v| v.to_str()).unwrap_or("") {
-                        "js" => "text/javascript",
-                        "css" => "text/css",
-                        "svg" => "image/svg+xml",
-                        "png" => "image/png",
-                        "ico" => "image/x-icon",
-                        "woff2" => "font/woff2",
-                        "json" => "application/json",
-                        "html" => "text/html; charset=utf-8",
-                        _ => "application/octet-stream",
-                    };
-                    return (StatusCode::OK, [(header::CONTENT_TYPE, mime)], bytes).into_response();
-                }
-            }
-        }
+    if let Some(response) = static_file(s, relative) {
+        return response;
     }
     let parts: Vec<_> = relative.split('/').collect();
     let preview = parts.len() == 2 && parts[0] == "v";
@@ -879,13 +885,14 @@ fn fallback_sync(
     }
     if matches!(decision, VisitDecision::Preview(_)) {
         let o = observation(h, s.client_ip(peer, h));
-        let _ = s.store.record_event(
+        let _ = s.store.record_event_with_location(
             &link,
             link.addresses[0].id,
             EventKind::Preview,
             &o,
             &now,
             &s.analytics_secret,
+            &s.geoip.lookup(&o.ip),
         );
         return html(
             StatusCode::OK,
@@ -907,13 +914,14 @@ fn fallback_sync(
     {
         Ok(link) => {
             let event_now = crate::domain::instant(chrono::Utc::now());
-            let _ = s.store.record_event(
+            let _ = s.store.record_event_with_location(
                 &link,
                 link.addresses[0].id,
                 kind,
                 &o,
                 &event_now,
                 &s.analytics_secret,
+                &s.geoip.lookup(&o.ip),
             );
             match crate::domain::merge_query(
                 &link.destination,
@@ -951,4 +959,44 @@ fn check_static_alias(s: &AppState, i: &LinkInput) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+fn static_file(s: &AppState, relative: &str) -> Option<Response> {
+    if !relative.split('/').any(|p| p == ".." || p == ".") && !relative.contains('%') {
+        let file = s.static_dir.join(relative);
+        if let (Ok(root), Ok(full)) = (s.static_dir.canonicalize(), file.canonicalize()) {
+            if full.starts_with(root) && full.is_file() {
+                if let Ok(bytes) = std::fs::read(&full) {
+                    let mime = match full.extension().and_then(|v| v.to_str()).unwrap_or("") {
+                        "js" => "text/javascript",
+                        "css" => "text/css",
+                        "svg" => "image/svg+xml",
+                        "png" => "image/png",
+                        "ico" => "image/x-icon",
+                        "woff2" => "font/woff2",
+                        "json" => "application/json",
+                        "html" => "text/html; charset=utf-8",
+                        _ => "application/octet-stream",
+                    };
+                    return Some(
+                        (StatusCode::OK, [(header::CONTENT_TYPE, mime)], bytes).into_response(),
+                    );
+                }
+            }
+        }
+    }
+    None
+}
+
+fn event_response(db: &Store, link: Option<i32>, query: &str) -> Result<EventList, Response> {
+    let q: std::collections::HashMap<String, String> =
+        url::form_urlencoded::parse(query.as_bytes())
+            .into_owned()
+            .collect();
+    db.events_between(
+        link,
+        q.get("from").map(String::as_str).unwrap_or("0001-01-01"),
+        q.get("to").map(String::as_str).unwrap_or("9999-12-31"),
+    )
+    .map_err(db_error)
 }

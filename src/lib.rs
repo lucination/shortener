@@ -5,3 +5,5 @@ pub mod dto;
 pub mod http;
 pub mod passkeys;
 pub mod store;
+
+pub mod geoip;

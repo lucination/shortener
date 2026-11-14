@@ -1,13 +1,14 @@
 import { sveltekit } from "@sveltejs/kit/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vitest/config";
+import { fileURLToPath } from "node:url";
 export default defineConfig({
   server: {
     host: "0.0.0.0",
     port: 5173,
     strictPort: true,
     allowedHosts: ["localhost"],
-    fs: { strict: true, allow: ["."] },
+    fs: { strict: true, allow: [fileURLToPath(new URL(".", import.meta.url))] },
     hmr: {
       protocol: "ws",
       host: "localhost",

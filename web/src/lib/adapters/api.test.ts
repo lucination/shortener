@@ -1,5 +1,28 @@
 import { it, expect, vi } from "vitest";
 import { createApi } from "./api";
+it("retains actual per-row bulk update outcomes at the generated DTO boundary", async () => {
+  const body = {
+    updated: [1],
+    items: [
+      { status: "updated", index: 0, id: 1 },
+      {
+        status: "failed",
+        index: 1,
+        id: 2,
+        error: { code: "not_found", message: "Not found" },
+      },
+    ],
+  };
+  const fetcher = vi
+    .fn<typeof fetch>()
+    .mockResolvedValue(new Response(JSON.stringify(body)));
+  expect(
+    await createApi(fetcher).bulkUpdate({
+      ids: [1, 2],
+      action: { type: "disable" },
+    }),
+  ).toEqual({ kind: "ok", value: body });
+});
 it("checks JSON at the real adapter boundary and uses same-origin cookies", async () => {
   const fetcher = vi
     .fn<typeof fetch>()

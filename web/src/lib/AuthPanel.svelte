@@ -73,8 +73,10 @@
         disabled={outcome.kind === "pending"}>Use a passkey</button
       >{/if}
   </form>
-  <p class="muted">
-    No public signup. No passwords to remember. Sign-in links expire and can be
-    used once.
-  </p>
+  {#if mode.kind === "magic"}
+    <p class="muted">
+      No public signup. No passwords to remember. Sign-in links expire and can
+      be used once.
+    </p>
+  {/if}
 </section>

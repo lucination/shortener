@@ -23,48 +23,38 @@ const descriptor = z.object({
     .optional(),
 });
 const creation = z.object({
-  publicKey: z.object({
-    challenge: z.string(),
-    rp: z.object({ id: z.string().optional(), name: z.string() }),
-    user: z.object({
-      id: z.string(),
-      name: z.string(),
-      displayName: z.string(),
-    }),
-    pubKeyCredParams: z.array(
-      z.object({ type: z.literal("public-key"), alg: z.number().int() }),
-    ),
-    timeout: z.number().optional(),
-    excludeCredentials: z.array(descriptor).optional(),
-    attestation: z
-      .enum(["none", "indirect", "direct", "enterprise"])
-      .optional(),
-    authenticatorSelection: z
-      .object({
-        authenticatorAttachment: z
-          .enum(["platform", "cross-platform"])
-          .optional(),
-        residentKey: z
-          .enum(["discouraged", "preferred", "required"])
-          .optional(),
-        requireResidentKey: z.boolean().optional(),
-        userVerification: z
-          .enum(["required", "preferred", "discouraged"])
-          .optional(),
-      })
-      .optional(),
+  challenge: z.string(),
+  rp: z.object({ id: z.string().optional(), name: z.string() }),
+  user: z.object({
+    id: z.string(),
+    name: z.string(),
+    displayName: z.string(),
   }),
+  pubKeyCredParams: z.array(
+    z.object({ type: z.literal("public-key"), alg: z.number().int() }),
+  ),
+  timeout: z.number().optional(),
+  excludeCredentials: z.array(descriptor).optional(),
+  attestation: z.enum(["none", "indirect", "direct", "enterprise"]).optional(),
+  authenticatorSelection: z
+    .object({
+      authenticatorAttachment: z
+        .enum(["platform", "cross-platform"])
+        .optional(),
+      residentKey: z.enum(["discouraged", "preferred", "required"]).optional(),
+      requireResidentKey: z.boolean().optional(),
+      userVerification: z
+        .enum(["required", "preferred", "discouraged"])
+        .optional(),
+    })
+    .optional(),
 });
 const authentication = z.object({
-  publicKey: z.object({
-    challenge: z.string(),
-    rpId: z.string().optional(),
-    timeout: z.number().optional(),
-    allowCredentials: z.array(descriptor).optional(),
-    userVerification: z
-      .enum(["required", "preferred", "discouraged"])
-      .optional(),
-  }),
+  challenge: z.string(),
+  rpId: z.string().optional(),
+  timeout: z.number().optional(),
+  allowCredentials: z.array(descriptor).optional(),
+  userVerification: z.enum(["required", "preferred", "discouraged"]).optional(),
 });
 export async function enrollPasskey(api: Api): Promise<Result<Message>> {
   const result = await api.registrationOptions();
@@ -72,7 +62,7 @@ export async function enrollPasskey(api: Api): Promise<Result<Message>> {
   try {
     const options = creation.parse(result.value.public_key);
     const credential = await startRegistration({
-      optionsJSON: options.publicKey,
+      optionsJSON: options,
     });
     const json: unknown = JSON.parse(JSON.stringify(credential));
     return await api.register({
@@ -99,7 +89,7 @@ export async function authenticatePasskey(
   try {
     const options = authentication.parse(result.value.public_key);
     const credential = await startAuthentication({
-      optionsJSON: options.publicKey,
+      optionsJSON: options,
     });
     const json: unknown = JSON.parse(JSON.stringify(credential));
     return await api.authenticate({

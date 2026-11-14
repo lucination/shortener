@@ -295,3 +295,13 @@ impl LinkPolicy {
         }
     }
 }
+
+pub fn global_retention_days(value: Option<&str>) -> Result<i32, String> {
+    let Some(value) = value else {
+        return Ok(90);
+    };
+    let n: i32 = value
+        .parse()
+        .map_err(|_| "GLOBAL_RETENTION_DAYS must be positive (1..=3650)")?;
+    RetentionDays::parse(n).map(RetentionDays::get)
+}

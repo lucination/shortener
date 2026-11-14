@@ -2,29 +2,18 @@
     admin off
     auto_https off
 }
-
 :3000 {
-    @backend path /api /api/* /auth/* /v/* /_health /_ping /_readiness
+    @backend path /api /api/* /_/api /_/api/* /auth/* /v/* /_health /_ping /_readiness
     handle @backend {
         reverse_proxy 127.0.0.1:3001
     }
-    @hmr header Upgrade websocket
-    handle @hmr {
-        reverse_proxy 127.0.0.1:5173 {
-            header_up Host 127.0.0.1:5173
-        }
+    @admin path /_ /_/*
+    handle @admin {
+        reverse_proxy 127.0.0.1:5174
     }
-    @vite path /@vite/* /@id/* /@fs/* /src/* /node_modules/* /.svelte-kit/* /fonts/* /__vite* /_app/*
+    @vite path /@vite/* /@id/* /@fs/* /src/* /node_modules/* /.svelte-kit/* /fonts/* /__frontend_hmr /_app/*
     handle @vite {
-        reverse_proxy 127.0.0.1:5173 {
-            header_up Host 127.0.0.1:5173
-        }
-    }
-    @asset path_regexp asset \.(js|mjs|css|woff2?|ttf|svg|png|jpg|jpeg|gif|ico|map)$
-    handle @asset {
-        reverse_proxy 127.0.0.1:5173 {
-            header_up Host 127.0.0.1:5173
-        }
+        reverse_proxy 127.0.0.1:5173
     }
     handle {
         reverse_proxy 127.0.0.1:3001

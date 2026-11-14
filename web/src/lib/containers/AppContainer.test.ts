@@ -13,6 +13,40 @@ const user = {
   link_quota: null,
   created_at: "2026-11-14T10:00:00Z",
 };
+it("keeps per-link bulk failures beside the affected confirmation instead of claiming success", async () => {
+  const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+    if (String(input) === "/api/me") return new Response(JSON.stringify(user));
+    if (String(input) === "/api/links/bulk-update")
+      return new Response(
+        JSON.stringify({
+          updated: [],
+          items: [
+            {
+              status: "failed",
+              index: 0,
+              id: simulatedLinks[0].id,
+              error: {
+                code: "not_found",
+                message: "Link is no longer available",
+              },
+            },
+          ],
+        }),
+      );
+    return new Response(
+      JSON.stringify({ items: [simulatedLinks[0]], total: 1 }),
+    );
+  });
+  const v = render(AppContainer, { api: createApi(fetcher) });
+  await waitFor(() => expect(v.getByRole("checkbox")).toBeTruthy());
+  await fireEvent.click(v.getByRole("checkbox"));
+  await fireEvent.click(v.getByRole("button", { name: "disable" }));
+  await fireEvent.click(v.getByRole("button", { name: "Confirm" }));
+  await waitFor(() =>
+    expect(v.getByText(/Link is no longer available/)).toBeTruthy(),
+  );
+  expect(v.getByRole("button", { name: "Confirm" })).toBeTruthy();
+});
 it("runs session -> list -> controlled editor -> actual API adapter save lifecycle", async () => {
   const calls: { path: string; method: string; body: unknown }[] = [];
   const fetcher = vi.fn<typeof fetch>(async (input, init) => {
@@ -61,6 +95,19 @@ it("renders sign-in after unauthorized session without inventing data", async ()
   await waitFor(() => expect(v.getByText("Send sign-in link")).toBeTruthy());
   expect(fetcher).toHaveBeenCalledTimes(1);
 });
+it("an admin-only cookie never replaces user sign-in authority", async () => {
+  const fetcher = vi
+    .fn<typeof fetch>()
+    .mockResolvedValue(
+      new Response(
+        JSON.stringify({ code: "forbidden", message: "User session required" }),
+        { status: 403 },
+      ),
+    );
+  const v = render(AppContainer, { api: createApi(fetcher) });
+  await waitFor(() => expect(v.getByText("Send sign-in link")).toBeTruthy());
+  expect(v.queryByRole("button", { name: /^Account$/ })).toBeNull();
+});
 it("does not let an old completed save replace a newly selected screen", async () => {
   let resolveSave: (response: Response) => void = () => {};
   const held = new Promise<Response>((resolve) => (resolveSave = resolve));
@@ -78,9 +125,9 @@ it("does not let an old completed save replace a newly selected screen", async (
     target: { value: "https://example.org" },
   });
   await fireEvent.submit(v.getByTestId("link-editor"));
-  await fireEvent.click(v.getByRole("button", { name: /^Admin$/ }));
+  await fireEvent.click(v.getByRole("button", { name: /^Account$/ }));
   resolveSave(new Response(JSON.stringify(simulatedLinks[0])));
   await new Promise((resolve) => setTimeout(resolve, 25));
-  expect(v.getByText("Administrator token")).toBeTruthy();
+  await waitFor(() => expect(v.getByText("Raw click data")).toBeTruthy());
   expect(v.queryByText("Your links")).toBeNull();
 });

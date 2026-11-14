@@ -126,6 +126,17 @@ export const bulkSchema = z.object({
 }) satisfies z.ZodType<DTO.BulkResponse>;
 export const bulkUpdateSchema = z.object({
   updated: z.array(id),
+  items: z.array(
+    z.discriminatedUnion("status", [
+      z.object({ status: z.literal("updated"), index: count, id }),
+      z.object({
+        status: z.literal("failed"),
+        index: count,
+        id,
+        error: errorSchema,
+      }),
+    ]),
+  ),
 }) satisfies z.ZodType<DTO.BulkUpdateResponse>;
 export const passkeyOptionsSchema = z.object({
   challenge_id: z.string().min(1),
