@@ -63,6 +63,131 @@ const json = (route, value, status = 200) =>
     body: JSON.stringify(value),
   });
 try {
+  for (const flow of ["admin", "logout", "global"])
+    for (const target of ["same page", "navigation", "replacement"])
+      for (const status of [200, 503])
+        await run(
+          `session ownership ${flow} ${status} -> ${target}`,
+          async (page) => {
+            let release,
+              started = false,
+              calls = 0;
+            const held = new Promise((r) => (release = r));
+            const path =
+              flow === "admin"
+                ? "/_/api/logout"
+                : flow === "logout"
+                  ? "/api/auth/logout"
+                  : "/api/account/sign-out-everywhere";
+            await page.addInitScript(() => {
+              // Only the browser credential boundary is simulated; adapters remain real.
+              Object.defineProperty(navigator.credentials, "get", {
+                value: async () => ({
+                  id: "dGVzdA",
+                  rawId: new Uint8Array([1]).buffer,
+                  type: "public-key",
+                  response: {
+                    clientDataJSON: new ArrayBuffer(1),
+                    authenticatorData: new ArrayBuffer(1),
+                    signature: new ArrayBuffer(1),
+                    userHandle: null,
+                  },
+                  getClientExtensionResults: () => ({}),
+                }),
+              });
+            });
+            await page.route("**/api/**", async (route) => {
+              const url = new URL(route.request().url()).pathname;
+              if (url === path && ++calls === 1) {
+                started = true;
+                await held;
+                return json(
+                  route,
+                  status === 200
+                    ? { message: "done" }
+                    : { code: "server", message: "OLD FAILURE" },
+                  status,
+                );
+              }
+              if (url.endsWith("/logout") || url.endsWith("/login"))
+                return json(route, { message: "done" });
+              if (url === "/api/me" || url.endsWith("/authenticate/verify"))
+                return json(route, user);
+              if (url.endsWith("/authenticate/options"))
+                return json(route, {
+                  challenge_id: "test",
+                  public_key: { challenge: "dGVzdA", allowCredentials: [] },
+                });
+              if (url.endsWith("/usage"))
+                return json(route, {
+                  users: 1,
+                  links: 0,
+                  redirects: 0,
+                  raw_events: 0,
+                });
+              return json(route, { items: [], total: 0 });
+            });
+            const button = (name) =>
+              page.getByRole("button", { name, exact: true });
+            await page.goto(flow === "admin" ? `${base}/_/` : base);
+            await expect(
+              button(flow === "admin" ? "Usage" : "Account"),
+            ).toBeVisible();
+            if (flow === "global") {
+              await button("Account").click();
+              await button("Sign out everywhere").click();
+              await button("Confirm").click();
+            } else await button("Sign out").click();
+            await expect.poll(() => started).toBe(true);
+            if (target !== "same page") {
+              await button(
+                flow === "admin"
+                  ? "Usage"
+                  : flow === "global"
+                    ? "Links"
+                    : "Account",
+              ).click();
+              await expect(
+                page.getByText(
+                  flow === "admin"
+                    ? /Server-observed usage/
+                    : flow === "global"
+                      ? "No matching links"
+                      : "Raw click data",
+                ),
+              ).toBeVisible();
+            }
+            if (target === "replacement") {
+              await button("Sign out").click();
+              if (flow === "admin") {
+                await page.getByLabel("Admin token").fill("test-only");
+                await button("Sign in").click();
+              } else await button("Use a passkey").click();
+              await expect(
+                button(flow === "admin" ? "Usage" : "Account"),
+              ).toBeVisible();
+            }
+            release();
+            await page.waitForTimeout(100);
+            if (status === 200 && target !== "replacement") {
+              await expect(
+                button(flow === "admin" ? "Sign in" : "Send sign-in link"),
+              ).toBeVisible();
+              await expect(button("Sign out")).toHaveCount(0);
+            } else
+              await expect(
+                button(flow === "admin" ? "Usage" : "Account"),
+              ).toBeVisible();
+            if (status === 503 && target === "same page")
+              await expect(
+                page.getByText("OLD FAILURE", { exact: true }).first(),
+              ).toBeVisible();
+            else
+              await expect(
+                page.getByText("OLD FAILURE", { exact: true }),
+              ).toHaveCount(0);
+          },
+        );
   for (const status of [200, 503])
     for (const target of ["Usage", "Sign out", "New session"])
       await run(`admin held create ${status} -> ${target}`, async (page) => {

@@ -10,7 +10,7 @@
   import type { AdminView, Outcome, UserAction } from "$shared/view-models";
   type Session =
     | { kind: "login"; token: string }
-    | { kind: "authenticated"; view: AdminView };
+    | { kind: "authenticated"; epoch: symbol; view: AdminView };
   type Command =
     | { kind: "none" }
     | { kind: "create"; value: string }
@@ -22,9 +22,12 @@
   let generation = 0;
   async function load(kind: AdminView["kind"]) {
     const request = ++generation;
+    const epoch =
+      session.kind === "authenticated" ? session.epoch : Symbol("session");
     command = { kind: "none" };
     session = {
       kind: "authenticated",
+      epoch,
       view: { kind, state: { kind: "pending" } },
     };
     outcome = { kind: "idle" };
@@ -38,7 +41,7 @@
         result.error.kind === "http" &&
         [401, 403].includes(result.error.status)
           ? { kind: "login", token: "" }
-          : { kind: "authenticated", view };
+          : { kind: "authenticated", epoch, view };
     }
     if (kind === "users") {
       const r = await api.users();
@@ -75,6 +78,7 @@
     void load("users");
     return () => {
       generation++;
+      session = { kind: "login", token: "" };
     };
   });
   async function login() {
@@ -87,16 +91,18 @@
     else outcome = failureOutcome(result.error);
   }
   async function logout() {
+    if (session.kind !== "authenticated") return;
+    const owner = session.epoch;
     const request = ++generation;
     outcome = { kind: "pending" };
     const result = await api.adminLogout();
-    if (request !== generation) return;
+    if (session.kind !== "authenticated" || owner !== session.epoch) return;
     if (result.kind === "ok") {
       generation++;
       session = { kind: "login", token: "" };
       command = { kind: "none" };
       outcome = { kind: "idle" };
-    } else outcome = failureOutcome(result.error);
+    } else if (request === generation) outcome = failureOutcome(result.error);
   }
   function commandView(c: Exclude<Command, { kind: "none" }>): ActionFormView {
     if (c.kind === "create")

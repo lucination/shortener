@@ -78,7 +78,7 @@
     | { kind: "discovering" }
     | { kind: "failed"; error: Extract<Outcome, { kind: "error" }> }
     | { kind: "anonymous" }
-    | { kind: "authenticated" };
+    | { kind: "authenticated"; epoch: symbol };
   let session: Session = $state({ kind: "discovering" });
   let generation = 0;
   const section = (): Section =>
@@ -164,7 +164,7 @@
     const result = await api.me();
     if (request !== generation) return;
     if (result.kind === "ok") {
-      session = { kind: "authenticated" };
+      session = { kind: "authenticated", epoch: Symbol("session") };
       await loadLinks();
     } else if (
       result.error.kind === "http" &&
@@ -180,6 +180,7 @@
     void start();
     return () => {
       generation++;
+      session = { kind: "anonymous" };
     };
   });
   async function authenticate() {
@@ -206,7 +207,7 @@
     const result = await authenticatePasskey(api, email);
     if (request !== generation) return;
     if (notify(result, "Signed in.")) {
-      session = { kind: "authenticated" };
+      session = { kind: "authenticated", epoch: Symbol("session") };
       await loadLinks();
     }
   }
@@ -225,15 +226,17 @@
     };
   }
   async function logout() {
-    // Signing out supersedes page-owned work; it does not undo server mutations.
+    if (session.kind !== "authenticated") return;
+    const owner = session.epoch;
+    // Success owns the session; failure feedback still owns the initiating page.
     const request = ++generation;
     outcome = { kind: "pending" };
     const result = await api.logout();
-    if (request !== generation) return;
-    if (notify(result, "Signed out.")) {
+    if (session.kind !== "authenticated" || owner !== session.epoch) return;
+    if (result.kind === "ok") {
       session = { kind: "anonymous" };
       setPage({ kind: "auth", mode: { kind: "magic", email: "" } });
-    }
+    } else if (request === generation) notify(result, "");
   }
   async function saveLink() {
     if (page.kind !== "editor" || outcome.kind === "pending") return;
@@ -494,6 +497,7 @@
   async function confirmCommand() {
     if (command.kind === "none" || outcome.kind === "pending") return;
     const target = command;
+    const owner = session.kind === "authenticated" ? session.epoch : null;
     const request = generation;
     outcome = { kind: "pending" };
     let result: Result<unknown>;
@@ -545,7 +549,12 @@
         result = bulkResult;
       } else return;
     } catch (error) {
-      if (request !== generation) return;
+      if (
+        request !== generation ||
+        session.kind !== "authenticated" ||
+        owner !== session.epoch
+      )
+        return;
       outcome = {
         kind: "error",
         reason: "validation",
@@ -553,13 +562,17 @@
       };
       return;
     }
+    // Revocation is authoritative for the same session even on a different screen.
+    if (session.kind !== "authenticated" || owner !== session.epoch) return;
+    if (target.kind === "signout" && result.kind === "ok") {
+      session = { kind: "anonymous" };
+      setPage({ kind: "auth", mode: { kind: "magic", email: "" } });
+      return;
+    }
     if (request !== generation) return;
     if (!notify(result, "Action completed.")) return;
     command = { kind: "none" };
-    if (target.kind === "signout") {
-      session = { kind: "anonymous" };
-      setPage({ kind: "auth", mode: { kind: "magic", email: "" } });
-    } else await loadLinks();
+    await loadLinks();
   }
 </script>
 

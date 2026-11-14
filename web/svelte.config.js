@@ -1,2 +1,7 @@
 import adapter from "@sveltejs/adapter-static";
-export default { kit: { adapter: adapter({ fallback: "200.html" }) } };
+export default {
+  kit: {
+    adapter: adapter({ fallback: "200.html" }),
+    alias: { $shared: "./src/lib" },
+  },
+};
