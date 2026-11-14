@@ -1,0 +1,14 @@
+logger:
+  enable: true
+  pretty_backtrace: false
+  level: info
+  format: compact
+server:
+  port: 3000
+  binding: 0.0.0.0
+  host: http://localhost:3000
+  middlewares:
+    fallback:
+      enable: false
+workers:
+  mode: ForegroundBlocking
