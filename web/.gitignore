@@ -1,0 +1,9 @@
+node_modules/
+.svelte-kit/
+build/
+storybook-static/
+storybook-next/
+storybook-previous/
+test-results/
+playwright-report/
+.fontcheck/

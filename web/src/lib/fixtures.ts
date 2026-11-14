@@ -1,0 +1,153 @@
+/** Deterministic SIMULATED wire DTOs. Never imported by application containers. */
+import type { Link, User, LinkStats, ClickEvent } from "./generated";
+import { linkRow, userRow, statsView, eventRow } from "./mappings";
+export const simulatedLinks: Link[] = [
+  {
+    id: 1,
+    owner_id: 1,
+    destination: "https://example.org/notes?edition=12",
+    title: "Field notes",
+    description: "Notes from the workshop.",
+    enabled: true,
+    deleted_at: null,
+    expires_at: null,
+    click_limit: 5000,
+    human_clicks: 1284,
+    password_protected: false,
+    interstitial: false,
+    query_mode: "discard",
+    retention_days: null,
+    created_at: "2026-11-01T12:00:00Z",
+    addresses: [
+      { id: 1, domain_id: 1, domain: "example.com", short_code: "notes" },
+    ],
+  },
+  {
+    id: 2,
+    owner_id: 1,
+    destination: "https://example.org/handbook",
+    title: "Release handbook",
+    description: null,
+    enabled: true,
+    deleted_at: null,
+    expires_at: null,
+    click_limit: null,
+    human_clicks: 386,
+    password_protected: true,
+    interstitial: true,
+    query_mode: "preserve",
+    retention_days: 30,
+    created_at: "2026-11-02T12:00:00Z",
+    addresses: [
+      { id: 2, domain_id: 1, domain: "example.com", short_code: "release" },
+    ],
+  },
+  {
+    id: 3,
+    owner_id: 1,
+    destination: "https://example.org/archive",
+    title: "Autumn archive",
+    description: null,
+    enabled: false,
+    deleted_at: null,
+    expires_at: null,
+    click_limit: null,
+    human_clicks: 92,
+    password_protected: false,
+    interstitial: false,
+    query_mode: "discard",
+    retention_days: null,
+    created_at: "2026-10-01T12:00:00Z",
+    addresses: [
+      { id: 3, domain_id: 1, domain: "example.com", short_code: "autumn" },
+    ],
+  },
+];
+export const simulatedUsers: User[] = [
+  {
+    id: 1,
+    email: "editor@example.org",
+    verified_at: "2026-11-01T12:00:00Z",
+    suspended: false,
+    deleted_at: null,
+    retention_days: 90,
+    link_quota: 100,
+    created_at: "2026-11-01T12:00:00Z",
+  },
+  {
+    id: 2,
+    email: "archive@example.org",
+    verified_at: null,
+    suspended: true,
+    deleted_at: null,
+    retention_days: 30,
+    link_quota: 20,
+    created_at: "2026-11-02T12:00:00Z",
+  },
+];
+export const simulatedStats: LinkStats = {
+  link_id: 1,
+  from: "2026-11-08",
+  to: "2026-11-14",
+  redirects: 1366,
+  humans: 1284,
+  bots: 82,
+  previews: 146,
+  daily: [80, 146, 112, 294, 176, 245, 231].map((humans, index) => ({
+    date: `2026-11-${String(8 + index).padStart(2, "0")}`,
+    redirects: humans,
+    humans,
+    bots: 0,
+    previews: 0,
+    daily_unique: Math.floor(humans * 0.8),
+  })),
+  countries: [
+    { label: "United States", count: 720 },
+    { label: "India", count: 286 },
+    { label: "Unknown", count: 278 },
+  ],
+  devices: [
+    { label: "Desktop", count: 920 },
+    { label: "Mobile", count: 364 },
+  ],
+  referrers: [
+    { label: "Direct / unknown", count: 680 },
+    { label: "example.org", count: 604 },
+  ],
+};
+export const simulatedEvents: ClickEvent[] = [
+  {
+    id: 1,
+    link_id: 1,
+    address_id: 1,
+    occurred_at: "2026-11-14T14:02:18Z",
+    kind: "human",
+    ip: "192.0.2.10",
+    user_agent: "Mozilla/5.0 (simulated desktop)",
+    referrer: "https://example.org/journal",
+    country: null,
+    city: null,
+    browser: "Firefox",
+    os: "Linux",
+    device: "Desktop",
+  },
+  {
+    id: 2,
+    link_id: 1,
+    address_id: 1,
+    occurred_at: "2026-11-14T13:58:42Z",
+    kind: "bot",
+    ip: "198.51.100.8",
+    user_agent: "ExampleBot/1.0",
+    referrer: null,
+    country: null,
+    city: null,
+    browser: "Unknown",
+    os: "Unknown",
+    device: "Unknown",
+  },
+];
+export const simulatedLinkRows = simulatedLinks.map(linkRow);
+export const simulatedUserRows = simulatedUsers.map(userRow);
+export const simulatedStatsView = statsView(simulatedStats);
+export const simulatedEventRows = simulatedEvents.map(eventRow);

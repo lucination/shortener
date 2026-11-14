@@ -1,0 +1,34 @@
+# Frontend boundaries
+
+## Functional core
+
+- `view-models.ts`: immutable presentation records; discriminated resource and outcome states. A ready value cannot coexist with loading/error flags. Editor create mode has no ID; edit mode requires its durable ID.
+- `mappings.ts`: generated Rust DTOs → presentation projections. Unknown geography stays unknown. Approximate daily uniques are not combined into a multi-day distinct count.
+- `bulk.ts`, `adapters/draft.ts`: pure CSV and form interpretation. Invalid rows retain row identity; invalid drafts never become requests. PATCH omission is distinct from explicit null, especially unchanged passwords.
+- `transitions.ts`, `resource.ts`: pure exhaustive lifecycle transformations. Reload withdraws stale ready data.
+
+## Presentation: stateless and controlled
+
+All top-level `src/lib/*.svelte` components render typed explicit props and emit callbacks. They do not own `$state`, fetch, sessions, navigation, storage, or application lifecycle. The architecture regression test enforces this boundary. `Dashboard`, `LinkEditor`, `BulkImport`, `Analytics`, `EventTable`, `AccountPanel`, `AuthPanel`, `AdminPanel`, `PublicPage`, `ActionForm`, `AppShell` and `ResourceStatus` are the actual production components used by both the SPA and Storybook.
+
+`Resource<T>` is `pending | error(message) | ready(value)`. `Outcome` is `idle | pending | error(message) | success(message)`. View unions associate each screen with its meaningful required data. Password gates cannot receive a preview destination. Selection and management commands carry durable IDs, not row positions.
+
+## Effect shell
+
+`containers/AppContainer.svelte` owns application state, lifecycle, session discovery, theme storage, clipboard, navigation and action orchestration. `adapters/api.ts` accepts a fetch implementation; every response is JSON `unknown`, checked by executable Zod schemas constrained by actual generated ts-rs DTOs. HTTP, network, and contract failures are distinct. Cookies use same-origin credentials; administrator tokens are not put into URLs or browser storage. Passkey browser effects are isolated in `adapters/passkeys.ts` and use standard WebAuthn serialization through SimpleWebAuthn.
+
+Backend-rendered `/v/{short}` password and preview gates remain server-authoritative. The SPA does not attempt to discover password-protected destinations. `PublicPage` provides controlled design stories for these states; backend HTML gate integration is a separate acceptance boundary.
+
+## Contracts
+
+`src/lib/generated/index.ts` is copied byte-for-byte from the backend's `contracts/bindings/index.ts`. Never edit it. From `web/`, run `npm run sync-contracts` after backend export, then `npm run check-contracts`. During parallel development pass `-- --source=../contracts/bindings/index.ts`. Backend check-only generation is `cargo run --bin export-contracts -- --check`. Schemas deliberately do runtime validation, not generic `as T` assertions.
+
+## Storybook isolation
+
+Static stories render controlled production components with explicit fixture states. They never import the production container or API client. `fixtures.ts` contains deterministic generated-DTO fixtures using documentation-only IP addresses and `example.org` URLs. `story-harness/DashboardHarness.svelte` is the clearly separate optional interactive fixture owner; no fetch mocking or live request adapter exists. Fixture data never enters the application container. Browser verification fences non-local and API requests. Sample-data disclosure belongs in developer documentation/Storybook metadata only; product canvases and sidebar names have no simulation banners or suffixes.
+
+Build static Storybook and serve it via the admitted box supervisor; do not publish the development/HMR/story-writing service. Port 6006 is reserved for the static build. Parent owns visibility and temporary private links.
+
+## Verification
+
+`npm test`, `npm run check`, `npm run build`, `npm run build-storybook`, `node scripts/verify-browser.mjs` and the backend-generated contract drift check cover distinct boundaries. Adapter and container tests inject deterministic HTTP responses, explicitly simulated; they are not proof of live daemon behavior or physical passkey enrollment. Playwright checks every actual story canvas at desktop, mobile and short-height viewports, rejects backend/nonlocal requests, and exercises the interactive fixture harness.
