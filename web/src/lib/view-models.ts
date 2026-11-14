@@ -3,6 +3,11 @@ export type Resource<T> =
   | { kind: "pending" }
   | { kind: "error"; message: string }
   | { kind: "ready"; value: T };
+export type EnrollmentState =
+  | { kind: "idle" }
+  | { kind: "enrolling" }
+  | { kind: "succeeded"; message: string }
+  | { kind: "failed"; message: string };
 export type Outcome =
   | { kind: "idle" }
   | { kind: "pending" }

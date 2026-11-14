@@ -1,10 +1,12 @@
 <script lang="ts">
-  import type { Outcome } from "./view-models";
+  import type { Outcome, EnrollmentState } from "./view-models";
   import ResourceStatus from "./ResourceStatus.svelte";
+  import PasskeySection from "./PasskeySection.svelte";
   let {
     email,
     retention,
     outcome,
+    enrollment = { kind: "idle" },
     onretention = () => {},
     onsave = () => {},
     onenroll = () => {},
@@ -14,6 +16,7 @@
     email: string;
     retention: string;
     outcome: Outcome;
+    enrollment?: EnrollmentState;
     onretention?: (value: string) => void;
     onsave?: () => void;
     onenroll?: () => void;
@@ -28,18 +31,8 @@
   <div class="box-frame stack">
     <h2>{email}</h2>
     <p class="muted">Your email address is managed by your administrator.</p>
-    <hr class="rule" />
-    <h2>Passkeys</h2>
-    <p>
-      Enroll this device or a security key for future sign-ins. Existing
-      passkeys are preserved when you sign out everywhere.
-    </p>
-    <div>
-      <button onclick={onenroll} disabled={outcome.kind === "pending"}
-        >Add passkey</button
-      >
-    </div>
   </div>
+  <PasskeySection state={enrollment} {onenroll} />
   <form
     class="box-frame stack"
     onsubmit={(event) => {

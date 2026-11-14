@@ -11,6 +11,8 @@
 
 All top-level `src/lib/*.svelte` components render typed explicit props and emit callbacks. They do not own `$state`, fetch, sessions, navigation, storage, or application lifecycle. The architecture regression test enforces this boundary. `Dashboard`, `LinkEditor`, `BulkImport`, `Analytics`, `EventTable`, `AccountPanel`, `AuthPanel`, `AdminPanel`, `PublicPage`, `ActionForm`, `AppShell` and `ResourceStatus` are the actual production components used by both the SPA and Storybook.
 
+`PasskeySection` is a separate controlled component with an `idle | enrolling | succeeded(message) | failed(message)` enrollment union. `AccountPanel` composes it; enrollment feedback cannot escape into retention/session feedback. The container owns WebAuthn effects and guards stale completions, while independent account retention saves preserve enrollment state.
+
 `Resource<T>` is `pending | error(message) | ready(value)`. `Outcome` is `idle | pending | error(message) | success(message)`. View unions associate each screen with its meaningful required data. Password gates cannot receive a preview destination. Selection and management commands carry durable IDs, not row positions.
 
 ## Effect shell

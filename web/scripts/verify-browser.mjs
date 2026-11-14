@@ -176,6 +176,49 @@ try {
         );
         detail.push({ kind: "actions", viewport, ...measure });
       }
+      if (
+        [
+          "access-account--passkey-failed",
+          "access-account--passkey-enrolled",
+          "access-account--passkey-pending",
+        ].includes(story.id)
+      ) {
+        const placement = await page.evaluate(() => {
+          const section = document.querySelector(
+            '#storybook-root [data-testid="passkey-section"]',
+          );
+          const feedback = section?.querySelector(
+            '[data-testid="enrollment-feedback"]',
+          );
+          const r = section?.getBoundingClientRect();
+          const f = feedback?.getBoundingClientRect();
+          return {
+            inside: !!feedback,
+            section: r
+              ? { top: r.top, bottom: r.bottom, height: r.height }
+              : null,
+            feedback: f ? { top: f.top, bottom: f.bottom } : null,
+          };
+        });
+        assert(
+          placement.inside &&
+            placement.section &&
+            placement.feedback &&
+            placement.feedback.top >= placement.section.top &&
+            placement.feedback.bottom <= placement.section.bottom,
+          "Passkey feedback stays inside its section",
+        );
+        detail.push({
+          kind: "passkey-placement",
+          viewport,
+          id: story.id,
+          ...placement,
+        });
+        await page.screenshot({
+          path: `test-results/screenshots/${story.id}-${viewport.width}.png`,
+          fullPage: true,
+        });
+      }
       if (story.id === "analytics-stats-and-events--overview") {
         const measure = await page.evaluate(() => {
           const root = document.querySelector("#storybook-root");

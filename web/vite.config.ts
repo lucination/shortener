@@ -2,6 +2,19 @@ import { sveltekit } from "@sveltejs/kit/vite";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vitest/config";
 export default defineConfig({
+  server: {
+    host: "0.0.0.0",
+    port: 5173,
+    strictPort: true,
+    allowedHosts: ["localhost"],
+    fs: { strict: true, allow: ["."] },
+    hmr: {
+      protocol: "ws",
+      host: "localhost",
+      clientPort: 3000,
+      path: "/__frontend_hmr",
+    },
+  },
   plugins: [tailwindcss(), sveltekit()],
   test: {
     environment: "jsdom",

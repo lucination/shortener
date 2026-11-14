@@ -12,16 +12,21 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 export const Account: Story = {};
-export const PasskeyPending: Story = { args: { outcome: { kind: "pending" } } };
+export const PasskeyPending: Story = {
+  args: { enrollment: { kind: "enrolling" } },
+};
 export const PasskeyEnrolled: Story = {
   args: {
-    outcome: { kind: "success", message: "Passkey added to your account." },
+    enrollment: {
+      kind: "succeeded",
+      message: "Passkey added to your account.",
+    },
   },
 };
 export const PasskeyFailed: Story = {
   args: {
-    outcome: {
-      kind: "error",
+    enrollment: {
+      kind: "failed",
       message: "Passkey enrollment was cancelled. Your account is unchanged.",
     },
   },

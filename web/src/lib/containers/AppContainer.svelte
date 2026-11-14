@@ -55,7 +55,12 @@
     | { kind: "editor"; mode: EditorMode; draft: LinkDraft }
     | { kind: "import"; text: string }
     | { kind: "analytics"; id: number; view: AnalyticsView; range: DateRange }
-    | { kind: "account"; user: User; retention: string }
+    | {
+        kind: "account";
+        user: User;
+        retention: string;
+        enrollment: import("../view-models").EnrollmentState;
+      }
     | { kind: "auth"; mode: AuthMode }
     | { kind: "admin"; view: AdminView }
     | { kind: "not-found" };
@@ -213,6 +218,7 @@
         setPage({
           kind: "account",
           user: result.value,
+          enrollment: { kind: "idle" },
           retention:
             result.value.retention_days === null
               ? ""
@@ -296,12 +302,18 @@
     if (notify(result, "Signed in.")) await loadLinks();
   }
   async function enroll() {
-    if (outcome.kind === "pending") return;
+    if (page.kind !== "account" || page.enrollment.kind === "enrolling") return;
     const request = generation;
-    outcome = { kind: "pending" };
+    page = { ...page, enrollment: { kind: "enrolling" } };
     const result = await enrollPasskey(api);
-    if (request !== generation) return;
-    notify(result, "Passkey added to your account.");
+    if (request !== generation || page.kind !== "account") return;
+    page = {
+      ...page,
+      enrollment:
+        result.kind === "ok"
+          ? { kind: "succeeded", message: "Passkey added to your account." }
+          : { kind: "failed", message: result.error.message },
+    };
   }
   async function logout() {
     if (outcome.kind === "pending") return;
@@ -497,6 +509,7 @@
   }
   async function saveAccount() {
     if (page.kind !== "account" || outcome.kind === "pending") return;
+    const request = generation;
     const value = page.retention.trim() ? Number(page.retention) : null;
     if (value !== null && (!Number.isSafeInteger(value) || value < 1)) {
       outcome = {
@@ -507,10 +520,12 @@
     }
     outcome = { kind: "pending" };
     const result = await api.account({ retention_days: value });
+    if (request !== generation || page.kind !== "account") return;
     if (notify(result, "Retention saved.") && result.kind === "ok")
       page = {
         kind: "account",
         user: result.value,
+        enrollment: page.enrollment,
         retention:
           result.value.retention_days === null
             ? ""
@@ -758,6 +773,7 @@
   {:else if page.kind === "account"}<AccountPanel
       email={page.user.email}
       retention={page.retention}
+      enrollment={page.enrollment}
       {outcome}
       onretention={(retention) => {
         if (page.kind === "account") page = { ...page, retention };
