@@ -36,10 +36,13 @@ jobs:
           cargo +1.100.0 fmt --all -- --check
           cargo +1.100.0 test --locked --all-targets
           cargo +1.100.0 run --locked --bin export-contracts -- --check
+      - name: Install SPA dependencies
+        run: |
+          npm ci --prefix web --no-audit --no-fund
+          npm ci --prefix admin --no-audit --no-fund
       - name: User SPA
         working-directory: web
         run: |
-          npm ci --no-audit --no-fund
           npm run check-contracts
           npm run check
           npm test
@@ -47,7 +50,6 @@ jobs:
       - name: Admin SPA
         working-directory: admin
         run: |
-          npm ci --no-audit --no-fund
           npm run check
           npm run build
 

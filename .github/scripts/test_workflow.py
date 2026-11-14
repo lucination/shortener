@@ -11,6 +11,15 @@ class WorkflowTests(unittest.TestCase):
     def setUp(self):
         self.source = WORKFLOW.read_text()
 
+    def test_both_spa_dependencies_are_installed_before_cross_app_checks(self):
+        # Web stories import AdminContainer; its config resolves admin-local packages.
+        installs = self.source.split('      - name: Install SPA dependencies\n', 1)
+        self.assertEqual(len(installs), 2, 'Install both SPAs before checking cross-app stories')
+        setup, checks = installs[1].split('      - name: User SPA\n', 1)
+        self.assertIn('npm ci --prefix web --no-audit --no-fund', setup)
+        self.assertIn('npm ci --prefix admin --no-audit --no-fund', setup)
+        self.assertIn('npm run check', checks)
+
     def test_every_action_is_pinned_to_a_full_commit(self):
         actions = re.findall(r'uses: ([^\s]+)', self.source)
         self.assertTrue(actions)
