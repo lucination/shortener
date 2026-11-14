@@ -94,11 +94,21 @@ impl Hooks for App {
             s.static_dir = std::env::var("STATIC_DIR")
                 .unwrap_or_else(|_| "web/build".into())
                 .into();
-            s.smtp_host = std::env::var("SMTP_HOST").unwrap_or_else(|_| "127.0.0.1".into());
-            s.smtp_port = std::env::var("SMTP_PORT")
-                .unwrap_or_else(|_| "1025".into())
-                .parse()
-                .map_err(fail)?;
+            let smtp_env = |key: &str| -> Result<Option<String>> {
+                match std::env::var(key) {
+                    Ok(value) => Ok(Some(value)),
+                    Err(std::env::VarError::NotPresent) => Ok(None),
+                    Err(_) => Err(fail(format!("{key} must contain valid Unicode"))),
+                }
+            };
+            s.smtp = crate::smtp::SmtpConfig::parse(
+                smtp_env("SMTP_HOST")?.as_deref().unwrap_or("127.0.0.1"),
+                smtp_env("SMTP_PORT")?.as_deref().unwrap_or("1025"),
+                smtp_env("SMTP_SECURITY")?.as_deref(),
+                smtp_env("SMTP_USERNAME")?.as_deref(),
+                smtp_env("SMTP_PASSWORD")?.as_deref(),
+            )
+            .map_err(fail)?;
             s.smtp_from =
                 std::env::var("SMTP_FROM").unwrap_or_else(|_| format!("login@{}", s.domain));
             s.trusted_proxies = std::env::var("TRUSTED_PROXIES")

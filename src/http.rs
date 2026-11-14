@@ -15,8 +15,7 @@ pub struct AppState {
     pub admin_token: String,
     pub analytics_secret: String,
     pub static_dir: std::path::PathBuf,
-    pub smtp_host: String,
-    pub smtp_port: u16,
+    pub smtp: crate::smtp::SmtpConfig,
     pub smtp_from: String,
     pub trusted_proxies: Vec<std::net::IpAddr>,
     pub dev_vite_origin: Option<String>,
@@ -32,8 +31,8 @@ impl AppState {
             admin_token: "test-admin-token".into(),
             analytics_secret: "test-analytics-secret".into(),
             static_dir: "web/build".into(),
-            smtp_host: "127.0.0.1".into(),
-            smtp_port: 1025,
+            smtp: crate::smtp::SmtpConfig::parse("127.0.0.1", "1025", None, None, None)
+                .expect("local SMTP defaults"),
             smtp_from: "login@example.com".into(),
             trusted_proxies: vec![],
             dev_vite_origin: None,
@@ -433,12 +432,16 @@ fn api_result(
         if let Some(token) = db.issue_magic(&i.email, &now).map_err(db_error)? {
             use lettre::Transport;
             let mail=lettre::Message::builder().from(s.smtp_from.parse().map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"smtp","mail unavailable"))?).to(i.email.parse().map_err(|_|error(StatusCode::UNPROCESSABLE_ENTITY,"validation","invalid email"))?).subject("Your sign-in link").body(format!("Sign in: {}/auth/verify?token={}\nExpires in 15 minutes. This link works once.",s.origin,token)).map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"smtp","mail unavailable"))?;
-            let transport = lettre::SmtpTransport::builder_dangerous(&s.smtp_host)
-                .port(s.smtp_port)
-                .timeout(Some(std::time::Duration::from_secs(5)))
-                .build();
-            if let Err(e) = transport.send(&mail) {
-                tracing::warn!(error=%e,"SMTP delivery failed");
+            let transport = s.smtp.transport().map_err(|_| {
+                error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "smtp",
+                    "mail unavailable",
+                )
+            })?;
+            if transport.send(&mail).is_err() {
+                // Relay responses can echo credentials; do not log provider error text.
+                tracing::warn!("SMTP delivery failed");
             }
         }
         return Ok(message(

@@ -23,8 +23,8 @@ The runtime image contains the native application and both static builds, **not 
 SQLite data is in the `shortener-data` volume. Do not discard it to reset an account.
 
 The Compose file is local-only POC configuration, not a production deployment recipe.
-Use the intended HTTPS `APP_ORIGIN` for non-local hosting and WebAuthn. SMTP currently targets an
-unauthenticated trusted relay; external relay deployment and credentials are deliberately out of scope.
+Use the intended HTTPS `APP_ORIGIN` for non-local hosting and WebAuthn. Authenticated SMTP relay
+configuration is supported; relay deployment and credential acquisition are separate operator steps.
 
 ## Native build and checks
 
@@ -60,6 +60,8 @@ Tokens/secrets must contain at least32 bytes. Optional settings:
 | `SHORT_DOMAIN`                        | `example.com`; configured hostname, not arbitrary forwarded hosts                         |
 | `STATIC_DIR`                          | `web/build`; admin build must be at its `_` subdirectory                                 |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM` | local relay,1025, `login@SHORT_DOMAIN`                                                   |
+| `SMTP_SECURITY` | `plain` only by default for loopback; otherwise explicitly `starttls`, `tls`, or `plain` for a trusted internal relay |
+| `SMTP_USERNAME`, `SMTP_PASSWORD` | both absent (Mailpit) or both nonempty; partial/empty credentials reject startup |
 | `TRUSTED_PROXIES`                     | empty; comma-separated exact peer IPs allowed to supply forwarding headers               |
 | `GLOBAL_RETENTION_DAYS`               | 90; whole number1..3650; link overrides account overrides global                         |
 | `GEOIP_MMDB`                          | absent: honest null country/city; optional local MaxMind City MMDB, no runtime downloads |
@@ -80,3 +82,69 @@ after raw-event pruning. Daily unique counts are not multi-day distinct people.
 Use loopback services with separate test data and environment-backed secrets.
 The optional Caddy configuration keeps API and short-route authority in Rust while proxying Vite.
 
+
+## Production SMTP
+
+For an authenticated SMTP relay, set both `SMTP_USERNAME` and
+`SMTP_PASSWORD` to the relay's configured AUTH credentials. They are not a SimpleLogin mailbox
+login and must not be committed or supplied as build arguments. Keep the runtime environment file
+operator-owned and mode `0600`. Set `SMTP_HOST`, `SMTP_PORT`, and an authorized `SMTP_FROM`.
+
+Use `SMTP_SECURITY=starttls` for mandatory STARTTLS, or `tls` for implicit TLS. Both validate the
+certificate chain and hostname using the built-in public roots; there is no insecure-certificate
+switch or opportunistic plaintext fallback. A remote host with no explicit security mode rejects
+startup. `plain` is an explicit trust declaration **only for a local/private protected relay hop**;
+it sends the AUTH credentials unencrypted and must never be used across an untrusted network.
+For example, an isolated internal relay without TLS needs `SMTP_SECURITY=plain` explicitly.
+The local Mailpit defaults remain `127.0.0.1:1025`, plaintext, and no credentials.
+
+SMTP socket operations have a five-second timeout. Delivery failure keeps the existing generic
+magic-link response (no account enumeration) and emits a credential-free warning; a successful
+HTTP response does not prove email delivery. Tests use an isolated loopback AUTH relay; actual
+production delivery remains a deployment acceptance step after credentials are provided.
+
+## Multiarchitecture container builds
+
+`Dockerfile` supports `linux/amd64` and `linux/arm64`. Node and Rust always execute on
+`BUILDPLATFORM`; Rust cross-links with the target GNU compiler, libc headers and OpenSSL. The
+target Debian runtime has **no RUN instructions**, so no binfmt/QEMU is required. It contains the
+binary, public CA roots, OpenSSL runtime libraries, both SPAs and a writable data directory owned
+by numeric UID/GID `10001:10001`, not Node or build tools. Bind mounts must preserve that ownership.
+Base multiarch index digests, npm locks and Cargo.lock pin the language inputs; Debian apt packages
+come from the Bookworm repositories (not a time-frozen snapshot, so this is not byte-reproducible).
+
+Fast prerequisites-only probes (do not build the application or release image):
+
+```sh
+docker buildx build --network=host --platform linux/arm64 --target cross-probe .
+docker buildx build --network=host --platform linux/amd64 --target cross-probe .
+```
+
+They compile C and Rust probes against target OpenSSL and inspect ELF architecture/dependencies.
+They do not execute the foreign binary or establish full application/production acceptance.
+The ui target independently builds and combines both SPAs using native Node:
+`docker buildx build --network=host --platform linux/arm64 --target ui .`.
+
+For an authorized release, use clean reviewed `main` matching `origin/main`, then supply the exact
+revision label. Example single-architecture local archive:
+
+```sh
+docker buildx build --network=host --platform linux/arm64 \
+  --build-arg VCS_REF="$(git rev-parse HEAD)" --load -t shortener:REVIEWED_REVISION .
+```
+
+Build/publish an index with `--platform linux/amd64,linux/arm64 --push` using a task-owned
+docker-container builder; Docker's default classic store cannot load a multiarch index. In a task
+box where only host-network DNS works, create the builder without changing the shared daemon:
+
+```sh
+docker buildx create --name shortener-task-builder --driver docker-container \
+  --driver-opt network=host --buildkitd-flags '--oci-worker-net host' --bootstrap
+docker buildx build --builder shortener-task-builder --network=host \
+  --allow network.host --platform linux/amd64,linux/arm64 \
+  --build-arg VCS_REF="$(git rev-parse HEAD)" --push -t REGISTRY/shortener:REVIEWED_REVISION .
+```
+
+No credentials belong in the image. Inspect each published platform's architecture, revision,
+dynamic-library closure, static assets and nonroot data writes; run the actual ARM64 application
+on the destination (or an explicitly admitted emulator) before switching production.
