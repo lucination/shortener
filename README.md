@@ -63,9 +63,24 @@ Tokens/secrets must contain at least32 bytes. Optional settings:
 | `SMTP_SECURITY` | `plain` only by default for loopback; otherwise explicitly `starttls`, `tls`, or `plain` for a trusted internal relay |
 | `SMTP_USERNAME`, `SMTP_PASSWORD` | both absent (Mailpit) or both nonempty; partial/empty credentials reject startup |
 | `TRUSTED_PROXIES`                     | empty; comma-separated exact peer IPs allowed to supply forwarding headers               |
+| `CLIENT_IP_HEADER`                    | `x-forwarded-for`; alternatively `cf-connecting-ip`; any other value rejects startup      |
 | `GLOBAL_RETENTION_DAYS`               | 90; whole number1..3650; link overrides account overrides global                         |
 | `GEOIP_MMDB`                          | absent: honest null country/city; optional local MaxMind City MMDB, no runtime downloads |
 | `DEV_VITE_ORIGIN`                     | absent; loopback HTTP only, rejected outside development                                 |
+
+Client-IP headers are ignored unless the immediate socket peer is in `TRUSTED_PROXIES`.
+The default policy preserves the first `X-Forwarded-For` address and is safe only when
+the admitted proxy sanitizes that chain. For Cloudflare Tunnel, explicitly select
+`CLIENT_IP_HEADER=cf-connecting-ip`: only a single valid `CF-Connecting-IP` is used
+for analytics and rate limits; missing, malformed or repeated values fall back to
+the socket peer, never to `X-Forwarded-For`. The edge must overwrite this header
+with the actual visitor address (not preserve an attacker-supplied value). Disable
+any edge rewriting that substitutes a pseudo visitor IP if real IPs are required.
+Bind the application to loopback and admit only the exact measured immediate proxy
+peer in `TRUSTED_PROXIES` (which can differ from loopback with container networking).
+Never trust all peers or expose a bypass to the admitted proxy path. Anyone able to
+connect through that trusted peer can otherwise forge visitor identity. This policy
+does not change the existing trusted `X-Forwarded-Host` behavior.
 
 Start with environment already loaded:
 

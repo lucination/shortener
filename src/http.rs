@@ -7,6 +7,22 @@ use axum::{
     response::{IntoResponse, Response},
     routing::any,
 };
+/// Which client-IP assertion an explicitly admitted immediate proxy may supply.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ClientIpHeader {
+    #[default]
+    XForwardedFor,
+    CfConnectingIp,
+}
+impl ClientIpHeader {
+    pub fn parse(value: Option<&str>) -> Result<Self, String> {
+        match value {
+            None | Some("x-forwarded-for") => Ok(Self::XForwardedFor),
+            Some("cf-connecting-ip") => Ok(Self::CfConnectingIp),
+            Some(_) => Err("CLIENT_IP_HEADER must be x-forwarded-for or cf-connecting-ip".into()),
+        }
+    }
+}
 #[derive(Clone)]
 pub struct AppState {
     pub store: Store,
@@ -18,6 +34,7 @@ pub struct AppState {
     pub smtp: crate::smtp::SmtpConfig,
     pub smtp_from: String,
     pub trusted_proxies: Vec<std::net::IpAddr>,
+    pub client_ip_header: ClientIpHeader,
     pub dev_vite_origin: Option<String>,
     pub global_retention_days: i32,
     pub geoip: crate::geoip::GeoIp,
@@ -35,6 +52,7 @@ impl AppState {
                 .expect("local SMTP defaults"),
             smtp_from: "login@example.com".into(),
             trusted_proxies: vec![],
+            client_ip_header: ClientIpHeader::default(),
             dev_vite_origin: None,
             global_retention_days: 90,
             geoip: crate::geoip::GeoIp::default(),
@@ -65,12 +83,25 @@ impl AppState {
     }
     pub fn client_ip(&self, peer: Option<std::net::IpAddr>, h: &HeaderMap) -> String {
         if peer.is_some_and(|p| self.trusted_proxies.contains(&p)) {
-            if let Some(ip) = h
-                .get("x-forwarded-for")
-                .and_then(|v| v.to_str().ok())
-                .and_then(|s| s.split(',').next())
-                .and_then(|s| s.trim().parse::<std::net::IpAddr>().ok())
-            {
+            let ip = match self.client_ip_header {
+                ClientIpHeader::XForwardedFor => h
+                    .get("x-forwarded-for")
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|s| s.split(',').next())
+                    .and_then(|s| s.trim().parse::<std::net::IpAddr>().ok()),
+                ClientIpHeader::CfConnectingIp => {
+                    let mut values = h.get_all("cf-connecting-ip").iter();
+                    let first = values.next();
+                    if values.next().is_some() {
+                        None
+                    } else {
+                        first
+                            .and_then(|v| v.to_str().ok())
+                            .and_then(|s| s.trim().parse::<std::net::IpAddr>().ok())
+                    }
+                }
+            };
+            if let Some(ip) = ip {
                 return ip.to_string();
             }
         }

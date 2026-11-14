@@ -118,6 +118,13 @@ impl Hooks for App {
                 .map(|v| v.trim().parse())
                 .collect::<std::result::Result<Vec<_>, _>>()
                 .map_err(fail)?;
+            let client_ip_header = match std::env::var("CLIENT_IP_HEADER") {
+                Ok(value) => Some(value),
+                Err(std::env::VarError::NotPresent) => None,
+                Err(_) => return Err(fail("CLIENT_IP_HEADER must contain valid Unicode")),
+            };
+            s.client_ip_header =
+                crate::http::ClientIpHeader::parse(client_ip_header.as_deref()).map_err(fail)?;
             if let Ok(origin) = std::env::var("DEV_VITE_ORIGIN") {
                 s.configure_dev_proxy(&origin, &ctx.environment)
                     .map_err(fail)?;
