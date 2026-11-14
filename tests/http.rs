@@ -134,17 +134,28 @@ async fn value(r: axum::response::Response) -> serde_json::Value {
 #[tokio::test]
 async fn user_creates_redirects_and_reads_stats_with_ownership_isolation() {
     let (app, db, c) = member_app().await;
-    let created=json_call(app.clone(),"POST","/api/links",serde_json::json!({"destination":"https://example.test/path?fixed=1","alias":"hello","query_mode":"preserve"}),Some(&c)).await;
+    let created=json_call(app.clone(),"POST","/api/links",serde_json::json!({"destination":"https://example.test/path?fixed=1","query_mode":"preserve"}),Some(&c)).await;
     assert_eq!(created.status(), StatusCode::CREATED);
     let l = value(created).await;
     let id = l["id"].as_i64().unwrap();
-    assert_eq!(l["addresses"][0]["short_code"], "hello");
+    let code = l["addresses"][0]["short_code"].as_str().unwrap();
+    assert_eq!(code.len(), 5);
+    assert!(code.bytes().all(|b| b.is_ascii_alphanumeric()));
+    let conflict = json_call(
+        app.clone(),
+        "POST",
+        "/api/links",
+        serde_json::json!({"destination":"https://example.com/conflict", "alias":code}),
+        Some(&c),
+    )
+    .await;
+    assert_eq!(conflict.status(), StatusCode::CONFLICT);
     assert!(l.get("password_hash").is_none());
     let out = app
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/hello?fixed=9&x=2&x=3")
+                .uri(format!("/{code}?fixed=9&x=2&x=3"))
                 .header("user-agent", "Mozilla/5.0 Firefox/120.0 Linux")
                 .body(Body::empty())
                 .unwrap(),
@@ -298,12 +309,42 @@ async fn password_preview_gate_and_explicit_continuation_do_not_loop_or_leak() {
 #[tokio::test]
 async fn bulk_create_reports_each_row_and_bulk_update_has_atomic_ownership() {
     let (app, _db, c) = member_app().await;
-    let r=json_call(app.clone(),"POST","/api/links/bulk",serde_json::json!({"items":[{"destination":"https://a.test","alias":"bulk-a"},{"destination":"javascript:bad","alias":"bulk-b"},{"destination":"https://c.test","alias":"bulk-c"}]}),Some(&c)).await;
+    let r=json_call(app.clone(),"POST","/api/links/bulk",serde_json::json!({"items":[{"destination":"https://a.test","alias":"bulk-a"},{"destination":"javascript:bad","alias":"bulk-b"},{"destination":"https://c.test","alias":"bulk-c"},{"destination":"https://example.com/generated"},{"destination":"https://example.com/duplicate","alias":"bulk-a"}]}),Some(&c)).await;
     assert_eq!(r.status(), StatusCode::OK);
     let b = value(r).await;
     assert_eq!(b["items"][0]["status"], "created");
     assert_eq!(b["items"][1]["status"], "failed");
     assert_eq!(b["items"][2]["status"], "created");
+    assert_eq!(
+        b["items"][0]["link"]["addresses"][0]["short_code"],
+        "bulk-a"
+    );
+    assert_eq!(
+        b["items"][2]["link"]["addresses"][0]["short_code"],
+        "bulk-c"
+    );
+    assert_eq!(b["items"][3]["status"], "created");
+    assert_eq!(b["items"][4]["status"], "failed");
+    let code = b["items"][3]["link"]["addresses"][0]["short_code"]
+        .as_str()
+        .unwrap();
+    assert_eq!(code.len(), 5);
+    assert!(code.bytes().all(|b| b.is_ascii_alphanumeric()));
+    let generated = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/{code}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(generated.status(), StatusCode::FOUND);
+    assert_eq!(
+        generated.headers()["location"],
+        "https://example.com/generated"
+    );
     let ids = serde_json::json!([b["items"][0]["link"]["id"], b["items"][2]["link"]["id"]]);
     let r = json_call(
         app.clone(),

@@ -2,6 +2,7 @@
 use crate::{domain::*, dto::*};
 use rusqlite::{Connection, OptionalExtension, params};
 use std::sync::{Arc, Mutex};
+mod short_code;
 #[derive(Clone)]
 enum Authority {
     Internal,
@@ -534,6 +535,15 @@ impl Store {
         })
     }
     pub fn create_link(&self, owner: i32, input: LinkInput, now: &str) -> DbResult<Link> {
+        self.create_link_with_candidates(owner, input, now, short_code::generate)
+    }
+    fn create_link_with_candidates(
+        &self,
+        owner: i32,
+        input: LinkInput,
+        now: &str,
+        mut candidate: impl FnMut() -> String,
+    ) -> DbResult<Link> {
         let v = NewLink::try_from(input)?;
         let hash = v.password.as_deref().map(hash_password).transpose()?;
         self.with(|db|{
@@ -543,12 +553,37 @@ impl Store {
    if !eligible{return Err("owner unavailable or link quota exceeded".into());}
    tx.execute("INSERT INTO links(owner_id,destination,title,description,expires_at,click_limit,password_hash,interstitial,query_mode,retention_days,created_at)VALUES(?,?,?,?,?,?,?,?,?,?,?)",params![owner,v.destination.as_str(),v.title,v.description,v.expires_at.map(instant),v.click_limit.map(ClickLimit::get),hash,v.interstitial,serde_json::to_value(v.query_mode).unwrap().as_str().unwrap(),v.retention.map(RetentionDays::get),now]).map_err(sql)?;
    let id=tx.last_insert_rowid() as i32;
-   let alias=v.alias.map(|a|a.as_str().to_owned()).unwrap_or_else(||uuid::Uuid::new_v4().simple().to_string()[..10].into());
-   tx.execute("INSERT INTO addresses(link_id,domain_id,short_code) VALUES(?,1,?)",params![id,alias]).map_err(sql)?;
+   if let Some(alias) = v.alias {
+       tx.execute("INSERT INTO addresses(link_id,domain_id,short_code) VALUES(?,1,?)",params![id,alias.as_str()]).map_err(sql)?;
+   } else {
+       let mut inserted = false;
+       for _ in 0..32 {
+           let Ok(alias) = Alias::parse(&candidate()) else { continue };
+           if insert_address(&tx, id, &alias)? {
+               inserted = true;
+               break;
+           }
+       }
+       if !inserted {
+           return Err("unable to allocate a short code after 32 attempts".into());
+       }
+   }
    let link=get_link(&tx,id)?;tx.commit().map_err(sql)?;Ok(link)
   })
     }
 }
+// Only the permanent domain/code UNIQUE constraint is eligible for retry.
+// Foreign key, CHECK, trigger, disk, and other SQL failures remain errors.
+fn insert_address(db: &Connection, link: i32, alias: &Alias) -> DbResult<bool> {
+    db.execute(
+        "INSERT INTO addresses(link_id,domain_id,short_code) VALUES(?,1,?) ON CONFLICT(domain_id,short_code) DO NOTHING",
+        params![link, alias.as_str()],
+    ).map(|changed| changed == 1).map_err(sql)
+}
+
+#[cfg(test)]
+mod short_code_tests;
+
 pub fn hash_password(p: &str) -> DbResult<String> {
     use argon2::{Argon2, PasswordHasher, password_hash::SaltString};
     let salt =
