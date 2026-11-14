@@ -96,7 +96,7 @@ jobs:
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
-          outputs: type=image,name=${{ steps.identity.outputs.image }},push-by-digest=true,name-canonical=true,push=true
+          outputs: type=image,name=${{ steps.identity.outputs.image }},push-by-digest=true,name-canonical=true,push=true,oci-mediatypes=false
           provenance: false
           sbom: false
       - name: Smoke-test the actual published digest
@@ -106,6 +106,7 @@ jobs:
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
           python3 .github/scripts/smoke_image.py "$IMAGE" "$ARCH"
+          HEALTH_TEST_IMAGE="$IMAGE" python3 -m unittest discover -s .github/scripts -p test_health.py -v
           python3 - <<'PY'
           import json, os, pathlib, re
           digest = os.environ['DIGEST']

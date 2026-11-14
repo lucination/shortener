@@ -48,6 +48,8 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn('runner: ubuntu-24.04-arm\n', self.source)
         self.assertNotIn('setup-qemu', self.source)
         self.assertIn('push-by-digest=true', self.source)
+        self.assertIn('oci-mediatypes=false', self.source)
+        self.assertIn('HEALTH_TEST_IMAGE="$IMAGE" python3 -m unittest discover -s .github/scripts -p test_health.py -v', self.source)
         self.assertIn('provenance: false', self.source)
         self.assertIn('sbom: false', self.source)
         self.assertIn('cancel-in-progress: false', self.source)

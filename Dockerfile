@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Index digests include amd64 and arm64; update intentionally with release review.
-FROM --platform=$BUILDPLATFORM node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee AS ui
+FROM --platform=$BUILDPLATFORM node:22-alpine3.24@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a AS ui
 WORKDIR /app
 COPY web/package*.json web/
 COPY admin/package*.json admin/
@@ -10,31 +10,27 @@ COPY admin/ admin/
 COPY contracts/ contracts/
 RUN npm --prefix web run check-contracts && npm --prefix web run build && npm --prefix admin run build && cp -r admin/build web/build/_
 
-FROM --platform=$BUILDPLATFORM rust:1-bookworm@sha256:ade39a710ef85f3506cffcfec3e8a24ba090badef1dff2fb798f71d878833fea AS toolchain
-ARG TARGETARCH
-COPY packaging/toolchain.sh /toolchain.sh
-RUN sh /toolchain.sh
-
-# Fast prerequisites-only target: no application compilation, Node, or QEMU.
-FROM toolchain AS cross-probe
-COPY packaging/probe.sh /probe.sh
-RUN sh /probe.sh
-
-FROM toolchain AS backend
+# Native musl toolchain: each target requires its own native builder (no QEMU).
+FROM --platform=$TARGETPLATFORM rust:1-alpine3.24@sha256:2cccd8b212b37dad15a555589c1b6787da4ab913fe24d8a9b2d99d3498869409 AS backend
+RUN apk add --no-cache musl-dev openssl-dev openssl-libs-static pkgconf binutils
+ENV OPENSSL_STATIC=1
 WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 COPY src/ src/
 COPY migration/ migration/
-RUN . /target-env && cargo build --release --locked --target "$RUST_TARGET" --bin shortener -j1 && cp "target/$RUST_TARGET/release/shortener" /shortener
+RUN cargo build --release --locked --bin shortener -j1 && cp target/release/shortener /shortener \
+    && readelf -h /shortener \
+    && ! readelf -l /shortener | grep -q INTERP \
+    && ! readelf -d /shortener | grep -q NEEDED
 
-# No target-platform RUN: assembly works even without binfmt/QEMU.
-FROM debian:bookworm-slim@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc AS runtime
+FROM alpine:3.24.4@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf AS runtime
 ARG VCS_REF
 LABEL org.opencontainers.image.revision=$VCS_REF
-COPY --from=toolchain /runtime/ /
-COPY --from=toolchain --chown=10001:10001 /runtime/app/ /app/
+RUN apk add --no-cache ca-certificates curl \
+    && mkdir -p /app/data && chown -R 10001:10001 /app
 WORKDIR /app
 COPY --from=backend /shortener /usr/local/bin/shortener
+COPY --chmod=755 packaging/healthcheck.sh /usr/local/bin/healthcheck
 COPY --from=ui /app/web/build /app/static
 COPY config/production.yaml /app/config/production.yaml
 COPY web/THIRD-PARTY-NOTICES.md /app/THIRD-PARTY-NOTICES.md
@@ -42,4 +38,5 @@ ENV DATABASE_PATH=/app/data/shortener.sqlite STATIC_DIR=/app/static
 USER 10001:10001
 EXPOSE 3000
 VOLUME ["/app/data"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD ["/usr/local/bin/healthcheck"]
 CMD ["shortener", "start", "--environment", "production", "--binding", "0.0.0.0", "--port", "3000", "--no-banner"]

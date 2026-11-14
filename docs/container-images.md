@@ -40,8 +40,28 @@ Each image carries the repository source URL and commit revision labels.
 Image jobs initially push only by digest, without moving any release tag. They
 then pull and run that exact digest with random disposable runtime credentials,
 a fresh SQLite volume, loopback-only SMTP, and a loopback-bound HTTP port. Checks
-cover health, both SPA entry points, bundled JavaScript and fonts, the non-root
-user, writable data directory and SQLite integrity. No email is sent.
+cover actual Docker HEALTHCHECK metadata and healthy → unhealthy → healthy states,
+both SPA entry points, bundled JavaScript and fonts, the non-root user, writable
+data directory and SQLite integrity. The fixture overrides the interval/start
+period to 1 second and retries to 1, stops only the application with SIGSTOP (not
+`docker pause`, which would also freeze probes), and always sends SIGCONT before
+cleanup. Separate real-curl fixtures verify HTTP 200 acceptance and rejection of
+204, redirects, errors, connection failures and timeouts, even with proxy variables
+set. All checks use disposable UUID-named containers/volumes. No email is sent.
+
+The runtime is pinned Alpine Linux with CA roots and curl. The genuine musl binary
+statically links OpenSSL and bundled SQLite; the build rejects ELF dynamic-library
+requirements. Node runs only on the build platform, and neither Node nor compilers
+are in the runtime. Both native architectures use this same Dockerfile.
+
+The quiet health probe requires a successful curl request **and exactly HTTP 200**
+from `http://127.0.0.1:3000/_health`. It ignores curl configuration files, does not
+follow redirects, bypasses proxy environment variables, allows only HTTP and
+bounds the request to 3 seconds.
+Defaults are interval 30 seconds, timeout 5 seconds, start period 10 seconds and
+3 retries. Health status alone does not restart a Docker container; restart or
+replacement policy is the operator's responsibility. The Buildx export uses Docker
+media types so Docker/Podman clients retain the HEALTHCHECK configuration.
 
 Only after **both** native smoke checks pass does a separate job accept exactly
 two validated digest receipts. It creates and verifies the commit-tagged index,

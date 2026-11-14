@@ -25,6 +25,14 @@ def static_paths(inventory: list[str]) -> list[str]:
     return paths
 
 
+def validate_healthcheck(config: dict) -> None:
+    expected = {'Test': ['CMD', '/usr/local/bin/healthcheck'], 'Interval': 30_000_000_000,
+                'Timeout': 5_000_000_000, 'StartPeriod': 10_000_000_000, 'Retries': 3}
+    health = config.get('Healthcheck', {})
+    if any(health.get(key) != value for key, value in expected.items()):
+        raise ValueError('Missing or unexpected Docker healthcheck metadata')
+
+
 def main(image: str, architecture: str, *, pull: bool = True) -> None:
     def docker(*args: str) -> str:
         return subprocess.check_output(['docker', *args], text=True).strip()
@@ -36,6 +44,7 @@ def main(image: str, architecture: str, *, pull: bool = True) -> None:
         raise ValueError('Image is not the requested native Linux architecture')
     if metadata['Config']['User'] != '10001:10001':
         raise ValueError('Image must run as the expected non-root user')
+    validate_healthcheck(metadata['Config'])
     name = 'image-smoke-' + uuid.uuid4().hex
     volume = name + '-data'
     docker('volume', 'create', volume)
@@ -52,6 +61,7 @@ def main(image: str, architecture: str, *, pull: bool = True) -> None:
             env_file.chmod(0o600)
             docker('run', '-d', '--name', name, '--env-file', str(env_file),
                    '--mount', f'type=volume,src={volume},dst=/app/data',
+                   '--health-interval', '1s', '--health-start-period', '1s', '--health-retries', '1',
                    '-p', '127.0.0.1::3000', image)
             binding = json.loads(docker('inspect', name))[0]['NetworkSettings']['Ports']['3000/tcp'][0]
             base = 'http://127.0.0.1:' + binding['HostPort']
@@ -72,6 +82,35 @@ def main(image: str, architecture: str, *, pull: bool = True) -> None:
                     if attempt == 59:
                         raise RuntimeError('Image did not become healthy') from None
                     time.sleep(1)
+
+            def wait_health(expected: str) -> None:
+                deadline = time.monotonic() + 30
+                while time.monotonic() < deadline:
+                    state = json.loads(docker('inspect', name))[0]['State']
+                    if not state['Running']:
+                        raise RuntimeError('Application exited during health transition')
+                    if state.get('Health', {}).get('Status') == expected:
+                        print(f'Native {architecture} Docker health: {expected}', flush=True)
+                        return
+                    time.sleep(0.25)
+                raise RuntimeError(f'Docker health never became {expected}')
+
+            wait_health('healthy')
+            # Freeze only the application's PID 1, not the healthcheck processes.
+            # CONT is unconditional even if the negative assertion fails.
+            try:
+                docker('kill', '--signal=STOP', name)
+                wait_health('unhealthy')
+            finally:
+                docker('kill', '--signal=CONT', name)
+            wait_health('healthy')
+            docker('exec', name, '/usr/local/bin/healthcheck')
+            runtime = docker('exec', name, 'sh', '-ec',
+                             'test -f /etc/alpine-release; command -v curl; '
+                             'if command -v node || command -v rustc || command -v cc; then exit 1; fi; '
+                             'ldd /usr/local/bin/shortener 2>&1 || true')
+            if 'Error loading shared library' in runtime or 'not found' in runtime:
+                raise ValueError('Missing runtime shared library')
             for path in ('/', '/_/'):
                 body, content_type = request(path)
                 if content_type != 'text/html' or b'<html' not in body.lower():

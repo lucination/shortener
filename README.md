@@ -120,46 +120,31 @@ production delivery remains a deployment acceptance step after credentials are p
 
 ## Multiarchitecture container builds
 
-`Dockerfile` supports `linux/amd64` and `linux/arm64`. Node and Rust always execute on
-`BUILDPLATFORM`; Rust cross-links with the target GNU compiler, libc headers and OpenSSL. The
-target Debian runtime has **no RUN instructions**, so no binfmt/QEMU is required. It contains the
-binary, public CA roots, OpenSSL runtime libraries, both SPAs and a writable data directory owned
-by numeric UID/GID `10001:10001`, not Node or build tools. Bind mounts must preserve that ownership.
-Base multiarch index digests, npm locks and Cargo.lock pin the language inputs; Debian apt packages
-come from the Bookworm repositories (not a time-frozen snapshot, so this is not byte-reproducible).
+`Dockerfile` is the single build recipe for `linux/amd64` and `linux/arm64`.
+The UI uses pinned Alpine Node 22 on `BUILDPLATFORM`; Rust 1.100.0 uses pinned
+Alpine 3.24 on `TARGETPLATFORM`. Backend compilation requires **native builders**
+for each architecture (CI uses separate amd64 and arm64 runners), not a GNU cross
+sysroot, glibc compatibility layer or emulated Node JIT. A single amd64 builder
+cannot build the arm64 backend without emulation; that is not the supported path.
 
-Fast prerequisites-only probes (do not build the application or release image):
+The musl binary statically links Alpine OpenSSL (`openssl-libs-static`) and bundled
+SQLite. Build-time ELF checks reject an interpreter or dynamic dependencies.
+The pinned Alpine 3.24.4 runtime installs CA roots and curl, contains both SPAs and
+fonts, and runs as UID/GID `10001:10001` with writable `/app/data`. No Node, Rust
+compiler or C toolchain is shipped. Bind mounts must preserve data ownership.
+Base index digests and npm/Cargo locks pin inputs; Alpine package repositories are
+not time-frozen, so builds are not byte-reproducible.
 
-```sh
-docker buildx build --network=host --platform linux/arm64 --target cross-probe .
-docker buildx build --network=host --platform linux/amd64 --target cross-probe .
-```
-
-They compile C and Rust probes against target OpenSSL and inspect ELF architecture/dependencies.
-They do not execute the foreign binary or establish full application/production acceptance.
-The ui target independently builds and combines both SPAs using native Node:
-`docker buildx build --network=host --platform linux/arm64 --target ui .`.
-
-For an authorized release, use clean reviewed `main` matching `origin/main`, then supply the exact
-revision label. Example single-architecture local archive:
+Example local build on a native amd64 builder (use arm64 on a native arm64 builder):
 
 ```sh
-docker buildx build --network=host --platform linux/arm64 \
+docker buildx build --network=host --platform linux/amd64 \
   --build-arg VCS_REF="$(git rev-parse HEAD)" --load -t shortener:REVIEWED_REVISION .
+python3 -c 'import sys; sys.path.insert(0, ".github/scripts"); import smoke_image; smoke_image.main("shortener:REVIEWED_REVISION", "amd64", pull=False)'
 ```
 
-Build/publish an index with `--platform linux/amd64,linux/arm64 --push` using a task-owned
-docker-container builder; Docker's default classic store cannot load a multiarch index. In a task
-box where only host-network DNS works, create the builder without changing the shared daemon:
-
-```sh
-docker buildx create --name shortener-task-builder --driver docker-container \
-  --driver-opt network=host --buildkitd-flags '--oci-worker-net host' --bootstrap
-docker buildx build --builder shortener-task-builder --network=host \
-  --allow network.host --platform linux/amd64,linux/arm64 \
-  --build-arg VCS_REF="$(git rev-parse HEAD)" --push -t REGISTRY/shortener:REVIEWED_REVISION .
-```
-
-No credentials belong in the image. Inspect each published platform's architecture, revision,
-dynamic-library closure, static assets and nonroot data writes; run the actual ARM64 application
-on the destination (or an explicitly admitted emulator) before switching production.
+For release, use clean reviewed `main` matching `origin/main`. The native CI jobs
+export Docker media types (`oci-mediatypes=false`) to retain Docker HEALTHCHECK
+metadata before smoke-testing exact digests and combining them into one index.
+See [container image publication and runtime checks](docs/container-images.md).
+No credentials belong in the image.
