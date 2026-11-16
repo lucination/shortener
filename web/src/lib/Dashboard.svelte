@@ -1,10 +1,12 @@
 <script lang="ts">
   import type {
     LinkRow,
+    CopyFeedback,
     Resource,
     LinkAction,
     BulkAction,
   } from "./view-models";
+  import { anchorFeedback } from "./presentation/anchor-feedback";
   import ResourceStatus from "./ResourceStatus.svelte";
   import {
     Copy,
@@ -17,6 +19,7 @@
   } from "@lucide/svelte";
   let {
     state,
+    copyFeedback = { kind: "idle" },
     mode = "manage",
     search = "",
     selected = [],
@@ -29,6 +32,7 @@
     onretry = () => {},
   }: {
     state: Resource<readonly LinkRow[]>;
+    copyFeedback?: CopyFeedback;
     mode?: "manage" | "read-only";
     search?: string;
     selected?: readonly number[];
@@ -159,7 +163,14 @@
                           />{:else if row.enabled}<Pause
                             size={16}
                           />{:else}<Play size={16} />{/if}</button
-                      ></td
+                      >{#if action === "copy" && (copyFeedback.kind === "success" || copyFeedback.kind === "error") && copyFeedback.id === row.id}<span
+                          class="copy-feedback"
+                          class:copy-error={copyFeedback.kind === "error"}
+                          use:anchorFeedback={{
+                            rows: state.value,
+                            copyFeedback,
+                          }}>{copyFeedback.message}</span
+                        >{/if}</td
                     >{/each}{/if}</tr
               >{/each}
           </tbody>
@@ -167,3 +178,25 @@
       </div>{/if}
   {/if}
 </section>
+
+<style>
+  .copy-feedback {
+    position: fixed;
+    z-index: 50;
+    width: max-content;
+    max-width: min(280px, calc(100vw - 16px));
+    padding: 6px 10px;
+    border: 1px solid var(--dl-line);
+    border-radius: 6px;
+    background: var(--dl-panel);
+    color: var(--dl-text);
+    font-size: 12px;
+    line-height: 1.5;
+    box-shadow: 0 10px 24px rgb(0 0 0 / 20%);
+    pointer-events: none;
+    white-space: normal;
+  }
+  .copy-error {
+    color: var(--dl-danger);
+  }
+</style>

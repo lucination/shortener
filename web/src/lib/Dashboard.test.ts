@@ -63,3 +63,38 @@ it("puts each icon action in its own stable column with a single grouped header"
     v.getByTitle("Enable link").querySelector("svg")?.outerHTML,
   );
 });
+
+it("keeps controlled copy feedback on durable row identity across reordering and filters", async () => {
+  const rows = [1, 2].map((id) => ({
+    id,
+    label: `Link ${id}`,
+    destination: "https://example.org",
+    address: `example.com/${id}`,
+    clicks: 0,
+    enabled: true,
+  }));
+  const copyFeedback = {
+    kind: "success" as const,
+    id: 2,
+    message: "Short address copied.",
+  };
+  const v = render(Dashboard, {
+    state: { kind: "ready", value: rows },
+    copyFeedback,
+  });
+  expect(
+    v.getByText(copyFeedback.message).closest("tr")?.textContent,
+  ).toContain("Link 2");
+  await v.rerender({
+    state: { kind: "ready", value: [...rows].reverse() },
+    copyFeedback,
+  });
+  expect(
+    v.getByText(copyFeedback.message).closest("tr")?.textContent,
+  ).toContain("Link 2");
+  await v.rerender({
+    state: { kind: "ready", value: [rows[0]] },
+    copyFeedback,
+  });
+  expect(v.queryByText(copyFeedback.message)).toBeNull();
+});

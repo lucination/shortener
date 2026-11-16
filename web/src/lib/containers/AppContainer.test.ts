@@ -131,3 +131,93 @@ it("does not let an old completed save replace a newly selected screen", async (
   await waitFor(() => expect(v.getByText("Raw click data")).toBeTruthy());
   expect(v.queryByText("Your links")).toBeNull();
 });
+
+it("shows transient row-local copy feedback only after clipboard success, without a notification strip", async () => {
+  let complete!: () => void;
+  const writeText = vi.fn(
+    () =>
+      new Promise<void>((resolve) => {
+        complete = resolve;
+      }),
+  );
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: { writeText },
+  });
+  const fetcher = vi.fn<typeof fetch>(
+    async (input) =>
+      new Response(
+        JSON.stringify(
+          String(input) === "/api/me"
+            ? user
+            : { items: simulatedLinks.slice(0, 2), total: 2 },
+        ),
+      ),
+  );
+  const v = render(AppContainer, { api: createApi(fetcher) });
+  await waitFor(() => expect(v.getAllByTitle("Copy address").length).toBe(2));
+  await fireEvent.click(v.getAllByTitle("Copy address")[0]);
+  expect(v.queryByText("Short address copied.")).toBeNull();
+  const address = simulatedLinks[0].addresses[0];
+  expect(writeText).toHaveBeenCalledWith(
+    `https://${address.domain}/${address.short_code}`,
+  );
+  complete();
+  await waitFor(() =>
+    expect(v.getByText("Short address copied.").closest("td")).not.toBeNull(),
+  );
+  expect(
+    v.getByText("Short address copied.").classList.contains("copy-feedback"),
+  ).toBe(true);
+  expect(v.container.querySelectorAll(".copy-feedback").length).toBe(1);
+  vi.useFakeTimers();
+  // A replacement attempt clears old success before the next browser result.
+  await fireEvent.click(v.getAllByTitle("Copy address")[1]);
+  expect(v.queryByText("Short address copied.")).toBeNull();
+  complete();
+  await Promise.resolve();
+  await vi.advanceTimersByTimeAsync(3500);
+  expect(v.queryByText("Short address copied.")).toBeNull();
+  vi.useRealTimers();
+});
+
+it("keeps only the newest copy result and ignores stale completion after navigation", async () => {
+  const pending: { resolve: () => void; reject: () => void }[] = [];
+  const copy = vi.fn(
+    () =>
+      new Promise<void>((resolve, reject) =>
+        pending.push({ resolve, reject: () => reject(new Error("denied")) }),
+      ),
+  );
+  const fetcher = vi.fn<typeof fetch>(
+    async (input) =>
+      new Response(
+        JSON.stringify(
+          String(input) === "/api/me"
+            ? user
+            : { items: simulatedLinks.slice(0, 2), total: 2 },
+        ),
+      ),
+  );
+  const v = render(AppContainer, { api: createApi(fetcher), copy });
+  await waitFor(() => expect(v.getAllByTitle("Copy address").length).toBe(2));
+  await fireEvent.click(v.getAllByTitle("Copy address")[0]);
+  await fireEvent.click(v.getAllByTitle("Copy address")[1]);
+  pending[1].reject();
+  await waitFor(() =>
+    expect(v.getByText(/Clipboard unavailable/)).toBeTruthy(),
+  );
+  expect(
+    v.getByText(/Clipboard unavailable/).closest("tr")?.textContent,
+  ).toContain(simulatedLinks[1].title);
+  pending[0].resolve();
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  expect(v.queryByText("Short address copied.")).toBeNull();
+  await fireEvent.click(v.getAllByTitle("Copy address")[0]);
+  await fireEvent.click(v.getByRole("button", { name: /^Account$/ }));
+  await waitFor(() => expect(v.getByText("Raw click data")).toBeTruthy());
+  pending[2].resolve();
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  expect(v.queryByText("Short address copied.")).toBeNull();
+  expect(v.queryByText(/Clipboard unavailable/)).toBeNull();
+});

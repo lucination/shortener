@@ -1,6 +1,7 @@
 <script lang="ts">
+  import { copyAddress, type CopyAddress } from "../adapters/clipboard";
   import { appName } from "../adapters/branding";
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
   import AppShell, { type Section } from "../AppShell.svelte";
   import Dashboard from "../Dashboard.svelte";
   import FocusedModal from "../presentation/FocusedModal.svelte";
@@ -22,6 +23,7 @@
     toggleSelection,
     emptyDraft,
     type Resource,
+    type CopyFeedback,
     type Outcome,
     type LinkAction,
     type BulkAction,
@@ -70,7 +72,10 @@
     | { kind: "delete-link"; id: number }
     | { kind: "remove-password"; id: number }
     | { kind: "signout" };
-  let { api = createApi(fetch) }: { api?: Api } = $props();
+  let {
+    api = createApi(fetch),
+    copy = copyAddress,
+  }: { api?: Api; copy?: CopyAddress } = $props();
   let page: Page = $state({
     kind: "links",
     state: { kind: "pending" },
@@ -78,6 +83,22 @@
     selected: [],
   });
   let outcome: Outcome = $state({ kind: "idle" });
+  let copyFeedback: CopyFeedback = $state({ kind: "idle" });
+  let copyAttempt = 0;
+  function clearCopy() {
+    copyAttempt++;
+    copyFeedback = { kind: "idle" };
+  }
+  onDestroy(clearCopy);
+  $effect(() => {
+    if (copyFeedback.kind !== "success" && copyFeedback.kind !== "error")
+      return;
+    const timer = setTimeout(
+      clearCopy,
+      copyFeedback.kind === "success" ? 3000 : 5000,
+    );
+    return () => clearTimeout(timer);
+  });
   let command: Command = $state({ kind: "none" });
   type Session =
     | { kind: "discovering" }
@@ -103,6 +124,7 @@
     return result.kind === "ok";
   }
   function setPage(next: Page) {
+    clearCopy();
     generation++;
     passkeyAttempt?.abort();
     passkeyAttempt = undefined;
@@ -113,6 +135,7 @@
   }
   function beginCommand(next: Exclude<Command, { kind: "none" }>) {
     generation++;
+    clearCopy();
     command = next;
     outcome = { kind: "idle" };
   }
@@ -316,21 +339,26 @@
         draft: linkDraft(link),
       });
     else if (action === "copy") {
+      const attempt = ++copyAttempt;
+      copyFeedback = { kind: "pending", id };
       const address = link.addresses[0];
       if (!address) {
-        outcome = { kind: "error", message: "No address to copy." };
+        copyFeedback = { kind: "error", id, message: "No address to copy." };
         return;
       }
       try {
-        await navigator.clipboard.writeText(
-          `https://${address.domain}/${address.short_code}`,
-        );
-        if (request !== generation) return;
-        outcome = { kind: "success", message: "Short address copied." };
+        await copy(`https://${address.domain}/${address.short_code}`);
+        if (request !== generation || attempt !== copyAttempt) return;
+        copyFeedback = {
+          kind: "success",
+          id,
+          message: "Short address copied.",
+        };
       } catch {
-        if (request !== generation) return;
-        outcome = {
+        if (request !== generation || attempt !== copyAttempt) return;
+        copyFeedback = {
           kind: "error",
+          id,
           message: "Clipboard unavailable. Select and copy the short address.",
         };
       }
@@ -682,6 +710,7 @@
         onretry={start}
       />
     {:else if page.kind === "links"}<Dashboard
+        {copyFeedback}
         state={mapResource(page.state, (links) =>
           filterLinks(
             links.map(linkRow),

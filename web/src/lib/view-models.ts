@@ -120,3 +120,8 @@ export type PublicView =
   | { kind: "password"; password: string }
   | { kind: "preview"; title: string; description: string; destination: string }
   | { kind: "not-found" };
+
+export type CopyFeedback =
+  | { kind: "idle" }
+  | { kind: "pending"; id: number }
+  | { kind: "success" | "error"; id: number; message: string };
