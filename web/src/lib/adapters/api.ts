@@ -105,6 +105,14 @@ export function createApi(fetcher: typeof fetch) {
       ),
     account: (body: DTO.AccountPatch) =>
       request("/api/account", schema.userSchema, "PATCH", body),
+    passkeys: () => request("/api/account/passkeys", schema.passkeyListSchema),
+    renamePasskey: (id: number, body: DTO.PasskeyRename) =>
+      request(
+        `/api/account/passkeys/${id}`,
+        schema.passkeySummarySchema,
+        "PATCH",
+        body,
+      ),
     signoutEverywhere: () =>
       request(
         "/api/account/sign-out-everywhere",
@@ -129,7 +137,7 @@ export function createApi(fetcher: typeof fetch) {
         "POST",
         {},
       ),
-    register: (body: DTO.PasskeyVerify) =>
+    register: (body: DTO.PasskeyEnrollment) =>
       request(
         "/api/auth/passkeys/register/verify",
         schema.messageSchema,

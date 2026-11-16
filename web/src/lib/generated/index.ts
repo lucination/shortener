@@ -33,3 +33,7 @@ export type UserPatch = { suspended: boolean | null, deleted: boolean | null, re
 export type Usage = { users: number, links: number, redirects: number, raw_events: number, };
 export type PasskeyOptions = { challenge_id: string, public_key: JsonValue, };
 export type PasskeyVerify = { challenge_id: string, credential: JsonValue, };
+export type PasskeyEnrollment = { challenge_id: string, credential: JsonValue, name: string, };
+export type PasskeySummary = { id: number, name: string, };
+export type PasskeyList = { items: Array<PasskeySummary>, };
+export type PasskeyRename = { name: string, };

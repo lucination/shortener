@@ -75,6 +75,8 @@ export const emptyDraft: LinkDraft = {
 export type DateRange = Readonly<{ from: string; to: string }>;
 export type CountGroup = Readonly<{ label: string; count: number }>;
 export type StatsView = Readonly<{
+  /** Period of the observed response, independent of unsaved date controls. */
+  range?: DateRange;
   human: number;
   bot: number;
   preview: number;

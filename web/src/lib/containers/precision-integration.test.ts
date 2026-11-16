@@ -1,6 +1,7 @@
 import { it, expect } from "vitest";
-import { render, fireEvent, waitFor } from "@testing-library/svelte";
+import { render, fireEvent, waitFor, within } from "@testing-library/svelte";
 import AppContainer from "./AppContainer.svelte";
+import ManagementContainer from "./ManagementContainer.svelte";
 import { createApi } from "../adapters/api";
 import { simulatedLinks } from "../fixtures";
 
@@ -48,14 +49,34 @@ it("opens the complete controlled link editor in a focused dialog and returns to
   expect(v.getByRole("heading", { name: "Links" })).toBeTruthy();
 });
 
-it("replaces the editor with password-removal confirmation rather than stacking dialogs", async () => {
-  const v = render(AppContainer, { api: api() });
-  await waitFor(() => expect(v.getByTitle("Edit link")).toBeTruthy());
-  await fireEvent.click(v.getByTitle("Edit link"));
-  await fireEvent.click(v.getByText("Remove existing password"));
-  expect(v.getAllByRole("dialog")).toHaveLength(1);
-  expect(v.getByText("Remove link password?")).toBeTruthy();
-  await fireEvent.click(v.getByRole("button", { name: "Cancel" }));
-  expect(v.getAllByRole("dialog")).toHaveLength(1);
-  expect(v.getByLabelText("Destination URL")).toBeTruthy();
+it("keeps password removal in its own confirmation without putting the editor in a dialog", async () => {
+  history.replaceState(
+    null,
+    "",
+    `/${simulatedLinks[0].addresses[0].short_code}/edit`,
+  );
+  try {
+    const link = { ...simulatedLinks[0], password_protected: true };
+    const v = render(ManagementContainer, {
+      api: createApi(
+        async () => new Response(JSON.stringify({ items: [link], total: 1 })),
+      ),
+    });
+    await waitFor(() =>
+      expect(v.getByLabelText("Destination URL")).toBeTruthy(),
+    );
+    expect(v.queryByRole("dialog")).toBeNull();
+    await fireEvent.click(v.getByText("Remove existing password"));
+    expect(
+      v.getByText("Anyone with the address will be able to open this link."),
+    ).toBeTruthy();
+    expect(v.getAllByRole("dialog")).toHaveLength(1);
+    expect(v.getByRole("button", { name: "Confirm" })).toBeTruthy();
+    await fireEvent.click(
+      within(v.getByRole("dialog")).getByRole("button", { name: "Cancel" }),
+    );
+    expect(v.queryByRole("dialog")).toBeNull();
+  } finally {
+    history.replaceState(null, "", "/");
+  }
 });

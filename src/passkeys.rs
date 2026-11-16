@@ -19,6 +19,33 @@ pub fn webauthn(origin: &str) -> DbResult<webauthn_rs::Webauthn> {
         .map_err(|e| e.to_string())
 }
 impl Store {
+    pub fn passkey_list(&self, owner: i32, now: &str) -> DbResult<PasskeyList> {
+        self.with(|db| {
+            self.authorize(db, Some(owner), now)?;
+            let items = db.prepare("SELECT p.id,COALESCE(n.name,'Unnamed passkey') FROM passkeys p LEFT JOIN passkey_names n ON n.passkey_id=p.id WHERE p.user_id=? ORDER BY p.id")
+                .map_err(err)?.query_map([owner], |r| Ok(PasskeySummary {id:r.get(0)?,name:r.get(1)?}))
+                .map_err(err)?.collect::<Result<Vec<_>,_>>().map_err(err)?;
+            Ok(PasskeyList {items})
+        })
+    }
+    pub fn rename_passkey(
+        &self,
+        owner: i32,
+        id: i32,
+        value: &str,
+        now: &str,
+    ) -> DbResult<PasskeySummary> {
+        let name = crate::domain::PasskeyName::parse(value)?;
+        self.with(|db| {
+            let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(err)?;
+            self.authorize(&tx,Some(owner),now)?;
+            let owned: bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM passkeys WHERE id=? AND user_id=?)",params![id,owner],|r|r.get(0)).map_err(err)?;
+            if !owned {return Err("not found".into());}
+            tx.execute("INSERT INTO passkey_names(passkey_id,name)VALUES(?,?) ON CONFLICT(passkey_id)DO UPDATE SET name=excluded.name",params![id,name.as_str()]).map_err(err)?;
+            tx.commit().map_err(err)?;
+            Ok(PasskeySummary{id,name:name.as_str().into()})
+        })
+    }
     pub fn passkey_register_options(
         &self,
         w: &webauthn_rs::Webauthn,
@@ -57,6 +84,35 @@ impl Store {
         i: PasskeyVerify,
         now: &str,
     ) -> DbResult<()> {
+        self.finish_registration(w, id, i, None, now)
+    }
+    pub fn passkey_register_named(
+        &self,
+        w: &webauthn_rs::Webauthn,
+        id: i32,
+        i: PasskeyEnrollment,
+        now: &str,
+    ) -> DbResult<()> {
+        let name = crate::domain::PasskeyName::parse(&i.name)?;
+        self.finish_registration(
+            w,
+            id,
+            PasskeyVerify {
+                challenge_id: i.challenge_id,
+                credential: i.credential,
+            },
+            Some(name),
+            now,
+        )
+    }
+    fn finish_registration(
+        &self,
+        w: &webauthn_rs::Webauthn,
+        id: i32,
+        i: PasskeyVerify,
+        name: Option<crate::domain::PasskeyName>,
+        now: &str,
+    ) -> DbResult<()> {
         let (_, state) = self.take_challenge(&i.challenge_id, "register", Some(id), now)?;
         let state: PasskeyRegistration = serde_json::from_str(&state).map_err(err)?;
         let credential: RegisterPublicKeyCredential =
@@ -77,6 +133,13 @@ impl Store {
                 params![id, credential_id, serialized],
             )
             .map_err(err)?;
+            if let Some(name) = name {
+                tx.execute(
+                    "INSERT INTO passkey_names(passkey_id,name)VALUES(?,?)",
+                    params![tx.last_insert_rowid(), name.as_str()],
+                )
+                .map_err(err)?;
+            }
             tx.commit().map_err(err)
         })
     }

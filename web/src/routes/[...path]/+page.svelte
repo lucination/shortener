@@ -1,5 +1,5 @@
 <script lang="ts">
-  import AppContainer from "$lib/containers/AppContainer.svelte";
+  import ManagementContainer from "$lib/containers/ManagementContainer.svelte";
 </script>
 
-<AppContainer />
+<ManagementContainer />

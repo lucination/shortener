@@ -71,6 +71,88 @@ try {
   );
   await page.goto(base);
   await page.getByRole("button", { name: "Account", exact: true }).click();
+  let releaseOptions;
+  let optionsHeld;
+  const heldOptions = new Promise((resolve) => (optionsHeld = resolve));
+  await page.route(
+    "**/api/auth/passkeys/register/options",
+    async (route) => {
+      const response = await route.fetch(); // Hold real challenge + binding cookie response.
+      optionsHeld();
+      await new Promise((resolve) => (releaseOptions = resolve));
+      await route.fulfill({ response });
+    },
+    { times: 1 },
+  );
+  await page
+    .getByLabel("New passkey name", { exact: true })
+    .fill("Abandoned options");
+  await page.getByRole("button", { name: "Add passkey", exact: true }).click();
+  await heldOptions;
+  await page.getByRole("button", { name: "Links", exact: true }).click();
+  await page.getByRole("button", { name: "Account", exact: true }).click();
+  const add = page.getByRole("button", { name: "Add passkey", exact: true });
+  assert.equal(
+    await add.isDisabled(),
+    true,
+    "abandoned options must settle before replacement",
+  );
+  releaseOptions();
+  await page.waitForFunction(
+    () =>
+      ![...document.querySelectorAll("button")].find(
+        (node) => node.textContent === "Add passkey",
+      )?.disabled,
+  );
+  assert.equal(
+    requests.filter((r) => r.url.endsWith("register/verify")).length,
+    0,
+  );
+  await page.evaluate(() => {
+    window.__registrationRequests = 0;
+    window.__registrationSettled = 0;
+    const create = navigator.credentials.create.bind(navigator.credentials);
+    navigator.credentials.create = async (options) => {
+      window.__registrationRequests++;
+      try {
+        return await create(options);
+      } finally {
+        window.__registrationSettled++;
+      }
+    };
+  });
+  await client.send("WebAuthn.setAutomaticPresenceSimulation", {
+    authenticatorId,
+    enabled: false,
+  });
+  await page
+    .getByLabel("New passkey name", { exact: true })
+    .fill("Abandoned picker");
+  await add.click();
+  await page.waitForFunction(() => window.__registrationRequests === 1);
+  await page.getByRole("button", { name: "Links", exact: true }).click();
+  await page.waitForFunction(() => window.__registrationSettled === 1);
+  await page.getByRole("button", { name: "Account", exact: true }).click();
+  assert.equal(
+    requests.filter((r) => r.url.endsWith("register/verify")).length,
+    0,
+  );
+  assert.deepEqual(
+    (await (await context.request.get(`${base}/api/account/passkeys`)).json())
+      .items,
+    [],
+  );
+  await client.send("WebAuthn.setAutomaticPresenceSimulation", {
+    authenticatorId,
+    enabled: true,
+  });
+  const unicodeName = "🔑".repeat(80);
+  await page.getByLabel("New passkey name", { exact: true }).focus();
+  await page.keyboard.insertText(unicodeName);
+  assert.equal(
+    await page.getByLabel("New passkey name", { exact: true }).inputValue(),
+    unicodeName,
+  );
   await page.getByRole("button", { name: "Add passkey", exact: true }).click();
   await page
     .getByText("Passkey added to your account.", { exact: true })
@@ -88,6 +170,69 @@ try {
   });
   assert.equal(credentials.length, 1);
   assert.equal(credentials[0].isResidentCredential, true);
+  const names = await (
+    await context.request.get(`${base}/api/account/passkeys`)
+  ).json();
+  assert.deepEqual(
+    names.items.map((key) => key.name),
+    [unicodeName],
+  );
+  assert.deepEqual(Object.keys(names.items[0]).sort(), ["id", "name"]);
+  await page.reload();
+  await page.getByRole("button", { name: "Account", exact: true }).click();
+  await page.getByLabel("Passkey name", { exact: true }).waitFor();
+  assert.equal(
+    await page.getByLabel("Passkey name", { exact: true }).inputValue(),
+    unicodeName,
+  );
+  assert.equal(
+    await page
+      .getByLabel("Passkey name", { exact: true })
+      .getAttribute("maxlength"),
+    null,
+  );
+  await page.getByLabel("Passkey name", { exact: true }).fill("a🔑".repeat(40));
+  await page.getByRole("button", { name: "Rename", exact: true }).click();
+  await page.getByText("Passkey renamed.", { exact: true }).waitFor();
+  assert.equal(
+    (await (await context.request.get(`${base}/api/account/passkeys`)).json())
+      .items[0].name,
+    "a🔑".repeat(40),
+  );
+  await mkdir("test-results/passkey-names", { recursive: true });
+  for (const width of [1280, 390, 320])
+    for (const colorScheme of ["light", "dark"]) {
+      await page.setViewportSize({ width, height: 850 });
+      await page.emulateMedia({ colorScheme });
+      await page.reload();
+      await page.getByRole("button", { name: "Account", exact: true }).click();
+      await page.getByLabel("Passkey name", { exact: true }).waitFor();
+      assert.equal(
+        await page.getByLabel("Passkey name", { exact: true }).inputValue(),
+        "a🔑".repeat(40),
+      );
+      assert(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      );
+      const boxes = await page
+        .locator(
+          '[data-testid="passkey-section"] input,[data-testid="passkey-section"] button',
+        )
+        .evaluateAll((nodes) =>
+          nodes.map((node) => node.getBoundingClientRect().toJSON()),
+        );
+      assert(
+        boxes.every((box) => box.x >= 0 && box.right <= width + 1),
+        JSON.stringify(boxes),
+      );
+      await page.screenshot({
+        path: `test-results/passkey-names/account-${width}-${colorScheme}.png`,
+        fullPage: true,
+      });
+    }
+  await page.setViewportSize({ width: 1280, height: 850 });
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
   const email = page.getByLabel("Email", { exact: true });
   await email.waitFor();
@@ -152,6 +297,10 @@ try {
     verificationHasNoMisleadingCancel: true,
     crossBrowserRejected: true,
     replayRejected: true,
+    namedEnrollmentAndRenameBeforeAuthentication: true,
+    abandonedEnrollmentOptionsAndPicker: true,
+    noAbandonedRegistrationPost: true,
+    unicode80ScalarEnrollmentRenameAndReload: true,
     credentialCount: credentials.length,
     resident: credentials[0].isResidentCredential,
     userId: user.id,

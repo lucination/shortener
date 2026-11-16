@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Outcome, EnrollmentState } from "./view-models";
+  import type { Outcome, EnrollmentState, Resource } from "./view-models";
   import ResourceStatus from "./ResourceStatus.svelte";
   import PasskeySection from "./PasskeySection.svelte";
   let {
@@ -10,8 +10,17 @@
     onretention = () => {},
     onsave = () => {},
     onenroll = () => {},
+    enrollmentBusy = false,
     onsignout = () => {},
     onlogout = () => {},
+    passkeyName = "",
+    passkeys = { kind: "ready", value: [] },
+    passkeyEdits = {},
+    passkeyFeedback = { kind: "idle" },
+    onpasskeyname = () => {},
+    onpasskeyedit = () => {},
+    onpasskeyrename = () => {},
+    onpasskeyretry = () => {},
   }: {
     email: string;
     retention: string;
@@ -20,8 +29,17 @@
     onretention?: (value: string) => void;
     onsave?: () => void;
     onenroll?: () => void;
+    enrollmentBusy?: boolean;
     onsignout?: () => void;
     onlogout?: () => void;
+    passkeyName?: string;
+    passkeys?: Resource<readonly { id: number; name: string }[]>;
+    passkeyEdits?: Readonly<Record<number, string>>;
+    passkeyFeedback?: Outcome;
+    onpasskeyname?: (name: string) => void;
+    onpasskeyedit?: (id: number, name: string) => void;
+    onpasskeyrename?: (id: number) => void;
+    onpasskeyretry?: () => void;
   } = $props();
 </script>
 
@@ -32,7 +50,19 @@
     <p>{email}</p>
     <p class="muted">Your email address is managed by your administrator.</p>
   </div>
-  <PasskeySection state={enrollment} {onenroll} />
+  <PasskeySection
+    state={enrollment}
+    {onenroll}
+    {enrollmentBusy}
+    name={passkeyName}
+    keys={passkeys}
+    edits={passkeyEdits}
+    feedback={passkeyFeedback}
+    onname={onpasskeyname}
+    onedit={onpasskeyedit}
+    onrename={onpasskeyrename}
+    onretry={onpasskeyretry}
+  />
   <form
     class="box-frame stack"
     onsubmit={(event) => {

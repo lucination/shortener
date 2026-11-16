@@ -2,6 +2,7 @@
   import type { AnalyticsView, DateRange } from "./view-models";
   import ResourceStatus from "./ResourceStatus.svelte";
   import EventTable from "./EventTable.svelte";
+  import { completeDays } from "./statistics";
   let {
     view,
     range,
@@ -15,11 +16,11 @@
     onapply?: () => void;
     onback?: () => void;
   } = $props();
-  const points = (days: readonly { human: number }[]) =>
+  const points = (days: readonly { human: number }[], peak: number) =>
     days
       .map(
         (day, index) =>
-          `${30 + index * (740 / Math.max(1, days.length - 1))},${175 - (day.human / Math.max(1, ...days.map((d) => d.human))) * 140}`,
+          `${30 + index * (740 / Math.max(1, days.length - 1))},${175 - (day.human / peak) * 140}`,
       )
       .join(" ");
 </script>
@@ -28,7 +29,7 @@
   <div class="toolbar spread">
     <div>
       <h1>{view.kind === "stats" ? "Link statistics" : "Click events"}</h1>
-      <p class="muted">{view.label}</p>
+      <p class="muted break">{view.label}</p>
     </div>
     <button onclick={onback}>Back to links</button>
   </div>
@@ -49,13 +50,21 @@
       /></label
     ><button onclick={onapply}>Apply dates</button>
   </div>
+  <p class="muted">
+    Dates are inclusive, in UTC. Clicks count human redirects, not unique
+    visitors.
+  </p>
   <ResourceStatus state={view.state} onretry={onapply} />
   {#if view.kind === "stats" && view.state.kind === "ready"}{@const stats =
       view.state.value}
+    {@const period = stats.range ?? range}
+    {@const days = completeDays(stats.days, period)}
+    {@const peak = Math.max(1, ...days.map((day) => day.human))}
     <div class="metric-grid stats-metrics">
       <div>
         <div class="muted">Clicks</div>
         <div class="metric-value">{stats.human.toLocaleString()}</div>
+        <p class="muted">Human redirects</p>
       </div>
       <div>
         <div class="muted">Bot redirects</div>
@@ -66,9 +75,9 @@
         <div class="metric-value">{stats.preview.toLocaleString()}</div>
       </div>
     </div>
-    <div class="box-frame">
+    <div class="box-frame stats-timeline">
       <h2>Clicks per day</h2>
-      {#if stats.days.length}<svg
+      {#if stats.days.length && days.length}<svg
           class="chart"
           viewBox="0 0 800 210"
           preserveAspectRatio="none"
@@ -87,38 +96,39 @@
             stroke="currentColor"
             stroke-width="2"
           /><polyline
-            points={points(stats.days)}
+            points={points(days, peak)}
             fill="none"
             stroke="currentColor"
             stroke-width="3"
-          />{#each stats.days as day, index}<circle
-              cx={30 + index * (740 / Math.max(1, stats.days.length - 1))}
-              cy={175 -
-                (day.human / Math.max(1, ...stats.days.map((d) => d.human))) *
-                  140}
+          />{#each days as day, index}<circle
+              cx={30 + index * (740 / Math.max(1, days.length - 1))}
+              cy={175 - (day.human / peak) * 140}
               r="4"
               fill="currentColor"
               ><title>{day.day}: {day.human} clicks</title></circle
             >{/each}</svg
         >
         <div class="toolbar spread muted">
-          <span>{stats.days[0]?.day}</span><span
-            >{stats.days[stats.days.length - 1]?.day}</span
-          >
+          <span>{period.from}</span><span>{period.to}</span>
         </div>{:else}<p>No redirects in this date range.</p>{/if}
     </div>
-    <div class="form-grid">
+    <p class="muted">
+      Breakdowns include all recorded events, including bots and previews. Top
+      20 per category.
+    </p>
+    <div class="stats-breakdowns">
       {#each [{ title: "Countries", rows: stats.countries }, { title: "Devices", rows: stats.devices }, { title: "Referrers", rows: stats.referrers }] as group}<div
           class="box-frame stack"
         >
           <h2>{group.title}</h2>
           {#if !group.rows.length}<p class="muted">
               No observations
-            </p>{/if}{#each group.rows as row}<div>
+            </p>{/if}{#each [...group.rows].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)) as row, index}<div
+            >
               <div class="toolbar spread">
-                <span class="break">{row.label}</span><strong
-                  >{row.count}</strong
-                >
+                <span class="break"
+                  ><span class="muted">{index + 1}.</span> {row.label}</span
+                ><strong>{row.count}</strong>
               </div>
               <meter
                 class="w-full"

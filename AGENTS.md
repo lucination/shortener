@@ -3,6 +3,9 @@
 ## Routing and architecture
 
 - `GET /{short}` is a native HTTP302, not JavaScript navigation. Keep password gates, `/v/{short}`, unlock/continue POSTs, generic unavailable404, atomic human-count claims and password-version grants.
+- `GET /{short}/statistics` and `GET /{short}/edit` are native creator-only pages, authorized before static-file lookup. Require a valid `short_session`, exact case-sensitive alias in configured domain 1, safe raw path, exact application-origin host/port and active creator identity; anonymous, expired/invalid session, another user, admin-only authority, missing/deleted alias and wrong host get the same generic HTTP404/no-store document without JavaScript, never a login redirect. Disabled, expired and click-exhausted links remain manageable. Do not use redirect eligibility for this ownership decision. User statistics/events APIs remain owner-scoped; statistics responses are no-store, including denials.
+- Statistics and existing-link Edit actions perform same-origin full document navigation using the short code (not a link ID). The controlled Analytics/LinkEditor render as full pages; create/import/events/confirm flows retain their existing modal behavior. Editing omits unchanged fields to preserve stored expiration precision and untouched settings.
+- Passkey names are separate additive metadata (`003_passkey_names.sql`), not changes to credential bytes or authentication policy. `/api/account/passkeys` lists only `{id,name}` for the authenticated user; PATCH of its numeric child renames only an owned key. Enrollment requires a trimmed 1–80 Unicode-scalar name without control characters. Enrollment owns a cancellable pre-verification attempt across navigation/session changes/unmount; retain abandoned work until settled before replacement, and detach browser abort ownership before transmitted verification. Existing unnamed credentials display `Unnamed passkey`; never infer device identity. Preserve challenge, revocation and session fences.
 - User API `/api`; admin API `/_/api`. Separate cookie/session authorities. Historical `/api/admin` and JS-only migration notes are obsolete.
 - Two independent static SvelteKit builds: `web/` user SPA at `/`, `admin/` admin SPA at `/_/` with `paths.base=/_`. Admin is reached only by typing its URL. No admin navigation in the user shell. Explicit controlled presentation sharing from `web/src/lib`; effects remain in each application's container/adapters.
 - Only authenticated users see Links, Account and Sign out. Product theme follows the OS, without selectors or browser-storage overrides. Attribution stays in `web/THIRD-PARTY-NOTICES.md`, not the UI.
@@ -10,7 +13,8 @@
 - Actual serialized Rust DTOs derive ts-rs. `web/scripts/sync-contracts.mjs` copies the deterministic export; admin imports this same generated-contract parser, not duplicate wire types.
 - Production: native Loco + SQLite serves both static builds; no Node runtime. Development only: Caddy3000 keeps same-origin Rust short/API/auth authority and proxies user Vite5173/admin Vite5174 and their distinct HMR paths.
 
-
 ## Contribution checks
 
 Keep credentials outside Git. Use disposable local test databases and loopback mail capture. Run Rust tests, format checks, frontend type checks, tests, generated-contract drift checks and both static builds before submitting changes. Preserve third-party notices and font licenses.
+
+Management browser acceptance: build `web/`, then `cargo test --test management_browser -- --ignored --nocapture`; this starts a real loopback native router with disposable store data and runs `web/scripts/check-management-browser.mjs` without fetch mocks. `cargo test --test passkeys browser_virtual_authenticator_signs_in_without_email -- --ignored --nocapture` exercises named resident-key enrollment, rename and authentication with Chromium's virtual authenticator. Browser dependencies are test-only.

@@ -1,5 +1,7 @@
 <script lang="ts">
   import { copyAddress, type CopyAddress } from "../adapters/clipboard";
+  import { parsePasskeyName } from "../passkey-name";
+  import { managementUrl } from "../management";
   import { appName } from "../adapters/branding";
   import { onMount, onDestroy } from "svelte";
   import AppShell, { type Section } from "../AppShell.svelte";
@@ -42,6 +44,17 @@
   import { enrollPasskey, authenticatePasskey } from "../adapters/passkeys";
   import type { SignInState } from "../sign-in";
   let passkeyAttempt: AbortController | undefined;
+  // Retain even an abandoned attempt until its options/cookie/credential work
+  // settles. No replacement may steal the service-global WebAuthn owner.
+  let enrollmentAttempt = $state.raw<
+    | { controller: AbortController; phase: "preparing" | "verifying" }
+    | undefined
+  >();
+  function abandonEnrollment() {
+    if (enrollmentAttempt?.phase === "preparing")
+      enrollmentAttempt.controller.abort();
+  }
+  onDestroy(abandonEnrollment);
   let signInState: SignInState = $state({ kind: "idle" });
   type Page =
     | {
@@ -75,7 +88,12 @@
   let {
     api = createApi(fetch),
     copy = copyAddress,
-  }: { api?: Api; copy?: CopyAddress } = $props();
+    navigateTo = (path: string) => location.assign(path),
+  }: {
+    api?: Api;
+    copy?: CopyAddress;
+    navigateTo?: (path: string) => void;
+  } = $props();
   let page: Page = $state({
     kind: "links",
     state: { kind: "pending" },
@@ -107,6 +125,53 @@
     | { kind: "authenticated"; epoch: symbol };
   let session: Session = $state({ kind: "discovering" });
   let generation = 0;
+  let passkeyName = $state("");
+  let passkeys: Resource<readonly { id: number; name: string }[]> = $state({
+    kind: "pending",
+  });
+  let passkeyEdits: Record<number, string> = $state({});
+  let passkeyFeedback: Outcome = $state({ kind: "idle" });
+  async function loadPasskeys() {
+    if (page.kind !== "account") return;
+    const request = generation;
+    passkeys = { kind: "pending" };
+    const result = await api.passkeys();
+    if (request !== generation || page.kind !== "account") return;
+    passkeys = resultResource(result, (value) => value.items);
+  }
+  async function renamePasskey(id: number) {
+    if (
+      page.kind !== "account" ||
+      passkeyFeedback.kind === "pending" ||
+      passkeys.kind !== "ready"
+    )
+      return;
+    const name =
+      passkeyEdits[id] ??
+      passkeys.value.find((key) => key.id === id)?.name ??
+      "";
+    const parsed = parsePasskeyName(name);
+    if (parsed === undefined) {
+      passkeyFeedback = {
+        kind: "error",
+        reason: "validation",
+        message:
+          "Enter a passkey name (1–80 characters, no control characters).",
+      };
+      return;
+    }
+    const request = generation;
+    passkeyFeedback = { kind: "pending" };
+    const result = await api.renamePasskey(id, { name: parsed });
+    if (request !== generation || page.kind !== "account") return;
+    if (result.kind === "failed") {
+      passkeyFeedback = failureOutcome(result.error);
+      return;
+    }
+    passkeyEdits = { ...passkeyEdits, [id]: result.value.name };
+    passkeyFeedback = { kind: "success", message: "Passkey renamed." };
+    await loadPasskeys();
+  }
   const section = (): Section =>
     page.kind === "account" ? "account" : "links";
   const initialRange = (): DateRange => {
@@ -124,6 +189,7 @@
     return result.kind === "ok";
   }
   function setPage(next: Page) {
+    abandonEnrollment();
     clearCopy();
     generation++;
     passkeyAttempt?.abort();
@@ -134,6 +200,7 @@
     outcome = { kind: "idle" };
   }
   function beginCommand(next: Exclude<Command, { kind: "none" }>) {
+    abandonEnrollment();
     generation++;
     clearCopy();
     command = next;
@@ -167,12 +234,13 @@
     };
   }
   async function navigate(target: Section) {
+    abandonEnrollment();
     if (target === "links") await loadLinks();
     else if (target === "account") {
       const request = ++generation;
       const result = await api.me();
       if (request !== generation) return;
-      if (result.kind === "ok")
+      if (result.kind === "ok") {
         setPage({
           kind: "account",
           user: result.value,
@@ -182,7 +250,11 @@
               ? ""
               : String(result.value.retention_days),
         });
-      else notify(result, "");
+        passkeyEdits = {};
+        passkeyFeedback = { kind: "idle" };
+        passkeyName = "";
+        await loadPasskeys();
+      } else notify(result, "");
     }
   }
   async function start() {
@@ -234,6 +306,7 @@
   }
   async function passkeyLogin() {
     if (
+      enrollmentAttempt ||
       page.kind !== "auth" ||
       page.mode.kind !== "magic" ||
       outcome.kind === "pending"
@@ -275,11 +348,48 @@
     signInState = { kind: "passkey-cancelling" };
   }
   async function enroll() {
-    if (page.kind !== "account" || page.enrollment.kind === "enrolling") return;
+    if (
+      session.kind !== "authenticated" ||
+      enrollmentAttempt ||
+      passkeyAttempt ||
+      page.kind !== "account" ||
+      page.enrollment.kind === "enrolling"
+    )
+      return;
+    const name = parsePasskeyName(passkeyName);
+    if (name === undefined) {
+      page = {
+        ...page,
+        enrollment: {
+          kind: "failed",
+          message: "Enter a passkey name (1–80 characters).",
+        },
+      };
+      return;
+    }
     const request = generation;
     page = { ...page, enrollment: { kind: "enrolling" } };
-    const result = await enrollPasskey(api);
-    if (request !== generation || page.kind !== "account") return;
+    const owner = session.epoch;
+    const attempt = {
+      controller: new AbortController(),
+      phase: "preparing" as "preparing" | "verifying",
+    };
+    enrollmentAttempt = attempt;
+    const result = await enrollPasskey(api, name, {
+      signal: attempt.controller.signal,
+      onVerifying: () => {
+        attempt.phase = "verifying";
+      },
+    });
+    if (enrollmentAttempt === attempt) enrollmentAttempt = undefined;
+    if (session.kind !== "authenticated" || session.epoch !== owner) return;
+    if (request !== generation || page.kind !== "account") {
+      // A cancelled command/logout can leave the same Account screen mounted.
+      // Release its old progress without publishing stale success or failure.
+      if (page.kind === "account" && page.enrollment.kind === "enrolling")
+        page = { ...page, enrollment: { kind: "idle" } };
+      return;
+    }
     page = {
       ...page,
       enrollment:
@@ -287,8 +397,13 @@
           ? { kind: "succeeded", message: "Passkey added to your account." }
           : { kind: "failed", message: result.error.message },
     };
+    if (result.kind === "ok") {
+      passkeyName = "";
+      await loadPasskeys();
+    }
   }
   async function logout() {
+    abandonEnrollment();
     if (session.kind !== "authenticated") return;
     const owner = session.epoch;
     // Success owns the session; failure feedback still owns the initiating page.
@@ -332,13 +447,12 @@
     const request = generation;
     const link = page.state.value.find((link) => link.id === id);
     if (!link) return;
-    if (action === "edit")
-      setPage({
-        kind: "editor",
-        mode: { kind: "edit", id },
-        draft: linkDraft(link),
-      });
-    else if (action === "copy") {
+    if (action === "edit" || action === "stats") {
+      const code = link.addresses[0]?.short_code;
+      const path =
+        code && managementUrl(code, action === "edit" ? "edit" : "statistics");
+      if (path) navigateTo(path);
+    } else if (action === "copy") {
       const attempt = ++copyAttempt;
       copyFeedback = { kind: "pending", id };
       const address = link.addresses[0];
@@ -372,7 +486,7 @@
       await loadAnalytics(
         id,
         link.title || `Link #${id}`,
-        action === "stats" ? "stats" : "events",
+        "events",
         initialRange(),
       );
   }
@@ -797,6 +911,16 @@
         /></FocusedModal
       >
     {:else if page.kind === "account"}<AccountPanel
+        enrollmentBusy={enrollmentAttempt !== undefined}
+        {passkeyName}
+        {passkeys}
+        {passkeyEdits}
+        {passkeyFeedback}
+        onpasskeyname={(name) => (passkeyName = name)}
+        onpasskeyedit={(id, name) =>
+          (passkeyEdits = { ...passkeyEdits, [id]: name })}
+        onpasskeyrename={renamePasskey}
+        onpasskeyretry={loadPasskeys}
         email={page.user.email}
         retention={page.retention}
         enrollment={page.enrollment}

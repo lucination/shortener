@@ -57,16 +57,42 @@ const authentication = z.object({
   allowCredentials: z.array(descriptor).optional(),
   userVerification: z.enum(["required", "preferred", "discouraged"]).optional(),
 });
-export async function enrollPasskey(api: Api): Promise<Result<Message>> {
+export async function enrollPasskey(
+  api: Api,
+  name: string,
+  {
+    signal,
+    onVerifying = () => {},
+  }: { signal?: AbortSignal; onVerifying?: () => void } = {},
+): Promise<Result<Message>> {
+  const cancelled = {
+    kind: "failed",
+    error: {
+      kind: "contract",
+      message: "Passkey enrollment was cancelled before verification.",
+    },
+  } as const;
+  if (signal?.aborted) return cancelled;
   const result = await api.registrationOptions();
+  if (signal?.aborted) return cancelled;
   if (result.kind === "failed") return result;
+  const cancel = () => WebAuthnAbortService.cancelCeremony();
+  signal?.addEventListener("abort", cancel, { once: true });
+  let stage: "ceremony" | "verification" = "ceremony";
   try {
     const options = creation.parse(result.value.public_key);
     const credential = await startRegistration({
       optionsJSON: options,
     });
     const json: unknown = JSON.parse(JSON.stringify(credential));
+    if (signal?.aborted) return cancelled;
+    // Browser ownership ends before verification. A transmitted registration
+    // cannot be cancelled or truthfully described as rolled back.
+    signal?.removeEventListener("abort", cancel);
+    stage = "verification";
+    onVerifying();
     return await api.register({
+      name,
       challenge_id: result.value.challenge_id,
       credential: z.json().parse(json),
     });
@@ -76,9 +102,13 @@ export async function enrollPasskey(api: Api): Promise<Result<Message>> {
       error: {
         kind: "contract",
         message:
-          "Passkey enrollment was cancelled or unsupported. Your account is unchanged.",
+          stage === "verification"
+            ? "Passkey enrollment could not be confirmed. Refresh your passkeys before trying again."
+            : "Passkey enrollment was cancelled or unsupported. Your account is unchanged.",
       },
     };
+  } finally {
+    signal?.removeEventListener("abort", cancel);
   }
 }
 export async function authenticatePasskey(

@@ -12,6 +12,8 @@ The native password, unlock-error and continue documents keep their HTTP forms a
 
 Fixtures are deterministic DTO-derived records from `fixtures.ts`. They are not live account data. Native document inputs are escaped before template substitution in both Rust and the story harness.
 
+Creator statistics use the overview-first direction: identity and date controls, compact summary, a wide human-click timeline, then ranked country/device/referrer breakdowns. An event-first layout was rejected because raw requests obscure the overview; the separate events modal is retained. Breakdown counts include all recorded event classifications, not just human clicks. Date ranges are inclusive UTC, and daily aggregates survive raw-event retention. The Analytics stories render the production controlled component with deterministic ready/empty/loading/failure data; API and session effects remain in ManagementContainer. Passkey stories likewise use controlled names/list props without fetching.
+
 ## Verification
 
 Run `npm test`, `npm run check`, `npm run check-contracts`, `npm run build` and `npm run build-storybook` from `web/`, and the admin check/build from `admin/`. Rust tests cover the native forms, grants, redirect claims and template packaging. The user static finalizer emits `presentation.css` from the compiled application CSS for native documents.

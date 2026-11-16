@@ -68,7 +68,7 @@ it("renders one screen heading for the separate administrator link view", () => 
     /ADMINISTRATION|shorter way|Human/,
   );
 });
-it("labels real statistics as clicks without counting-methodology commentary", () => {
+it("retains Clicks as the primary metric label without workspace chrome", () => {
   const v = render(Analytics, {
     view: {
       kind: "stats",
@@ -90,7 +90,7 @@ it("labels real statistics as clicks without counting-methodology commentary", (
   });
   expect(v.getByText("Clicks", { exact: true })).toBeTruthy();
   expect(v.container.textContent).not.toMatch(
-    /Human|approximate|must not be summed|WORKSPACE|Daily UTC|Inclusive dates/,
+    /approximate|must not be summed|WORKSPACE|Daily UTC|Inclusive dates/,
   );
   expect(v.container.querySelectorAll(".metric-grid > div")).toHaveLength(3);
 });

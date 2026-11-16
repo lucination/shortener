@@ -317,10 +317,22 @@ fn authority_error(db: &Store, h: &HeaderMap, now: &str, want_admin: bool) -> Re
     }
 }
 fn api_sync(s: &AppState, method: &Method, path: &str, h: &HeaderMap, body: &[u8]) -> Response {
-    match api_result(s, method, path, h, body) {
+    let mut response = match api_result(s, method, path, h, body) {
         Ok(r) => r,
         Err(r) => r,
+    };
+    if path
+        .split('?')
+        .next()
+        .and_then(|p| p.strip_prefix("/api/links/"))
+        .is_some_and(|tail| tail.split('/').nth(1) == Some("stats"))
+    {
+        response.headers_mut().insert(
+            header::CACHE_CONTROL,
+            axum::http::HeaderValue::from_static("no-store"),
+        );
     }
+    response
 }
 fn api_result(
     s: &AppState,
@@ -556,6 +568,13 @@ fn api_result(
     let segments: Vec<_> = path.trim_matches('/').split('/').collect();
     match (method.as_str(), path) {
         ("GET", "/api/me") => return Ok(Json(user).into_response()),
+        ("GET", "/api/account/passkeys") => {
+            return Ok((
+                [(header::CACHE_CONTROL, "no-store")],
+                Json(db.passkey_list(user.id, &now).map_err(db_error)?),
+            )
+                .into_response());
+        }
         ("POST", "/api/auth/passkeys/register/options") => {
             let w = crate::passkeys::webauthn(&s.origin).map_err(db_error)?;
             return Ok(Json(
@@ -566,7 +585,9 @@ fn api_result(
         }
         ("POST", "/api/auth/passkeys/register/verify") => {
             let w = crate::passkeys::webauthn(&s.origin).map_err(db_error)?;
-            db.passkey_register_verify(&w, user.id, decode(body)?, &now)
+            let input: PasskeyEnrollment = decode(body)?;
+            crate::domain::PasskeyName::parse(&input.name).map_err(db_error)?;
+            db.passkey_register_named(&w, user.id, input, &now)
                 .map_err(|_| {
                     error(
                         StatusCode::UNPROCESSABLE_ENTITY,
@@ -704,6 +725,20 @@ fn api_result(
             _ => {}
         }
     }
+    if *method == Method::PATCH
+        && segments.len() == 4
+        && segments[..3] == ["api", "account", "passkeys"]
+    {
+        let id: i32 = segments[3]
+            .parse()
+            .map_err(|_| error(StatusCode::NOT_FOUND, "not_found", "not found"))?;
+        let input: PasskeyRename = decode(body)?;
+        return Ok(Json(
+            db.rename_passkey(user.id, id, &input.name, &now)
+                .map_err(db_error)?,
+        )
+        .into_response());
+    }
     Err(error(
         StatusCode::NOT_FOUND,
         "not_found",
@@ -812,6 +847,14 @@ fn redirect(location: &str) -> Response {
     )
         .into_response()
 }
+// A denied management document must not execute the SPA: cookies span ports,
+// while creator-page host admission is stricter than ordinary API admission.
+fn management_not_found() -> Response {
+    html(
+        StatusCode::NOT_FOUND,
+        public_document("Link not found", "<h1>Link not found</h1>".into()),
+    )
+}
 fn fallback_sync(
     s: &AppState,
     method: &Method,
@@ -822,6 +865,24 @@ fn fallback_sync(
 ) -> Response {
     let path = uri.path();
     let now = crate::domain::instant(chrono::Utc::now());
+    // Creator pages precede static files so a generated or stray file cannot bypass auth.
+    let management = crate::domain::ManagementRoute::parse(path);
+    if management == crate::domain::ManagementRoute::Invalid {
+        return management_not_found();
+    }
+    if let crate::domain::ManagementRoute::Creator(page) = management {
+        let admitted = matches!(*method, Method::GET | Method::HEAD)
+            && management_host_ok(s, peer, h)
+            && cookie(h, "short_session")
+                .and_then(|token| s.store.user_scope(&token, &now).ok())
+                .and_then(|db| db.owned_alias(page.alias(), &now).ok())
+                .is_some();
+        return if admitted {
+            shell(s, StatusCode::OK)
+        } else {
+            management_not_found()
+        };
+    }
     if path == "/auth/verify" && *method == Method::GET {
         let q: std::collections::HashMap<String, String> =
             url::form_urlencoded::parse(uri.query().unwrap_or("").as_bytes())
@@ -1073,6 +1134,41 @@ fn fallback_sync(
         }
         Err(_) => shell(s, StatusCode::NOT_FOUND),
     }
+}
+fn management_host_ok(s: &AppState, peer: Option<std::net::IpAddr>, h: &HeaderMap) -> bool {
+    let key = if peer.is_some_and(|p| s.trusted_proxies.contains(&p))
+        && h.contains_key("x-forwarded-host")
+    {
+        "x-forwarded-host"
+    } else {
+        "host"
+    };
+    let mut values = h.get_all(key).iter();
+    let Some(value) = values.next().and_then(|value| value.to_str().ok()) else {
+        return false;
+    };
+    if values.next().is_some()
+        || value.is_empty()
+        || !value
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-' | b':' | b'[' | b']'))
+    {
+        return false;
+    }
+    let Ok(authority) = value.parse::<axum::http::uri::Authority>() else {
+        return false;
+    };
+    if authority.port().is_some() && authority.port_u16().is_none() {
+        return false;
+    }
+    let Ok(origin) = url::Url::parse(&s.origin) else {
+        return false;
+    };
+    let default_port = if origin.scheme() == "https" { 443 } else { 80 };
+    origin
+        .host_str()
+        .is_some_and(|host| authority.host().eq_ignore_ascii_case(host))
+        && Some(authority.port_u16().unwrap_or(default_port)) == origin.port_or_known_default()
 }
 fn observation(h: &HeaderMap, ip: String) -> crate::analytics::Observation {
     crate::analytics::Observation {

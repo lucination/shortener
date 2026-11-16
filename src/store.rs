@@ -240,6 +240,20 @@ impl Store {
             get_link(db, id)
         })
     }
+    /// Management ownership is independent of redirect eligibility. No admin authority.
+    pub fn owned_alias(&self, alias: &Alias, now: &str) -> DbResult<Link> {
+        let Authority::User { id: owner, .. } = &self.authority else {
+            return Err("not found".into());
+        };
+        self.with(|db| {
+            self.authorize(db, Some(*owner), now)?;
+            let id = db.query_row(
+                "SELECT l.id FROM links l JOIN addresses a ON a.link_id=l.id WHERE a.domain_id=1 AND a.short_code=? AND l.owner_id=? AND l.deleted_at IS NULL",
+                params![alias.as_str(),owner], |r| r.get(0)
+            ).map_err(sql)?;
+            get_link(db, id)
+        })
+    }
     pub fn claim_redirect(&self, code: &str, human: bool, now: &str) -> DbResult<Link> {
         self.claim_authorized(code, human, now, None)
     }
@@ -493,6 +507,8 @@ impl Store {
         db.execute_batch(include_str!("../migration/001_initial.sql"))
             .map_err(sql)?;
         db.execute_batch(include_str!("../migration/002_discoverable_challenges.sql"))
+            .map_err(sql)?;
+        db.execute_batch(include_str!("../migration/003_passkey_names.sql"))
             .map_err(sql)?;
         db.execute(
             "INSERT OR IGNORE INTO domains(id,name)VALUES(1,?)",

@@ -3,7 +3,8 @@ use webauthn_authenticator_rs::{WebauthnAuthenticator, softpasskey::SoftPasskey}
 const NOW: &str = "2026-11-14T17:00:00.000Z";
 #[test]
 fn actual_webauthn_registration_authentication_replay_and_revocation_preserve_passkey() {
-    let db = Store::open(":memory:", "example.com").unwrap();
+    let file = tempfile::NamedTempFile::new().unwrap();
+    let mut db = Store::open(file.path().to_str().unwrap(), "example.com").unwrap();
     let u = db.create_user("passkey@example.test", NOW).unwrap();
     let token = db.issue_magic(&u.email, NOW).unwrap().unwrap();
     db.consume_magic(&token, NOW).unwrap();
@@ -26,6 +27,24 @@ fn actual_webauthn_registration_authentication_replay_and_revocation_preserve_pa
     db.passkey_register_verify(&w, u.id, verify.clone(), NOW)
         .unwrap();
     assert!(db.passkey_register_verify(&w, u.id, verify, NOW).is_err());
+    // Simulate a pre-metadata database containing a real legacy credential.
+    let raw = rusqlite::Connection::open(file.path()).unwrap();
+    let bytes: String = raw
+        .query_row("SELECT credential FROM passkeys", [], |r| r.get(0))
+        .unwrap();
+    raw.execute_batch("DROP TABLE passkey_names").unwrap();
+    drop(db);
+    db = Store::open(file.path().to_str().unwrap(), "example.com").unwrap();
+    let key = db.passkey_list(u.id, NOW).unwrap().items.remove(0);
+    assert_eq!(key.name, "Unnamed passkey");
+    db.rename_passkey(u.id, key.id, "Legacy security key", NOW)
+        .unwrap();
+    assert_eq!(
+        raw.query_row("SELECT credential FROM passkeys", [], |r| r
+            .get::<_, String>(0))
+            .unwrap(),
+        bytes
+    );
     db.revoke_user(u.id).unwrap();
     let options = db.passkey_auth_options(&w, &u.email, NOW).unwrap();
     let rcr = serde_json::from_value(serde_json::json!({"publicKey":options.public_key})).unwrap();

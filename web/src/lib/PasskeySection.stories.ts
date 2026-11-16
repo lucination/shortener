@@ -3,7 +3,17 @@ import type { Meta, StoryObj } from "@storybook/sveltekit";
 const meta = {
   title: "Access/Passkey",
   component: PasskeySection,
-  args: { state: { kind: "idle" } },
+  args: {
+    state: { kind: "idle" },
+    name: "Laptop",
+    keys: {
+      kind: "ready",
+      value: [
+        { id: 1, name: "Laptop" },
+        { id: 2, name: "Security key" },
+      ],
+    },
+  },
 } satisfies Meta<typeof PasskeySection>;
 export default meta;
 type Story = StoryObj<typeof meta>;

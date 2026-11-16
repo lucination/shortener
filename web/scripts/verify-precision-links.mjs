@@ -147,7 +147,9 @@ try {
   await page.getByText("Browser edited proof", { exact: true }).waitFor();
   const edited = page.locator("tr").filter({ hasText: "Browser edited proof" });
   await edited.getByTitle("View statistics", { exact: true }).click();
-  await page.getByRole("dialog").waitFor();
+  await page.getByText("Clicks per day", { exact: true }).waitFor();
+  assert.equal(await page.getByRole("dialog").count(), 0);
+  assert(new URL(page.url()).pathname.endsWith("/statistics"));
   await page
     .getByRole("button", { name: "Back to links", exact: true })
     .click();
@@ -171,7 +173,7 @@ try {
     observations,
     persistence: true,
     createEditDelete: true,
-    statsEventsDialogs: true,
+    statsPageAndEventsDialog: true,
     errors,
   };
   await writeFile(

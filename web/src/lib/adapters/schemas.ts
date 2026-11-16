@@ -1,3 +1,4 @@
+import { parsePasskeyName } from "../passkey-name";
 import { z } from "zod";
 import type * as DTO from "../generated";
 const id = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
@@ -142,3 +143,10 @@ export const passkeyOptionsSchema = z.object({
   challenge_id: z.string().min(1),
   public_key: z.json(),
 }) satisfies z.ZodType<DTO.PasskeyOptions>;
+export const passkeySummarySchema = z.object({
+  id,
+  name: z.string().refine((value) => parsePasskeyName(value) !== undefined),
+}) satisfies z.ZodType<DTO.PasskeySummary>;
+export const passkeyListSchema = z.object({
+  items: z.array(passkeySummarySchema),
+}) satisfies z.ZodType<DTO.PasskeyList>;

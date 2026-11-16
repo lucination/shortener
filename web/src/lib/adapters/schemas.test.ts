@@ -1,3 +1,12 @@
+it("accepts the server's Unicode character bound for passkey list names", async () => {
+  const { passkeySummarySchema } = await import("./schemas");
+  expect(
+    passkeySummarySchema.safeParse({ id: 1, name: "🔑".repeat(80) }).success,
+  ).toBe(true);
+  expect(
+    passkeySummarySchema.safeParse({ id: 1, name: "🔑".repeat(81) }).success,
+  ).toBe(false);
+});
 import { it, expect } from "vitest";
 import { linkListSchema } from "./schemas";
 const link = {
@@ -35,4 +44,22 @@ it("rejects malformed wire states rather than manufacturing valid DTOs", () => {
     { items: [{ ...link, created_at: "tomorrow" }], total: 1 },
   ])
     expect(linkListSchema.safeParse(value).success).toBe(false);
+});
+
+it("rejects control characters and unpaired surrogates in passkey names", async () => {
+  const { passkeySummarySchema } = await import("./schemas");
+  for (const name of [
+    " ",
+    "line\nbreak",
+    "key\u0085name",
+    "bad\ud800",
+    "bad\udfff",
+  ]) {
+    expect(
+      passkeySummarySchema.safeParse({ id: 1, name }).success,
+      JSON.stringify(name),
+    ).toBe(false);
+  }
+  for (const name of ["a".repeat(80), "🔑".repeat(80), "a🔑".repeat(40)])
+    expect(passkeySummarySchema.safeParse({ id: 1, name }).success).toBe(true);
 });

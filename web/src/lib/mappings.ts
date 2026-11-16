@@ -17,6 +17,7 @@ export const linkRow = (link: DTO.Link): LinkRow => ({
   enabled: link.enabled,
 });
 export const statsView = (stats: DTO.LinkStats): StatsView => ({
+  range: { from: stats.from, to: stats.to },
   human: stats.humans,
   bot: stats.bots,
   preview: stats.previews,

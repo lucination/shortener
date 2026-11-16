@@ -208,7 +208,9 @@ code {
 }
 .grid-table {
   width: 100%;
-  border-collapse: collapse;
+  /* Paint each divider with its cell, including horizontally sticky identities. */
+  border-collapse: separate;
+  border-spacing: 0;
 }
 .grid-table :is(th, td) {
   text-align: left;
@@ -393,4 +395,64 @@ code {
 }
 .stats-metrics {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.management-page {
+  padding-top: 20px;
+}
+.management-identity {
+  margin-bottom: 20px;
+}
+.management-identity > a {
+  width: fit-content;
+  font-size: 12px;
+}
+.management-page > section {
+  min-width: 0;
+}
+.management-page .stats-timeline .chart {
+  height: 240px;
+  margin-top: 12px;
+}
+.stats-breakdowns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.stats-breakdowns .toolbar {
+  flex-wrap: nowrap;
+  align-items: start;
+}
+.stats-breakdowns .toolbar > span {
+  min-width: 0;
+}
+.password-removal {
+  margin-top: 16px;
+}
+.passkey-row {
+  align-items: flex-end;
+}
+.passkey-row .field {
+  width: min(320px, 100%);
+}
+@media (max-width: 600px) {
+  .stats-breakdowns {
+    grid-template-columns: 1fr;
+  }
+  .management-page .stats-timeline .chart {
+    height: 200px;
+  }
+  .management-page .form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .management-page input,
+  .management-page select {
+    width: 100%;
+    min-width: 0;
+  }
+  .management-page input[type="checkbox"] {
+    width: 14px;
+  }
+  .management-page form > .toolbar {
+    flex-wrap: wrap;
+  }
 }

@@ -3,12 +3,7 @@ import { chromium } from "@playwright/test";
 import { readFile, writeFile } from "node:fs/promises";
 import assert from "node:assert/strict";
 const env = Object.fromEntries(
-  (
-    await readFile(
-      process.env.SMOKE_ENV ?? ".integration-smoke.env",
-      "utf8",
-    )
-  )
+  (await readFile(process.env.SMOKE_ENV ?? ".integration-smoke.env", "utf8"))
     .split("\n")
     .filter((x) => x && !x.startsWith("#"))
     .map((x) => {
@@ -261,6 +256,9 @@ try {
         },
       });
       await page.getByRole("button", { name: "Account", exact: true }).click();
+      await page
+        .getByLabel("New passkey name", { exact: true })
+        .fill("Browser test key");
       await page.getByText("Add passkey", { exact: true }).click();
       await page.waitForFunction(
         () =>

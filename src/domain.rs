@@ -47,6 +47,64 @@ impl HostName {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Alias(String);
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PasskeyName(String);
+impl PasskeyName {
+    pub fn parse(value: &str) -> Result<Self, String> {
+        let name = value.trim();
+        if !(1..=80).contains(&name.chars().count()) || name.chars().any(char::is_control) {
+            return Err("passkey name must be 1..80 characters without control characters".into());
+        }
+        Ok(Self(name.into()))
+    }
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+/// Exact raw path: never percent-decode or normalize an ownership boundary.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ManagementPage {
+    Statistics(Alias),
+    Edit(Alias),
+}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ManagementRoute {
+    Unrelated,
+    Invalid,
+    Creator(ManagementPage),
+}
+impl ManagementRoute {
+    pub fn parse(path: &str) -> Self {
+        // Classify malformed separators without normalizing them for admission.
+        // `/v/{short}` remains the native preview namespace, even for codes named edit/statistics.
+        let mut parts = path.split('/').filter(|part| !part.is_empty());
+        let code = parts.next();
+        let suffix = parts.next();
+        if code != Some("v") && matches!(suffix, Some("statistics" | "edit")) {
+            ManagementPage::parse(path)
+                .map(Self::Creator)
+                .unwrap_or(Self::Invalid)
+        } else {
+            Self::Unrelated
+        }
+    }
+}
+impl ManagementPage {
+    pub fn parse(path: &str) -> Option<Self> {
+        let (code, suffix) = path.strip_prefix('/')?.split_once('/')?;
+        let alias = Alias::parse(code).ok()?;
+        match suffix {
+            "statistics" => Some(Self::Statistics(alias)),
+            "edit" => Some(Self::Edit(alias)),
+            _ => None,
+        }
+    }
+    pub fn alias(&self) -> &Alias {
+        match self {
+            Self::Statistics(alias) | Self::Edit(alias) => alias,
+        }
+    }
+}
 impl Alias {
     pub fn parse(value: &str) -> Result<Self, String> {
         const RESERVED: &[&str] = &[

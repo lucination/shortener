@@ -127,6 +127,8 @@ try {
       await click("Remove existing password");
       assert.equal(await page.getByRole("dialog").count(), 1);
       await click("Confirm");
+      await page.getByRole("dialog").waitFor({ state: "hidden" });
+      await click("Cancel");
       await row("Edited control proof").waitFor();
       assert.equal(
         (await links()).find((l) => l.id === main.id).password_protected,
@@ -240,27 +242,28 @@ try {
             await page.locator(".metric-value").first().innerText(),
             "1",
           );
-          const geometry = await page.getByRole("dialog").evaluate((e) => {
-            const r = e.getBoundingClientRect();
-            const a = e
-              .querySelector("input[type=date]")
-              .getBoundingClientRect();
-            const b = [...e.querySelectorAll("button")]
-              .find((b) => b.textContent === "Apply dates")
-              .getBoundingClientRect();
-            return {
-              x: r.x,
-              y: r.y,
-              right: r.right,
-              bottom: r.bottom,
-              aligned: Math.abs(a.bottom - b.bottom) <= 1,
-            };
-          });
+          const geometry = await page
+            .locator(".management-page")
+            .evaluate((e) => {
+              const r = e.getBoundingClientRect();
+              const a = e
+                .querySelector("input[type=date]")
+                .getBoundingClientRect();
+              const b = [...e.querySelectorAll("button")]
+                .find((b) => b.textContent === "Apply dates")
+                .getBoundingClientRect();
+              return {
+                x: r.x,
+                y: r.y,
+                right: r.right,
+                bottom: r.bottom,
+                aligned: Math.abs(a.bottom - b.bottom) <= 1,
+              };
+            });
           assert.ok(
             geometry.x >= 0 &&
               geometry.right <= width &&
               geometry.y >= 0 &&
-              geometry.bottom <= height &&
               geometry.aligned,
             JSON.stringify(geometry),
           );
@@ -330,6 +333,9 @@ try {
           await page.getByText("Retention saved.", { exact: true }).waitFor();
         }
       await page.setViewportSize({ width: 1440, height: 900 });
+      await page
+        .getByLabel("New passkey name", { exact: true })
+        .fill("Browser test key");
       await click("Add passkey");
       await page
         .getByText("Passkey added to your account.", { exact: true })
