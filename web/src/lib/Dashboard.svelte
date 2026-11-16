@@ -6,7 +6,6 @@
     LinkAction,
     BulkAction,
   } from "./view-models";
-  import { anchorFeedback } from "./presentation/anchor-feedback";
   import ResourceStatus from "./ResourceStatus.svelte";
   import {
     Copy,
@@ -138,11 +137,19 @@
                   <div class="muted max-w-72 truncate" title={row.destination}>
                     {row.destination}
                   </div></td
-                ><td><code>{row.address}</code></td><td
-                  >{row.clicks.toLocaleString()}</td
                 ><td
-                  ><span class:off={!row.enabled} class="status-dot"
-                  ></span>{row.enabled ? "Enabled" : "Disabled"}</td
+                  >{#if mode === "manage"}<button
+                      class="copy-address"
+                      title="Copy short address"
+                      onclick={() => onaction("copy", row.id)}
+                      ><code>{row.address}</code></button
+                    >{:else}<code>{row.address}</code>{/if}</td
+                ><td>{row.clicks.toLocaleString()}</td><td
+                  ><span class="link-status"
+                    ><span class:off={!row.enabled} class="status-dot"
+                    ></span><span>{row.enabled ? "Enabled" : "Disabled"}</span
+                    ></span
+                  ></td
                 >{#if mode === "manage"}{#each actions as action}<td
                       class="action-cell"
                       ><button
@@ -163,40 +170,23 @@
                           />{:else if row.enabled}<Pause
                             size={16}
                           />{:else}<Play size={16} />{/if}</button
-                      >{#if action === "copy" && (copyFeedback.kind === "success" || copyFeedback.kind === "error") && copyFeedback.id === row.id}<span
-                          class="copy-feedback"
-                          class:copy-error={copyFeedback.kind === "error"}
-                          use:anchorFeedback={{
-                            rows: state.value,
-                            copyFeedback,
-                          }}>{copyFeedback.message}</span
-                        >{/if}</td
+                      ></td
                     >{/each}{/if}</tr
               >{/each}
           </tbody>
         </table>
       </div>{/if}
+    {#if copyFeedback.kind === "success" || copyFeedback.kind === "error"}
+      {@const feedback = copyFeedback}
+      {#if state.value.some((row) => row.id === feedback.id)}
+        <div
+          class="copy-feedback"
+          class:copy-error={feedback.kind === "error"}
+          data-copy-id={feedback.id}
+        >
+          {feedback.message}
+        </div>
+      {/if}
+    {/if}
   {/if}
 </section>
-
-<style>
-  .copy-feedback {
-    position: fixed;
-    z-index: 50;
-    width: max-content;
-    max-width: min(280px, calc(100vw - 16px));
-    padding: 6px 10px;
-    border: 1px solid var(--dl-line);
-    border-radius: 6px;
-    background: var(--dl-panel);
-    color: var(--dl-text);
-    font-size: 12px;
-    line-height: 1.5;
-    box-shadow: 0 10px 24px rgb(0 0 0 / 20%);
-    pointer-events: none;
-    white-space: normal;
-  }
-  .copy-error {
-    color: var(--dl-danger);
-  }
-</style>

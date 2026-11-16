@@ -132,7 +132,7 @@ it("does not let an old completed save replace a newly selected screen", async (
   expect(v.queryByText("Your links")).toBeNull();
 });
 
-it("shows transient row-local copy feedback only after clipboard success, without a notification strip", async () => {
+it("shows a transient bottom toast only after clicking the address and clipboard success", async () => {
   let complete!: () => void;
   const writeText = vi.fn(
     () =>
@@ -156,7 +156,7 @@ it("shows transient row-local copy feedback only after clipboard success, withou
   );
   const v = render(AppContainer, { api: createApi(fetcher) });
   await waitFor(() => expect(v.getAllByTitle("Copy address").length).toBe(2));
-  await fireEvent.click(v.getAllByTitle("Copy address")[0]);
+  await fireEvent.click(v.getAllByTitle("Copy short address")[0]);
   expect(v.queryByText("Short address copied.")).toBeNull();
   const address = simulatedLinks[0].addresses[0];
   expect(writeText).toHaveBeenCalledWith(
@@ -164,7 +164,7 @@ it("shows transient row-local copy feedback only after clipboard success, withou
   );
   complete();
   await waitFor(() =>
-    expect(v.getByText("Short address copied.").closest("td")).not.toBeNull(),
+    expect(v.getByText("Short address copied.").closest("table")).toBeNull(),
   );
   expect(
     v.getByText("Short address copied.").classList.contains("copy-feedback"),
@@ -208,8 +208,8 @@ it("keeps only the newest copy result and ignores stale completion after navigat
     expect(v.getByText(/Clipboard unavailable/)).toBeTruthy(),
   );
   expect(
-    v.getByText(/Clipboard unavailable/).closest("tr")?.textContent,
-  ).toContain(simulatedLinks[1].title);
+    v.getByText(/Clipboard unavailable/).getAttribute("data-copy-id"),
+  ).toBe(String(simulatedLinks[1].id));
   pending[0].resolve();
   await new Promise((resolve) => setTimeout(resolve, 10));
   expect(v.queryByText("Short address copied.")).toBeNull();

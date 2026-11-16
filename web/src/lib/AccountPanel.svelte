@@ -28,7 +28,8 @@
 <section class="stack">
   <h1>Account</h1>
   <div class="box-frame stack">
-    <h2>{email}</h2>
+    <h2>Email address</h2>
+    <p>{email}</p>
     <p class="muted">Your email address is managed by your administrator.</p>
   </div>
   <PasskeySection state={enrollment} {onenroll} />
