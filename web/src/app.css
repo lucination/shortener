@@ -1,419 +1,353 @@
-/* The Monospace Web look (https://owickstrom.github.io/the-monospace-web/, MIT, Oskar Wickström),
-   rebuilt on Tailwind: everything sits on a character grid of 1ch x 1lh.
-   User-supplied stylesheet; source paths adapted for this SvelteKit workspace. */
 @import "tailwindcss";
+@import "./lib/styles/presentation.css";
 @source './';
 @source '../.storybook';
-@font-face {
-  font-family: "JetBrains Mono";
-  src: url("/fonts/jetbrains-mono.woff2") format("woff2");
-  font-weight: 100 800;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "JetBrains Mono";
-  src: url("/fonts/jetbrains-mono-italic.woff2") format("woff2");
-  font-weight: 100 800;
-  font-style: italic;
-  font-display: swap;
+@theme {
+  --font-sans: system-ui, sans-serif;
+  --font-mono: ui-monospace, monospace;
+  --spacing-lh: 12px;
+  --spacing-half: 6px;
+  --spacing-2lh: 24px;
 }
 :root {
-  font-synthesis: none;
+  color-scheme: light dark;
+  font:
+    400 13px/1.5 system-ui,
+    sans-serif;
+  font-variant-numeric: tabular-nums;
 }
-/* Scope the product typography explicitly so preview chrome cannot replace
-   JetBrains Mono or the supplied weight hierarchy. */
+body {
+  margin: 0;
+  background: var(--dl-bg);
+  color: var(--dl-text);
+}
+* {
+  box-sizing: border-box;
+}
 :is(.app-shell, #storybook-root) {
-  font-family: var(--font-mono);
-  font-weight: 500;
-  font-feature-settings:
-    "liga" 0,
-    "calt" 0;
+  font:
+    400 13px/1.5 system-ui,
+    sans-serif;
 }
-:is(.app-shell, #storybook-root)
-  :is(
-    h1,
-    h2,
-    h3,
-    h4,
-    h5,
-    h6,
-    strong,
-    b,
-    th,
-    label,
-    input,
-    select,
-    button,
-    textarea,
-    code
-  ) {
-  font-family: var(--font-mono);
-  font-feature-settings:
-    "liga" 0,
-    "calt" 0;
+:is(.app-shell, #storybook-root) :is(h1, h2, h3, p) {
+  margin: 0;
+  text-transform: none;
+  letter-spacing: normal;
 }
 :is(.app-shell, #storybook-root) h1 {
-  font-size: 2rem;
-  line-height: var(--spacing-2lh);
-  font-weight: 800;
-  text-transform: uppercase;
-}
-:is(.app-shell, #storybook-root) :is(h2, h3, strong, b) {
-  font-weight: 800;
+  font:
+    600 15px/1.5 system-ui,
+    sans-serif;
 }
 :is(.app-shell, #storybook-root) :is(h2, h3) {
-  font-size: 1rem;
+  font:
+    600 13px/1.5 system-ui,
+    sans-serif;
 }
-:is(.app-shell, #storybook-root) th {
-  font-weight: 700;
-}
-:is(.app-shell, #storybook-root) :is(label, button) {
+:is(.app-shell, #storybook-root) :is(strong, b) {
   font-weight: 600;
 }
-.icon-button {
-  width: var(--spacing-2lh);
-  height: var(--spacing-2lh);
+:is(.app-shell, #storybook-root) :is(button, input, select, textarea) {
+  font:
+    400 12px/20px system-ui,
+    sans-serif;
+  color: var(--dl-text);
+  background: var(--dl-input);
+  border: 1px solid var(--dl-line);
+  border-radius: 4px;
+  padding: 2px 9px;
+  min-width: 0;
+  max-width: 100%;
+  height: 28px;
+}
+:is(.app-shell, #storybook-root) button {
+  background: var(--dl-two);
+  cursor: pointer;
+  white-space: nowrap;
+}
+:is(.app-shell, #storybook-root) button:hover:not(:disabled) {
+  border-color: var(--dl-primary);
+}
+:is(.app-shell, #storybook-root) button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+:is(.app-shell, #storybook-root) input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
   padding: 0;
-  display: inline-grid;
-  place-items: center;
+  accent-color: var(--dl-primary);
+}
+:is(.app-shell, #storybook-root) textarea {
+  width: 100%;
+  height: 100px;
+  resize: vertical;
+}
+:is(.app-shell, #storybook-root) .btn-primary {
+  background: var(--dl-primary);
+  color: var(--dl-on-primary);
+  border-color: var(--dl-primary);
+}
+a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+code {
+  font:
+    12px/1.5 ui-monospace,
+    monospace;
+}
+.app-shell {
+  min-height: 100dvh;
+  max-width: 1440px;
+  margin: auto;
+  padding: 0 14px 24px;
+}
+.app-shell > header {
+  min-height: 49px;
+  background: var(--dl-panel);
+  margin: 0 -14px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--dl-line);
+}
+.app-shell > nav {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--dl-faint);
+  margin-bottom: 16px;
+}
+.app-shell > .rule {
+  display: none;
+}
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.spread {
+  justify-content: space-between;
+}
+.stack {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  align-content: start;
+}
+.muted {
+  color: var(--dl-muted);
+  font-size: 11px;
+}
+.box-frame {
+  border: 1px solid var(--dl-line);
+  border-radius: 4px;
+  padding: 12px;
+  background: var(--dl-panel);
+  min-width: 0;
+}
+.rule {
+  border: 0;
+  border-top: 1px solid var(--dl-faint);
+  margin: 8px 0;
+}
+.field {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  min-width: 0;
+}
+.field :is(input, select) {
+  width: 100%;
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.full {
+  grid-column: 1/-1;
+}
+.table-scroll {
+  min-width: 0;
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid var(--dl-line);
+  border-radius: 4px;
+  background: var(--dl-panel);
+}
+.grid-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.grid-table :is(th, td) {
+  text-align: left;
+  white-space: nowrap;
+  padding: 4px 6px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--dl-faint);
+}
+.grid-table th {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--dl-muted);
+  background: var(--dl-bg);
+}
+.grid-table tr:last-child td {
+  border-bottom: 0;
 }
 .grid-table td.action-cell {
-  padding: calc(var(--spacing-half) / 2) 0.5ch;
-  vertical-align: middle;
-  width: calc(var(--spacing-2lh) + 1ch);
+  width: 30px;
+  padding: 0 2px;
+}
+:is(.app-shell, #storybook-root) .icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border-color: transparent;
+  color: var(--dl-muted);
+}
+.status-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--dl-success);
+  margin-right: 6px;
+}
+.status-dot.off {
+  background: var(--dl-muted);
+}
+.error {
+  color: var(--dl-danger);
+}
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.metric-grid > div {
+  padding: 10px 12px;
+  border: 1px solid var(--dl-line);
+  border-radius: 4px;
+  background: var(--dl-panel);
+}
+.metric-value {
+  font-size: 20px;
+  font-weight: 600;
+}
+.chart {
+  width: 100%;
+  height: 160px;
+  color: var(--dl-primary);
 }
 .date-toolbar {
   align-items: flex-end;
-  gap: var(--spacing-half) 1ch;
 }
 .date-toolbar .field {
-  width: 16ch;
+  width: 136px;
 }
-.date-toolbar input {
+.break {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.focused-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+:is(.app-shell, #storybook-root) .focused-backdrop {
+  position: absolute;
+  inset: 0;
   width: 100%;
+  height: 100%;
+  max-width: none;
+  background: rgb(0 0 0 / 0.5);
+  border: 0;
+  border-radius: 0;
 }
-.date-toolbar > button {
-  align-self: flex-end;
-  white-space: nowrap;
+.focused-dialog {
+  position: relative;
+  inset: auto;
+  margin: 0;
+  width: min(560px, calc(100vw - 32px));
+  max-width: 100%;
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  padding: 16px;
+  border: 1px solid var(--dl-line);
+  border-radius: 4px;
+  background: var(--dl-panel);
+  color: var(--dl-text);
 }
-@media (max-width: 700px) {
+.focused-dialog.wide {
+  width: min(840px, calc(100vw - 32px));
+}
+.focused-dialog :is(h1, h2, p),
+.box-frame :is(h1, h2, p) {
+  overflow-wrap: anywhere;
+}
+.app-shell > header > strong {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.app-shell.native-public {
+  min-height: auto;
+  width: min(480px, 100%);
+  padding-top: min(12vh, 80px);
+}
+.public-page {
+  width: min(480px, 100%);
+  margin: min(12vh, 80px) auto 0;
+}
+.admin-sign-in {
+  width: min(360px, 100%);
+  margin: min(12vh, 80px) auto 0;
+}
+.grid-table td .toolbar {
+  flex-wrap: nowrap;
+}
+.focused-dialog .box-frame {
+  padding: 0;
+  border: 0;
+}
+.focused-dialog .toolbar:has(> .btn-primary) {
+  justify-content: flex-end;
+}
+@media (max-width: 600px) {
   .date-toolbar .field {
-    width: 14ch;
-  }
-  :is(.app-shell, #storybook-root) h1 {
-    font-size: 1.5rem;
-  }
-}
-@theme {
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
-  --font-sans: var(--font-mono);
-  --default-font-feature-settings: "liga" 0, "calt" 0;
-  --default-mono-font-feature-settings: "liga" 0, "calt" 0;
-  --color-fg: #2a2a28;
-  --color-fg-alt: #686760;
-  --color-bg: #f6f5f0;
-  --color-bg-alt: #ebe9e2;
-  --color-code: #e3e1d9;
-  --color-ok: #15702c;
-  --color-warn: #865900;
-  --color-bad: #c4202b;
-  --spacing-lh: 1.2rem;
-  --spacing-half: 0.6rem;
-  --spacing-2lh: 2.4rem;
-  --spacing-ch: 1ch;
-  --spacing-2ch: 2ch;
-  --spacing-3ch: 3ch;
-  --font-weight-normal: 500;
-  --font-weight-medium: 600;
-  --font-weight-bold: 800;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-fg: #d5d3cd;
-    --color-fg-alt: #9b9a94;
-    --color-bg: #1c1e22;
-    --color-bg-alt: #25282d;
-    --color-code: #2e3137;
-    --color-ok: #4cb860;
-    --color-warn: #d29922;
-    --color-bad: #f0605a;
-  }
-}
-@layer base {
-  :root {
-    --border: 2px;
-    font-family: var(--font-mono);
-    font-weight: var(--font-weight-normal);
-    font-variant-numeric: tabular-nums lining-nums;
-    font-size: 16px;
-    color-scheme: light dark;
-    font-feature-settings:
-      "liga" 0,
-      "calt" 0;
-  }
-  @media (max-width: 480px) {
-    :root {
-      font-size: 14px;
-    }
-  }
-  html,
-  body {
-    background: var(--color-bg);
-    color: var(--color-fg);
-    line-height: var(--spacing-lh);
-  }
-  h1 {
-    font-size: 2rem;
-    line-height: var(--spacing-2lh);
-    font-weight: var(--font-weight-bold);
-    text-transform: uppercase;
-  }
-  h2,
-  h3 {
-    font-size: 1rem;
-    font-weight: var(--font-weight-bold);
-    text-transform: uppercase;
-  }
-  a {
-    text-decoration: underline;
-    text-decoration-thickness: var(--border);
-    color: var(--color-fg);
-  }
-  code {
-    font-family: inherit;
-    font-size: inherit;
-    font-weight: var(--font-weight-medium);
-    background: var(--color-code);
-    padding: 0 0.5ch;
-    display: inline-block;
-    max-width: 100%;
-    overflow-wrap: anywhere;
-    vertical-align: bottom;
-    cursor: copy;
-    transition:
-      background 0.15s,
-      color 0.15s;
-  }
-  code[data-copied] {
-    background: var(--color-fg);
-    color: var(--color-bg);
-  }
-  strong,
-  b {
-    font-weight: var(--font-weight-bold);
-  }
-  input,
-  select,
-  button {
-    border: var(--border) solid var(--color-fg);
-    padding: calc(var(--spacing-half) - var(--border)) calc(1ch - var(--border));
-    height: var(--spacing-2lh);
-    background: var(--color-bg);
-    color: var(--color-fg);
-    font: inherit;
-    border-radius: 0;
-    line-height: normal;
-  }
-  input:focus,
-  select:focus,
-  button:focus-visible {
-    --border: 3px;
-    outline: none;
-  }
-  ::placeholder {
-    color: var(--color-fg-alt);
-    opacity: 1;
-  }
-  button {
-    text-transform: uppercase;
-    font-weight: var(--font-weight-medium);
-    cursor: pointer;
-  }
-  button:hover:not(:disabled) {
-    background: var(--color-bg-alt);
-  }
-  button:active:not(:disabled) {
-    transform: translate(2px, 2px);
-  }
-  button:disabled {
-    color: var(--color-fg-alt);
-    border-color: var(--color-fg-alt);
-    cursor: default;
-  }
-  input[type="checkbox"] {
-    appearance: none;
-    display: inline-grid;
-    place-content: center;
-    width: 2ch;
-    height: var(--spacing-lh);
-    padding: 0;
-    cursor: pointer;
-  }
-  input[type="checkbox"]:checked::before {
-    content: "";
-    width: 1ch;
-    height: var(--spacing-half);
-    background: var(--color-fg);
-  }
-  label {
-    font-weight: var(--font-weight-medium);
-  }
-}
-@layer components {
-  .grid-table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-  .grid-table th,
-  .grid-table td {
-    border: var(--border) solid var(--color-fg);
-    padding: var(--spacing-half) calc(1ch - var(--border) / 2)
-      calc(var(--spacing-half) - var(--border));
-    text-align: left;
-    vertical-align: top;
-    white-space: nowrap;
-  }
-  .grid-table th {
-    font-weight: 700;
-  }
-  .box-frame {
-    border: var(--border) solid var(--color-fg);
-    padding: calc(var(--spacing-lh) - var(--border)) calc(2ch - var(--border));
-  }
-  .rule {
-    border: none;
-    border-top: calc(var(--border) * 3) double var(--color-fg);
-    margin: var(--spacing-lh) 0;
-  }
-  .btn-primary {
-    background: var(--color-fg);
-    color: var(--color-bg);
-  }
-  .btn-primary:hover:not(:disabled) {
-    background: var(--color-fg-alt);
-  }
-  .btn-primary:disabled {
-    background: var(--color-bg);
-    color: var(--color-fg-alt);
-  }
-  .app-shell {
-    max-width: 144ch;
-    margin: auto;
-    padding: var(--spacing-2lh) 3ch;
-  }
-  .toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--spacing-half) 1ch;
-    align-items: center;
-  }
-  .spread {
-    justify-content: space-between;
-  }
-  .muted {
-    color: var(--color-fg-alt);
-  }
-  .table-scroll {
-    max-width: 100%;
-    overflow: auto;
-  }
-  .metric-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    margin: var(--spacing-lh) 0;
-  }
-  .metric-grid > div {
-    border: 2px solid var(--color-fg);
-    padding: var(--spacing-lh) 2ch;
-    margin-right: -2px;
-  }
-  .metric-value {
-    font-size: 2rem;
-    font-weight: 800;
-    line-height: var(--spacing-2lh);
-  }
-  .field {
-    display: grid;
-    gap: var(--spacing-half);
-    min-width: 0;
+    width: 112px;
   }
   .form-grid {
-    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--spacing-lh) 2ch;
   }
-  .full {
-    grid-column: 1/-1;
+  .grid-table td:has(> strong) {
+    position: sticky;
+    left: 0;
+    background: var(--dl-panel);
   }
-  .stack {
-    display: grid;
-    gap: var(--spacing-lh);
+  .grid-table td:has(> strong) .truncate {
+    max-width: 160px;
   }
-  textarea {
-    border: 2px solid var(--color-fg);
-    background: var(--color-bg);
-    padding: var(--spacing-half) 1ch;
-    font: inherit;
-    width: 100%;
-    min-height: 8lh;
-    border-radius: 0;
+  .grid-table td:has(> strong) > strong {
+    display: block;
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
-  input,
-  select {
-    min-width: 0;
-    max-width: 100%;
+  .focused-dialog {
+    padding: 12px;
   }
-  .status-dot {
-    display: inline-block;
-    width: 0.65ch;
-    height: 0.65ch;
-    background: var(--color-ok);
-    margin-right: 1ch;
-  }
-  .status-dot.off {
-    background: var(--color-fg-alt);
-  }
-  .error {
-    color: var(--color-bad);
-  }
-  .simulation {
-    background: var(--color-bg-alt);
-    border-bottom: 2px solid var(--color-fg);
-    padding: var(--spacing-half) 2ch;
-  }
-  .chart {
-    width: 100%;
-    height: 12lh;
-    color: var(--color-fg);
-  }
-  .nav-link {
-    text-decoration: none;
-    border-bottom: 2px solid transparent;
-    padding: var(--spacing-half) 0;
-  }
-  .nav-link.current {
-    border-color: var(--color-fg);
-  }
-  .break {
-    overflow-wrap: anywhere;
-    white-space: normal;
-  }
-  @media (max-width: 700px) {
-    .app-shell {
-      padding: var(--spacing-lh) 1ch;
-    }
-    .metric-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-    .metric-grid > div {
-      margin-bottom: -2px;
-    }
-    .form-grid {
-      grid-template-columns: 1fr;
-    }
-    h1 {
-      font-size: 1.5rem;
-    }
-  }
+}
+.stats-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }

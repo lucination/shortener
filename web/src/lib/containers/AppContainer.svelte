@@ -3,6 +3,7 @@
   import { onMount } from "svelte";
   import AppShell, { type Section } from "../AppShell.svelte";
   import Dashboard from "../Dashboard.svelte";
+  import FocusedModal from "../presentation/FocusedModal.svelte";
   import LinkEditor from "../LinkEditor.svelte";
   import BulkImport from "../BulkImport.svelte";
   import Analytics from "../Analytics.svelte";
@@ -522,12 +523,19 @@
           : value.kind === "remove-password"
             ? "Remove link password?"
             : value.kind === "delete-link"
-              ? "Soft-delete this link?"
+              ? "Delete this link?"
               : value.kind === "bulk"
                 ? `${value.action} ${value.ids.length} links?`
                 : "Confirm action?",
       description:
-        "This action changes the server state only after confirmation. Deleted addresses remain reserved; passkeys are preserved when sessions are revoked.",
+        value.kind === "signout"
+          ? "This signs out all sessions. Your passkeys and links stay."
+          : value.kind === "remove-password"
+            ? "Anyone with the address will be able to open this link."
+            : value.kind === "delete-link" ||
+                (value.kind === "bulk" && value.action === "delete")
+              ? "Deleted addresses remain reserved."
+              : "Apply this change to the selected links.",
     };
   }
   function commandValue(value: string) {
@@ -615,7 +623,15 @@
   }
 </script>
 
-{#if session.kind === "anonymous" && page.kind === "auth"}
+{#if page.kind === "not-found"}
+  <main class="app-shell">
+    <PublicPage
+      {appName}
+      page={{ kind: "not-found" }}
+      outcome={{ kind: "idle" }}
+    />
+  </main>
+{:else if session.kind === "anonymous" && page.kind === "auth"}
   <AuthPanel
     {appName}
     mode={page.mode}
@@ -636,20 +652,29 @@
     onnav={navigate}
     onlogout={logout}
   >
-    {#if command.kind !== "none"}<ActionForm
-        view={commandView(command)}
-        {outcome}
-        onchange={commandValue}
-        onconfirm={confirmCommand}
-        oncancel={() => {
-          generation++;
-          command = { kind: "none" };
-          outcome = { kind: "idle" };
+    {#if command.kind !== "none"}<FocusedModal
+        onclose={() => {
+          if (outcome.kind !== "pending") {
+            generation++;
+            command = { kind: "none" };
+            outcome = { kind: "idle" };
+          }
         }}
-      />{:else if page.kind !== "auth" && page.kind !== "editor" && page.kind !== "import" && page.kind !== "account"}<ResourceStatus
+        ><ActionForm
+          view={commandView(command)}
+          {outcome}
+          onchange={commandValue}
+          onconfirm={confirmCommand}
+          oncancel={() => {
+            generation++;
+            command = { kind: "none" };
+            outcome = { kind: "idle" };
+          }}
+        /></FocusedModal
+      >{:else if page.kind !== "auth" && page.kind !== "editor" && page.kind !== "import" && page.kind !== "account"}<ResourceStatus
         state={outcome}
       />{/if}
-    {#if session.kind === "discovering" && page.kind !== "not-found"}<ResourceStatus
+    {#if session.kind === "discovering"}<ResourceStatus
         state={{ kind: "pending" }}
       />
     {:else if session.kind === "failed"}<ResourceStatus
@@ -691,50 +716,57 @@
         }}
         onretry={loadLinks}
       />
-    {:else if page.kind === "editor"}<LinkEditor
-        mode={page.mode}
-        draft={page.draft}
-        {outcome}
-        onchange={(draft) => {
-          if (page.kind === "editor") page = { ...page, draft };
-        }}
-        onsubmit={saveLink}
-        oncancel={loadLinks}
-      />{#if page.mode.kind === "edit"}<button
-          class="mt-lh"
-          onclick={() => {
-            if (page.kind === "editor" && page.mode.kind === "edit")
-              beginCommand({ kind: "remove-password", id: page.mode.id });
-          }}>Remove existing password</button
+    {:else if page.kind === "editor"}{#if command.kind === "none"}<FocusedModal
+          onclose={loadLinks}
+          ><LinkEditor
+            mode={page.mode}
+            draft={page.draft}
+            {outcome}
+            onchange={(draft) => {
+              if (page.kind === "editor") page = { ...page, draft };
+            }}
+            onsubmit={saveLink}
+            oncancel={loadLinks}
+          />{#if page.mode.kind === "edit"}<button
+              class="mt-lh"
+              onclick={() => {
+                if (page.kind === "editor" && page.mode.kind === "edit")
+                  beginCommand({ kind: "remove-password", id: page.mode.id });
+              }}>Remove existing password</button
+            >{/if}</FocusedModal
         >{/if}
-    {:else if page.kind === "import"}<BulkImport
-        text={page.text}
-        rows={parseBulk(page.text)}
-        {outcome}
-        onchange={(text) => {
-          if (page.kind === "import") page = { kind: "import", text };
-        }}
-        onfile={readFile}
-        onsubmit={importLinks}
-        oncancel={loadLinks}
-      />
-    {:else if page.kind === "analytics"}<Analytics
-        view={page.view}
-        range={page.range}
-        onrange={(range) => {
-          if (page.kind === "analytics") page = { ...page, range };
-        }}
-        onapply={() => {
-          if (page.kind === "analytics")
-            void loadAnalytics(
-              page.id,
-              page.view.label,
-              page.view.kind,
-              page.range,
-            );
-        }}
-        onback={loadLinks}
-      />
+    {:else if page.kind === "import"}<FocusedModal onclose={loadLinks}
+        ><BulkImport
+          text={page.text}
+          rows={parseBulk(page.text)}
+          {outcome}
+          onchange={(text) => {
+            if (page.kind === "import") page = { kind: "import", text };
+          }}
+          onfile={readFile}
+          onsubmit={importLinks}
+          oncancel={loadLinks}
+        /></FocusedModal
+      >
+    {:else if page.kind === "analytics"}<FocusedModal onclose={loadLinks} wide
+        ><Analytics
+          view={page.view}
+          range={page.range}
+          onrange={(range) => {
+            if (page.kind === "analytics") page = { ...page, range };
+          }}
+          onapply={() => {
+            if (page.kind === "analytics")
+              void loadAnalytics(
+                page.id,
+                page.view.label,
+                page.view.kind,
+                page.range,
+              );
+          }}
+          onback={loadLinks}
+        /></FocusedModal
+      >
     {:else if page.kind === "account"}<AccountPanel
         email={page.user.email}
         retention={page.retention}

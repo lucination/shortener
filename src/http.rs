@@ -734,7 +734,31 @@ async fn fallback(State(s): State<AppState>, req: Request) -> Response {
     })
 }
 pub(crate) fn html(status: StatusCode, body: String) -> Response {
-    (status,[(header::CONTENT_TYPE,"text/html; charset=utf-8"),(header::CACHE_CONTROL,"no-store"),(header::CONTENT_SECURITY_POLICY,"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"),(header::REFERRER_POLICY,"no-referrer")],body).into_response()
+    html_with_form_policy(status, body, FormPolicy::SameOrigin)
+}
+enum FormPolicy {
+    SameOrigin,
+    ContinueTo(url::Origin),
+}
+fn html_with_form_policy(status: StatusCode, body: String, policy: FormPolicy) -> Response {
+    let action = match policy {
+        FormPolicy::SameOrigin => "'self'".to_owned(),
+        FormPolicy::ContinueTo(origin) => format!("'self' {}", origin.ascii_serialization()),
+    };
+    let csp = format!(
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; form-action {action}; frame-ancestors 'none'; base-uri 'none'"
+    );
+    (
+        status,
+        [
+            (header::CONTENT_TYPE, "text/html; charset=utf-8"),
+            (header::CACHE_CONTROL, "no-store"),
+            (header::CONTENT_SECURITY_POLICY, csp.as_str()),
+            (header::REFERRER_POLICY, "no-referrer"),
+        ],
+        body,
+    )
+        .into_response()
 }
 pub(crate) fn escape(s: &str) -> String {
     s.replace('&', "&amp;")
@@ -742,6 +766,15 @@ pub(crate) fn escape(s: &str) -> String {
         .replace('>', "&gt;")
         .replace('"', "&quot;")
         .replace('\'', "&#39;")
+}
+// Native password/continue forms retain their HTTP authority and work without JS.
+// The stable stylesheet is emitted from the same built CSS as the user app.
+fn public_document(title: &str, content: String) -> String {
+    format!(
+        include_str!("../web/src/lib/presentation/native-document.html"),
+        title = escape(title),
+        content = content
+    )
 }
 fn shell(s: &AppState, status: StatusCode) -> Response {
     if let Some(origin) = &s.dev_vite_origin {
@@ -864,7 +897,17 @@ fn fallback_sync(
                 }
                 Err(_) => html(
                     StatusCode::UNAUTHORIZED,
-                    "<!doctype html><h1>Unable to unlock link</h1>".into(),
+                    public_document(
+                        "Unable to unlock link",
+                        format!(
+                            include_str!("../web/src/lib/presentation/native-unlock-error.html"),
+                            code = escape(request_parts[1]),
+                            query = uri
+                                .query()
+                                .map(|q| format!("?{}", escape(q)))
+                                .unwrap_or_default()
+                        ),
+                    ),
                 ),
             };
         }
@@ -955,14 +998,27 @@ fn fallback_sync(
     if decision == VisitDecision::PasswordRequired {
         return html(
             StatusCode::OK,
-            format!(
-                "<!doctype html><title>Protected link</title><h1>Password required</h1><form method=post action=\"/v/{}/unlock{}\"><input name=password type=password required autocomplete=current-password><button>Unlock</button></form>",
-                escape(code),
-                query
+            public_document(
+                "Protected link",
+                format!(
+                    include_str!("../web/src/lib/presentation/native-password.html"),
+                    code = escape(code),
+                    query = query
+                ),
             ),
         );
     }
     if matches!(decision, VisitDecision::Preview(_)) {
+        let destination = match url::Url::parse(&link.destination) {
+            Ok(destination) if matches!(destination.scheme(), "http" | "https") => destination,
+            _ => {
+                return error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "destination",
+                    "link unavailable",
+                );
+            }
+        };
         let o = observation(h, s.client_ip(peer, h));
         let _ = s.store.record_event_with_location(
             &link,
@@ -973,16 +1029,20 @@ fn fallback_sync(
             &s.analytics_secret,
             &s.geoip.lookup(&o.ip),
         );
-        return html(
+        return html_with_form_policy(
             StatusCode::OK,
-            format!(
-                "<!doctype html><title>Preview</title><h1>{}</h1><p>{}</p><p>{}</p><form method=post action=\"/v/{}/continue{}\"><button>Continue</button></form>",
-                escape(link.title.as_deref().unwrap_or("Link preview")),
-                escape(link.description.as_deref().unwrap_or("")),
-                escape(&link.destination),
-                escape(code),
-                query
+            public_document(
+                "Preview",
+                format!(
+                    include_str!("../web/src/lib/presentation/native-preview.html"),
+                    title = escape(link.title.as_deref().unwrap_or("Link preview")),
+                    description = escape(link.description.as_deref().unwrap_or("")),
+                    destination = escape(&link.destination),
+                    code = escape(code),
+                    query = query
+                ),
             ),
+            FormPolicy::ContinueTo(destination.origin()),
         );
     }
     let o = observation(h, s.client_ip(peer, h));

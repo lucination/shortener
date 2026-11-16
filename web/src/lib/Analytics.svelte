@@ -27,8 +27,8 @@
 <section class="stack">
   <div class="toolbar spread">
     <div>
-      <p class="muted">WORKSPACE / {view.label}</p>
       <h1>{view.kind === "stats" ? "Link statistics" : "Click events"}</h1>
+      <p class="muted">{view.label}</p>
     </div>
     <button onclick={onback}>Back to links</button>
   </div>
@@ -52,9 +52,9 @@
   <ResourceStatus state={view.state} onretry={onapply} />
   {#if view.kind === "stats" && view.state.kind === "ready"}{@const stats =
       view.state.value}
-    <div class="metric-grid">
+    <div class="metric-grid stats-metrics">
       <div>
-        <div class="muted">Human redirects</div>
+        <div class="muted">Clicks</div>
         <div class="metric-value">{stats.human.toLocaleString()}</div>
       </div>
       <div>
@@ -65,14 +65,9 @@
         <div class="muted">Previews</div>
         <div class="metric-value">{stats.preview.toLocaleString()}</div>
       </div>
-      <div>
-        <div class="muted">Period</div>
-        <div>Daily UTC</div>
-        <p class="muted">Inclusive dates</p>
-      </div>
     </div>
     <div class="box-frame">
-      <h2>Human redirects / day</h2>
+      <h2>Clicks per day</h2>
       {#if stats.days.length}<svg
           class="chart"
           viewBox="0 0 800 210"
@@ -103,7 +98,7 @@
                   140}
               r="4"
               fill="currentColor"
-              ><title>{day.day}: {day.human} human redirects</title></circle
+              ><title>{day.day}: {day.human} clicks</title></circle
             >{/each}</svg
         >
         <div class="toolbar spread muted">
@@ -134,10 +129,6 @@
             </div>{/each}
         </div>{/each}
     </div>
-    <p class="muted">
-      Daily unique counts are approximate. They must not be summed as multi-day
-      distinct visitors. Unknown geography is not inferred.
-    </p>
   {:else if view.kind === "events" && view.state.kind === "ready"}<EventTable
       rows={view.state.value}
     />{/if}

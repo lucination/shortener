@@ -1,4 +1,4 @@
-import PublicPage from "./PublicPage.svelte";
+import PublicPage from "./story-harness/PublicGateStory.svelte";
 import type { Meta, StoryObj } from "@storybook/sveltekit";
 const meta = {
   title: "Public/Redirect gates",
@@ -23,12 +23,6 @@ export const WrongPassword: Story = {
   args: {
     page: { kind: "password", password: "" },
     outcome: { kind: "error", message: "Incorrect password. Try again." },
-  },
-};
-export const Unlocking: Story = {
-  args: {
-    page: { kind: "password", password: "" },
-    outcome: { kind: "pending" },
   },
 };
 export const NotFound: Story = { args: { page: { kind: "not-found" } } };

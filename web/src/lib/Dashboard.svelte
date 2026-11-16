@@ -74,10 +74,7 @@
 <section class="stack">
   <div class="toolbar spread">
     <div>
-      <p class="muted">
-        {mode === "manage" ? "WORKSPACE" : "ADMINISTRATION"} / LINKS
-      </p>
-      <h1>{mode === "manage" ? "Your links" : "Link destinations"}</h1>
+      <h1>Links</h1>
     </div>
     {#if mode === "manage"}<div class="toolbar">
         <button onclick={onbulkcreate}>Import / paste</button><button
@@ -86,7 +83,6 @@
         >
       </div>{/if}
   </div>
-  <p class="muted">One destination. A shorter way there.</p>
   <div class="toolbar spread">
     {#if mode === "manage"}<input
         class="grow"
@@ -104,7 +100,7 @@
       <strong>{selected.length} selected</strong
       >{#each bulkActions as action}<button onclick={() => onbulk(action)}
           >{action}</button
-        >{/each}<span class="muted">Domain: configured default only</span>
+        >{/each}
     </div>{/if}
   <ResourceStatus {state} {onretry} />
   {#if state.kind === "ready"}
@@ -121,7 +117,7 @@
             ><tr
               >{#if mode === "manage"}<th>Select</th>{/if}<th
                 >Link / destination</th
-              ><th>Short address</th><th>Humans</th><th>Status</th
+              ><th>Short address</th><th>Clicks</th><th>Status</th
               >{#if mode === "manage"}<th colspan="6">Actions</th>{/if}</tr
             ></thead
           ><tbody>
@@ -134,7 +130,7 @@
                       onchange={() => onselect(row.id)}
                     /></td
                   >{/if}<td
-                  ><strong>{row.label}</strong>
+                  ><strong title={row.label}>{row.label}</strong>
                   <div class="muted max-w-72 truncate" title={row.destination}>
                     {row.destination}
                   </div></td
@@ -170,7 +166,4 @@
         </table>
       </div>{/if}
   {/if}
-  <p class="muted">
-    Human redirects consume click limits. Bots and link previews do not.
-  </p>
 </section>

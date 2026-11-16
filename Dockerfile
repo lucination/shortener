@@ -19,6 +19,7 @@ ENV OPENSSL_STATIC=1
 WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 COPY src/ src/
+COPY web/src/lib/presentation/*.html web/src/lib/presentation/
 COPY migration/ migration/
 RUN cargo build --release --locked --bin shortener -j1 && cp target/release/shortener /shortener \
     && readelf -h /shortener \

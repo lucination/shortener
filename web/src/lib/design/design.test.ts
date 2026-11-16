@@ -78,12 +78,8 @@ describe("selected Precision workspace", () => {
   });
   it("opens the default story with one Links heading and no review or specimen chrome", () => {
     const v = render(DesignCompare);
-    expect(v.container.querySelectorAll(".dl-workspace")).toHaveLength(1);
-    expect(
-      v.container
-        .querySelector(".dl-workspace")
-        ?.getAttribute("data-direction"),
-    ).toBe("precision");
+    expect(v.container.querySelectorAll(".app-shell")).toHaveLength(1);
+    expect(v.getByText("Actions").getAttribute("colspan")).toBe("6");
     expect(
       v.getAllByRole("heading").map((heading) => heading.textContent),
     ).toEqual(["Links"]);
@@ -112,7 +108,7 @@ describe("selected Precision workspace", () => {
     ).toHaveLength(0);
     expect(v.getByText("Shortener")).toBeTruthy();
     expect(v.getByText("3 links")).toBeTruthy();
-    expect(v.getAllByText("Create link")).toHaveLength(1);
+    expect(v.getAllByText("+ Create link")).toHaveLength(1);
   });
 });
 

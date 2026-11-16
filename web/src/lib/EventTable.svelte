@@ -14,9 +14,13 @@
         ></thead
       ><tbody
         >{#each rows as row (row.id)}<tr
-            ><td>{row.at}</td><td>{row.link}<br />{row.classification}</td><td
-              >{row.ip}</td
-            ><td>{row.city}<br />{row.country}</td><td
+            ><td>{row.at}</td><td
+              >{row.link}<br /><span
+                >{row.classification.toLowerCase() === "human"
+                  ? "Click"
+                  : row.classification}</span
+              ></td
+            ><td>{row.ip}</td><td>{row.city}<br />{row.country}</td><td
               >{row.browser}<br />{row.os} / {row.device}</td
             ><td
               ><div class="max-w-96 break">

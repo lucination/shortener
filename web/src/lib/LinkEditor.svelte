@@ -68,7 +68,7 @@
     },
     {
       key: "clickLimit",
-      label: "Human click limit",
+      label: "Click limit",
       type: "number",
       placeholder: "No limit",
     },
@@ -83,9 +83,6 @@
 
 <section class="stack">
   <div>
-    <p class="muted">
-      WORKSPACE / {mode.kind === "create" ? "CREATE" : `LINK ${mode.id}`}
-    </p>
     <h1>{mode.kind === "create" ? "New link" : "Edit link"}</h1>
   </div>
   <form

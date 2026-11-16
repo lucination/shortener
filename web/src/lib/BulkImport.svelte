@@ -70,8 +70,4 @@
       onclick={onsubmit}>Create {rows.length} links</button
     ><button onclick={oncancel}>Cancel</button>
   </div>
-  <p class="muted">
-    Import is explicit, not automatic. Server validation and reserved-alias
-    checks run for each row.
-  </p>
 </section>

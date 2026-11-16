@@ -5,6 +5,11 @@ use shortener::{
     store::Store,
 };
 use tower::ServiceExt;
+#[test]
+fn native_public_templates_are_available_to_the_container_compiler() {
+    let dockerfile = include_str!("../Dockerfile");
+    assert!(dockerfile.contains("COPY web/src/lib/presentation/*.html web/src/lib/presentation/"));
+}
 #[tokio::test]
 async fn missing_static_artifacts_do_not_invent_a_build_time_app_name() {
     let empty = tempfile::tempdir().unwrap();

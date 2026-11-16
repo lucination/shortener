@@ -11,7 +11,7 @@ it("admin auth variant never renders magic-link explanatory copy", () => {
     outcome: { kind: "idle" },
   });
   expect(v.queryByText(/No public signup/)).toBeNull();
-  expect(v.getByText("Administrator token")).toBeTruthy();
+  expect(v.getByLabelText("Admin token")).toBeTruthy();
 });
 it("analytics emits a bounded date range query", async () => {
   const onrange = vi.fn();
@@ -42,7 +42,7 @@ it("analytics emits a bounded date range query", async () => {
     from: "2026-11-02",
     to: "2026-11-14",
   });
-  expect(v.getByText("Human redirects")).toBeTruthy();
+  expect(v.getByText("Clicks", { exact: true })).toBeTruthy();
 });
 it("magic login emits submission and never sends email itself", async () => {
   const onsubmit = vi.fn();

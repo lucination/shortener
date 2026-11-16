@@ -19,19 +19,24 @@
 </script>
 
 <section class="stack">
-  <div class="toolbar spread">
-    <div>
-      <p class="muted">ADMINISTRATION / {view.kind.toUpperCase()}</p>
-      <h1>All {view.kind}</h1>
-    </div>
-    {#if view.kind === "users"}<button class="btn-primary" onclick={oncreate}
-        >+ Add user</button
-      >{/if}
-  </div>
-  <ResourceStatus state={outcome} /><ResourceStatus
-    state={view.state}
-    {onretry}
-  />
+  {#if view.kind !== "links"}<div class="toolbar spread">
+      <div>
+        <h1>
+          {view.kind === "users"
+            ? "Users"
+            : view.kind === "usage"
+              ? "Usage"
+              : "Events"}
+        </h1>
+      </div>
+      {#if view.kind === "users"}<button class="btn-primary" onclick={oncreate}
+          >+ Add user</button
+        >{/if}
+    </div>{/if}
+  <ResourceStatus state={outcome} />{#if view.kind !== "links"}<ResourceStatus
+      state={view.state}
+      {onretry}
+    />{/if}
   {#if view.kind === "users" && view.state.kind === "ready"}{#if !view.state.value.length}<div
         class="box-frame"
       >
@@ -46,8 +51,8 @@
           ><tbody
             >{#each view.state.value as user (user.id)}<tr
                 ><td
-                  ><strong>{user.email}</strong><br /><span class="muted"
-                    >#{user.id}</span
+                  ><strong title={user.email}>{user.email}</strong><br /><span
+                    class="muted">#{user.id}</span
                   ></td
                 ><td>{user.status}</td><td
                   ><button onclick={() => onuser("quota", user.id)}
@@ -86,6 +91,7 @@
   {:else if view.kind === "links"}<Dashboard
       state={view.state}
       mode="read-only"
+      {onretry}
     />
   {:else if view.kind === "usage" && view.state.kind === "ready"}<div
       class="metric-grid"
@@ -95,8 +101,5 @@
           <div class="metric-value">{metric.count.toLocaleString()}</div>
         </div>{/each}
     </div>
-    <p class="muted">
-      Server-observed usage. Daily aggregates are retained after raw-event
-      cleanup.
-    </p>{/if}
+  {/if}
 </section>

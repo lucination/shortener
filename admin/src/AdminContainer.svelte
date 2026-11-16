@@ -4,12 +4,15 @@
   import AuthPanel from "$shared/AuthPanel.svelte";
   import AdminPanel from "$shared/AdminPanel.svelte";
   import ActionForm, { type ActionFormView } from "$shared/ActionForm.svelte";
+  import FocusedModal from "$shared/presentation/FocusedModal.svelte";
   import ResourceStatus from "$shared/ResourceStatus.svelte";
   import { createAdminApi } from "$shared/adapters/api";
   import { resultResource, failureOutcome } from "$shared/resource";
   import { userRow, linkRow, eventRow } from "$shared/mappings";
   import type { AdminView, Outcome, UserAction } from "$shared/view-models";
   type Session =
+    | { kind: "discovering" }
+    | { kind: "discovery-failed"; error: Extract<Outcome, { kind: "error" }> }
     | { kind: "login"; token: string }
     | { kind: "authenticated"; epoch: symbol; view: AdminView };
   type Command =
@@ -17,20 +20,25 @@
     | { kind: "create"; value: string }
     | { kind: "user"; id: number; action: UserAction; value: string };
   const api = createAdminApi(fetch);
-  let session: Session = $state({ kind: "login", token: "" });
+  let session: Session = $state({ kind: "discovering" });
   let outcome: Outcome = $state({ kind: "idle" });
   let command: Command = $state({ kind: "none" });
   let generation = 0;
   async function load(kind: AdminView["kind"]) {
     const request = ++generation;
-    const epoch =
-      session.kind === "authenticated" ? session.epoch : Symbol("session");
+    const admission =
+      session.kind === "authenticated"
+        ? { kind: "current" as const, epoch: session.epoch }
+        : { kind: "discovery" as const, epoch: Symbol("session") };
     command = { kind: "none" };
-    session = {
-      kind: "authenticated",
-      epoch,
-      view: { kind, state: { kind: "pending" } },
-    };
+    session =
+      admission.kind === "current"
+        ? {
+            kind: "authenticated",
+            epoch: admission.epoch,
+            view: { kind, state: { kind: "pending" } },
+          }
+        : { kind: "discovering" };
     outcome = { kind: "idle" };
     function finish<T>(
       result: import("../../web/src/lib/adapters/api").Result<T>,
@@ -42,7 +50,9 @@
         result.error.kind === "http" &&
         [401, 403].includes(result.error.status)
           ? { kind: "login", token: "" }
-          : { kind: "authenticated", epoch, view };
+          : result.kind === "failed" && admission.kind === "discovery"
+            ? { kind: "discovery-failed", error: failureOutcome(result.error) }
+            : { kind: "authenticated", epoch: admission.epoch, view };
     }
     if (kind === "users") {
       const r = await api.users();
@@ -88,8 +98,14 @@
     outcome = { kind: "pending" };
     const result = await api.adminLogin({ token: session.token });
     if (request !== generation) return;
-    if (result.kind === "ok") await load("users");
-    else outcome = failureOutcome(result.error);
+    if (result.kind === "ok") {
+      session = {
+        kind: "authenticated",
+        epoch: Symbol("session"),
+        view: { kind: "users", state: { kind: "pending" } },
+      };
+      await load("users");
+    } else outcome = failureOutcome(result.error);
   }
   async function logout() {
     if (session.kind !== "authenticated") return;
@@ -180,13 +196,17 @@
 
 <main class="app-shell">
   <header class="toolbar spread">
-    <strong>{appName} / ADMINISTRATION</strong
+    <strong>{appName} / Administration</strong
     >{#if session.kind === "authenticated"}<button onclick={logout}
         >Sign out</button
       >{/if}
   </header>
   <hr class="rule" />
-  {#if session.kind === "login"}
+  {#if session.kind === "discovering"}
+    <ResourceStatus state={{ kind: "pending" }} />
+  {:else if session.kind === "discovery-failed"}
+    <ResourceStatus state={session.error} onretry={() => void load("users")} />
+  {:else if session.kind === "login"}
     <AuthPanel
       {appName}
       mode={{ kind: "admin", token: session.token }}
@@ -207,19 +227,28 @@
         >{/each}
     </nav>
     <hr class="rule" />
-    {#if command.kind !== "none"}<ActionForm
-        view={commandView(command)}
-        {outcome}
-        onchange={(value) => {
-          if (command.kind !== "none") command = { ...command, value };
+    {#if command.kind !== "none"}<FocusedModal
+        onclose={() => {
+          if (outcome.kind !== "pending") {
+            generation++;
+            command = { kind: "none" };
+            outcome = { kind: "idle" };
+          }
         }}
-        onconfirm={confirm}
-        oncancel={() => {
-          generation++;
-          command = { kind: "none" };
-          outcome = { kind: "idle" };
-        }}
-      />{/if}
+        ><ActionForm
+          view={commandView(command)}
+          {outcome}
+          onchange={(value) => {
+            if (command.kind !== "none") command = { ...command, value };
+          }}
+          onconfirm={confirm}
+          oncancel={() => {
+            generation++;
+            command = { kind: "none" };
+            outcome = { kind: "idle" };
+          }}
+        /></FocusedModal
+      >{/if}
     <AdminPanel
       view={session.view}
       outcome={command.kind === "none" ? outcome : { kind: "idle" }}

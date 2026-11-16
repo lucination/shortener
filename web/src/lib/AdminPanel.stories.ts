@@ -38,7 +38,7 @@ export const Usage: Story = {
         value: [
           { label: "Users", count: 12 },
           { label: "Links", count: 184 },
-          { label: "Human redirects", count: 14826 },
+          { label: "Redirects", count: 14826 },
           { label: "Raw events", count: 19840 },
         ],
       },

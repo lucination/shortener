@@ -73,17 +73,21 @@ for (const flow of ["admin", "logout", "global"] as const)
                 ? "Links"
                 : "Account",
           );
-          await waitFor(() =>
-            expect(
-              v.getByText(
-                flow === "admin"
-                  ? /Server-observed usage/
-                  : flow === "global"
-                    ? "No matching links"
-                    : "Raw click data",
-              ),
-            ).toBeTruthy(),
-          );
+          if (flow === "admin") {
+            await waitFor(() =>
+              expect(
+                v.container.querySelectorAll(".metric-grid > div"),
+              ).toHaveLength(4),
+            );
+          } else {
+            await waitFor(() =>
+              expect(
+                v.getByText(
+                  flow === "global" ? "No matching links" : "Raw click data",
+                ),
+              ).toBeTruthy(),
+            );
+          }
         }
         if (target === "replacement") {
           await click("Sign out");

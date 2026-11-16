@@ -26,7 +26,6 @@
 </script>
 
 <section class="stack">
-  <p class="muted">WORKSPACE / ACCOUNT</p>
   <h1>Account</h1>
   <div class="box-frame stack">
     <h2>{email}</h2>

@@ -36,8 +36,7 @@
     {oncancel}
   />
 {:else}
-  <section class="stack max-w-2xl mx-auto">
-    <p class="muted">{appName} / ADMINISTRATION</p>
+  <section class="stack admin-sign-in">
     <h1>Admin sign in</h1>
     <hr class="rule" />
     <form
@@ -48,11 +47,6 @@
         onsubmit();
       }}
     >
-      <h2>Administrator token</h2>
-      <p>
-        Enter the configured admin token. It is sent only to this server and is
-        never stored in browser storage.
-      </p>
       <label class="field"
         >Admin token<input
           type="password"

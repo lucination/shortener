@@ -225,6 +225,15 @@ async fn password_preview_gate_and_explicit_continuation_do_not_loop_or_leak() {
     )
     .unwrap();
     assert!(text.contains("Password required"));
+    assert!(
+        text.contains("/presentation.css"),
+        "native password gate uses the built shared presentation stylesheet"
+    );
+    assert!(text.contains("width=device-width"));
+    assert!(
+        text.contains("<meta name=referrer content=same-origin>"),
+        "native forms retain a same-origin Origin header without leaking cross-origin referrers"
+    );
     assert!(!text.contains("secret.example"));
     assert_eq!(db.link(id).unwrap().human_clicks, 0);
     let unlock = app
@@ -259,6 +268,13 @@ async fn password_preview_gate_and_explicit_continuation_do_not_loop_or_leak() {
         )
         .await
         .unwrap();
+    assert!(
+        preview.headers()["content-security-policy"]
+            .to_str()
+            .unwrap()
+            .contains("form-action 'self' https://secret.example.test;"),
+        "native continuation permits only its validated redirect origin"
+    );
     let text = String::from_utf8(
         axum::body::to_bytes(preview.into_body(), 100000)
             .await
@@ -297,6 +313,18 @@ async fn password_preview_gate_and_explicit_continuation_do_not_loop_or_leak() {
         )
         .await
         .unwrap();
+    assert!(
+        stale.headers()["content-security-policy"]
+            .to_str()
+            .unwrap()
+            .contains("form-action 'self';")
+    );
+    assert!(
+        !stale.headers()["content-security-policy"]
+            .to_str()
+            .unwrap()
+            .contains("secret.example.test")
+    );
     let text = String::from_utf8(
         axum::body::to_bytes(stale.into_body(), 100000)
             .await

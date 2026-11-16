@@ -479,6 +479,7 @@
     padding-right: 12px;
   }
 }
+:root,
 .design-language[data-direction="precision"] {
   --dl-bg: light-dark(oklch(0.985 0 0), oklch(0.21 0.006 285.885));
   --dl-panel: light-dark(oklch(1 0 0), oklch(0.274 0.006 286.033));

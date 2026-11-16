@@ -17,15 +17,13 @@
   } = $props();
 </script>
 
-<section class="max-w-2xl mx-auto stack">
-  <p class="muted">{appName} / SHORT LINKS</p>
-  <hr class="rule" />
+<section class="public-page stack">
+  <strong>{appName}</strong>
   {#if page.kind === "not-found"}<h1>Link not found.</h1>
     <p>
       This address is unavailable. Check the address or ask the person who
       shared it.
     </p>
-    <p class="muted">404 / Nothing to redirect.</p>
     <a href="/">Go to your workspace</a>
   {:else if page.kind === "password"}<h1>Protected link</h1>
     <p>Enter the link password before viewing its destination.</p>
