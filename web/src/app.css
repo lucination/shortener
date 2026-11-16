@@ -329,15 +329,22 @@ code {
   .metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .grid-table td:has(> strong) {
+  .grid-table .frozen-identity {
     position: sticky;
     left: 0;
+  }
+  .grid-table td.frozen-identity {
+    z-index: 1;
     background: var(--dl-panel);
   }
-  .grid-table td:has(> strong) .truncate {
+  .grid-table th.frozen-identity {
+    z-index: 2;
+    background: var(--dl-bg);
+  }
+  .grid-table td.frozen-identity .truncate {
     max-width: 160px;
   }
-  .grid-table td:has(> strong) > strong {
+  .grid-table td.frozen-identity > strong {
     display: block;
     max-width: 160px;
     overflow: hidden;

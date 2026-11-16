@@ -45,12 +45,13 @@
         <table class="grid-table">
           <thead
             ><tr
-              ><th>User</th><th>Status</th><th>Link quota</th><th>Retention</th
-              ><th>Actions</th></tr
+              ><th class="frozen-identity">User</th><th>Status</th><th
+                >Link quota</th
+              ><th>Retention</th><th>Actions</th></tr
             ></thead
           ><tbody
             >{#each view.state.value as user (user.id)}<tr
-                ><td
+                ><td class="frozen-identity"
                   ><strong title={user.email}>{user.email}</strong><br /><span
                     class="muted">#{user.id}</span
                   ></td

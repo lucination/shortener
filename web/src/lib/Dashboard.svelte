@@ -120,7 +120,7 @@
           <thead
             ><tr
               >{#if mode === "manage"}<th>Select</th>{/if}<th
-                >Link / destination</th
+                class="frozen-identity">Link / destination</th
               ><th>Short address</th><th>Clicks</th><th>Status</th
               >{#if mode === "manage"}<th colspan="6">Actions</th>{/if}</tr
             ></thead
@@ -133,7 +133,7 @@
                       checked={selected.includes(row.id)}
                       onchange={() => onselect(row.id)}
                     /></td
-                  >{/if}<td
+                  >{/if}<td class="frozen-identity"
                   ><strong title={row.label}>{row.label}</strong>
                   <div class="muted max-w-72 truncate" title={row.destination}>
                     {row.destination}
