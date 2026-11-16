@@ -122,12 +122,12 @@ export function createApi(fetcher: typeof fetch) {
         "POST",
         {},
       ),
-    authenticationOptions: (body: DTO.EmailInput) =>
+    authenticationOptions: () =>
       request(
         "/api/auth/passkeys/authenticate/options",
         schema.passkeyOptionsSchema,
         "POST",
-        body,
+        {},
       ),
     register: (body: DTO.PasskeyVerify) =>
       request(

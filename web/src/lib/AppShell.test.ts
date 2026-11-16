@@ -26,3 +26,13 @@ it("authenticated user shell exposes only user navigation", () => {
   expect(v.getByText("Sign out")).toBeTruthy();
   expect(v.queryByText("Admin")).toBeNull();
 });
+
+it("renders the configured app name as text in the user shell", () => {
+  const v = render(AppShell, {
+    children,
+    section: "links",
+    appName: "Fieldlinks",
+  });
+  expect(v.getByText("Fieldlinks")).toBeTruthy();
+  expect(v.container.textContent).not.toContain("Shortener");
+});

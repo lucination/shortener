@@ -121,7 +121,7 @@ async fn actual_http_rate_bucket_uses_cloudflare_ip_not_spoofed_forwarded_ip() {
                 .await
                 .unwrap()
                 .status(),
-            StatusCode::UNAUTHORIZED
+            StatusCode::OK
         );
     }
     assert_eq!(
@@ -130,7 +130,7 @@ async fn actual_http_rate_bucket_uses_cloudflare_ip_not_spoofed_forwarded_ip() {
     );
     assert_eq!(
         send("203.0.113.43", "192.0.2.99").await.unwrap().status(),
-        StatusCode::UNAUTHORIZED
+        StatusCode::OK
     );
     let db = rusqlite::Connection::open(file.path()).unwrap();
     let keys = db

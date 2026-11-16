@@ -11,9 +11,10 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 export const MagicLink: Story = {};
-export const Sending: Story = { args: { outcome: { kind: "pending" } } };
+export const Sending: Story = { args: { state: { kind: "sending" } } };
 export const Sent: Story = {
   args: {
+    state: { kind: "sent" },
     outcome: {
       kind: "success",
       message:
@@ -23,6 +24,10 @@ export const Sent: Story = {
 };
 export const Failed: Story = {
   args: {
+    state: {
+      kind: "email-error",
+      message: "Unable to request a sign-in link. Try again.",
+    },
     outcome: {
       kind: "error",
       message: "Unable to request a sign-in link. Try again.",

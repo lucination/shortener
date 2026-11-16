@@ -99,7 +99,7 @@ for (const flow of ["admin", "logout", "global"] as const)
             await waitFor(() =>
               expect(v.getByText("Send sign-in link")).toBeTruthy(),
             );
-            await click("Use a passkey");
+            await click("Sign in with passkey");
           }
           await waitFor(() =>
             expect(

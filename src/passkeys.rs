@@ -4,8 +4,8 @@ use crate::{
 };
 use rusqlite::{Connection, OptionalExtension, params};
 use webauthn_rs::prelude::{
-    Passkey, PasskeyAuthentication, PasskeyRegistration, PublicKeyCredential,
-    RegisterPublicKeyCredential,
+    DiscoverableAuthentication, DiscoverableKey, Passkey, PasskeyAuthentication,
+    PasskeyRegistration, PublicKeyCredential, RegisterPublicKeyCredential,
 };
 fn err(e: impl ToString) -> String {
     e.to_string()
@@ -37,14 +37,15 @@ impl Store {
             let (challenge, state) = w
                 .start_passkey_registration(uuid, &user.email, &user.email, exclude)
                 .map_err(err)?;
-            let options = save_challenge(
-                &tx,
-                id,
-                "register",
-                &state,
-                serde_json::to_value(challenge).map_err(err)?,
-                now,
-            )?;
+            let mut challenge = serde_json::to_value(challenge).map_err(err)?;
+            // Require discovery for new enrollments. Existing stored Passkeys keep their
+            // wire/storage representation and verification policy.
+            let selection = challenge["publicKey"]["authenticatorSelection"]
+                .as_object_mut()
+                .ok_or("invalid registration options")?;
+            selection.insert("residentKey".into(), serde_json::json!("required"));
+            selection.insert("requireResidentKey".into(), serde_json::json!(true));
+            let options = save_challenge(&tx, id, "register", &state, challenge, now)?;
             tx.commit().map_err(err)?;
             Ok(options)
         })
@@ -85,6 +86,28 @@ impl Store {
         email: &str,
         now: &str,
     ) -> DbResult<PasskeyOptions> {
+        if email.trim().is_empty() {
+            let (challenge, state) = w.start_discoverable_authentication().map_err(err)?;
+            return self.with(|db| {
+                let challenge_id = crate::store::random_token();
+                db.execute(
+                    "INSERT INTO discoverable_challenges(id,state,expires_at,issued_revision) SELECT ?,?,?,COALESCE(MAX(sequence),0) FROM passkey_revocations",
+                    params![
+                        challenge_id,
+                        serde_json::to_string(&state).map_err(err)?,
+                        crate::store::expires(now, 300)?
+                    ],
+                )
+                .map_err(err)?;
+                // The browser adapter uses explicit modal mediation. Persist only publicKey,
+                // not the conditional-UI mediation hint from the library's outer envelope.
+                let public_key = serde_json::to_value(challenge).map_err(err)?["publicKey"].clone();
+                Ok(PasskeyOptions {
+                    challenge_id,
+                    public_key,
+                })
+            });
+        }
         self.with(|db|{
   let id:i32=db.query_row("SELECT id FROM users WHERE email=? COLLATE NOCASE AND verified_at IS NOT NULL AND suspended=0 AND deleted_at IS NULL",[email.trim()],|r|r.get(0)).map_err(|_|"passkey authentication unavailable")?;
   let keys:Vec<Passkey>=keys(db,id)?.into_iter().map(|(_,k)|k).collect();if keys.is_empty(){return Err("passkey authentication unavailable".into());}
@@ -98,17 +121,65 @@ impl Store {
         i: PasskeyVerify,
         now: &str,
     ) -> DbResult<(User, String)> {
-        let (id, state) = self.take_challenge(&i.challenge_id, "authenticate", None, now)?;
-        let state: PasskeyAuthentication = serde_json::from_str(&state).map_err(err)?;
+        // Consume the exact server-held challenge before parsing or verifying an assertion.
+        let discovered: Option<(String, i64)> =
+            self.with(|db| {
+                db.query_row(
+            "DELETE FROM discoverable_challenges WHERE id=? AND expires_at>? RETURNING state,issued_revision",
+            params![i.challenge_id, now], |r| Ok((r.get(0)?, r.get(1)?))).optional().map_err(err)
+            })?;
         let credential: PublicKeyCredential = serde_json::from_value(i.credential).map_err(err)?;
-        let result = w
-            .finish_passkey_authentication(&credential, &state)
-            .map_err(|_| "passkey verification failed")?;
+        let (id, result, issued_revision) = if let Some((state, revision)) = discovered {
+            let state: DiscoverableAuthentication = serde_json::from_str(&state).map_err(err)?;
+            let (handle, credential_id) = w
+                .identify_discoverable_authentication(&credential)
+                .map_err(|_| "passkey verification failed")?;
+            let id: i32 = handle
+                .as_u128()
+                .try_into()
+                .map_err(|_| "passkey verification failed")?;
+            // userHandle is untrusted: admit only the asserted credential actually owned by
+            // that eligible user. Signature, RP/origin, UV and challenge checks remain in WebAuthn.
+            let key = self.with(|db| {
+                eligible(db, id)?;
+                if revoked_since(db, id, revision)? {
+                    return Err("passkey verification failed".into());
+                }
+                keys(db, id)?
+                    .into_iter()
+                    .find(|(_, key)| key.cred_id().as_ref() == credential_id)
+                    .map(|(_, key)| key)
+                    .ok_or_else(|| "passkey verification failed".to_string())
+            })?;
+            let result = w
+                .finish_discoverable_authentication(
+                    &credential,
+                    state,
+                    &[DiscoverableKey::from(key)],
+                )
+                .map_err(|_| "passkey verification failed")?;
+            (id, result, Some(revision))
+        } else {
+            // Decode account-bound legacy challenges at the core boundary. The HTTP
+            // endpoint still requires browser binding, so ceremonies begun before
+            // that cookie was introduced must be restarted after upgrading.
+            let (id, state) = self.take_challenge(&i.challenge_id, "authenticate", None, now)?;
+            let state: PasskeyAuthentication = serde_json::from_str(&state).map_err(err)?;
+            let result = w
+                .finish_passkey_authentication(&credential, &state)
+                .map_err(|_| "passkey verification failed")?;
+            (id, result, None)
+        };
         self.with(|db| {
             let tx = db
                 .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                 .map_err(err)?;
             let user = eligible(&tx, id)?;
+            if let Some(revision) = issued_revision
+                && revoked_since(&tx, id, revision)?
+            {
+                return Err("passkey verification failed".into());
+            }
             let mut matched = false;
             for (key_id, mut key) in keys(&tx, id)? {
                 if key.cred_id() == result.cred_id() {
@@ -143,6 +214,14 @@ impl Store {
     ) -> DbResult<(i32, String)> {
         self.with(|db|db.query_row("DELETE FROM challenges WHERE id=? AND kind=? AND expires_at>? AND (? IS NULL OR user_id=?) RETURNING user_id,state",params![id,kind,now,user,user],|r|Ok((r.get(0)?,r.get(1)?))).optional().map_err(err)?.ok_or_else(||"invalid or expired challenge".into()))
     }
+}
+fn revoked_since(db: &Connection, id: i32, revision: i64) -> DbResult<bool> {
+    db.query_row(
+        "SELECT EXISTS(SELECT 1 FROM passkey_revocations WHERE user_id=? AND sequence>?)",
+        params![id, revision],
+        |r| r.get(0),
+    )
+    .map_err(err)
 }
 fn eligible(db: &Connection, id: i32) -> DbResult<User> {
     db.query_row("SELECT * FROM users WHERE id=? AND verified_at IS NOT NULL AND suspended=0 AND deleted_at IS NULL",[id],crate::store::user_row).map_err(|_|"account unavailable".into())

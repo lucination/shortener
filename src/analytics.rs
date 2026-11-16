@@ -175,7 +175,7 @@ impl Store {
   let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(err)?;
   // Aggregation is committed when events are inserted, before pruning ever runs.
   let n=tx.execute("DELETE FROM events WHERE id IN(SELECT e.id FROM events e JOIN links l ON l.id=e.link_id JOIN users u ON u.id=l.owner_id WHERE julianday(e.occurred_at)<julianday(?)-COALESCE(l.retention_days,u.retention_days,?) LIMIT 1000)",params![now,global]).map_err(err)?;
-  for table in ["sessions","magic_tokens","grants","challenges"]{tx.execute(&format!("DELETE FROM {table} WHERE expires_at<=?"),[now]).map_err(err)?;}
+  for table in ["sessions","magic_tokens","grants","challenges","discoverable_challenges"]{tx.execute(&format!("DELETE FROM {table} WHERE expires_at<=?"),[now]).map_err(err)?;}
   tx.execute("DELETE FROM uniques WHERE day<date(?,'-2 days')",[now]).map_err(err)?;
   tx.execute("DELETE FROM rate_limits WHERE window<CAST(strftime('%s',?)AS INTEGER)/60-2",[now]).map_err(err)?;
   tx.commit().map_err(err)?;Ok(n)

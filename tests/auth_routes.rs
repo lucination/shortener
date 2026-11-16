@@ -29,7 +29,7 @@ async fn auth_routes_are_exact_and_unknown_paths_do_not_allocate_rate_keys() {
                 .await
                 .unwrap()
                 .status(),
-            StatusCode::UNAUTHORIZED
+            StatusCode::OK // Usernameless options do not disclose whether an account exists.
         );
     }
     assert_eq!(

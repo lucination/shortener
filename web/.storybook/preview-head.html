@@ -1,1 +1,21 @@
-<style>#storybook-root {max-width:144ch;margin:auto;padding:2.4rem 3ch}@media(max-width:700px){#storybook-root{padding:1.2rem 1ch}}</style>
+<style>
+  #storybook-root {
+    max-width: 144ch;
+    margin: auto;
+    padding: 2.4rem 3ch;
+  }
+  @media (max-width: 700px) {
+    #storybook-root {
+      padding: 1.2rem 1ch;
+    }
+  }
+</style>
+
+<style>
+  /* Page stories own their full-viewport shell. */
+  #storybook-root:has(> .si-page) {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+</style>

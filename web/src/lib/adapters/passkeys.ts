@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   startRegistration,
   startAuthentication,
+  WebAuthnAbortService,
 } from "@simplewebauthn/browser";
 import type { Api, Result } from "./api";
 import type { User, Message } from "../generated";
@@ -82,16 +83,31 @@ export async function enrollPasskey(api: Api): Promise<Result<Message>> {
 }
 export async function authenticatePasskey(
   api: Api,
-  email: string,
+  {
+    signal,
+    onVerifying = () => {},
+  }: { signal?: AbortSignal; onVerifying?: () => void } = {},
 ): Promise<Result<User>> {
-  const result = await api.authenticationOptions({ email });
+  const cancelled = {
+    kind: "failed",
+    error: {
+      kind: "contract",
+      message: "Passkey sign-in was cancelled. Try again or use an email link.",
+    },
+  } as const;
+  const result = await api.authenticationOptions();
+  if (signal?.aborted) return cancelled;
   if (result.kind === "failed") return result;
+  const cancel = () => WebAuthnAbortService.cancelCeremony();
+  signal?.addEventListener("abort", cancel, { once: true });
   try {
     const options = authentication.parse(result.value.public_key);
     const credential = await startAuthentication({
       optionsJSON: options,
     });
     const json: unknown = JSON.parse(JSON.stringify(credential));
+    if (signal?.aborted) return cancelled;
+    onVerifying();
     return await api.authenticate({
       challenge_id: result.value.challenge_id,
       credential: z.json().parse(json),
@@ -105,5 +121,7 @@ export async function authenticatePasskey(
           "Passkey sign-in was cancelled or unsupported. Try a magic link.",
       },
     };
+  } finally {
+    signal?.removeEventListener("abort", cancel);
   }
 }

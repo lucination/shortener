@@ -8,6 +8,8 @@ RUN npm ci --prefix web --no-audit --no-fund && npm ci --prefix admin --no-audit
 COPY web/ web/
 COPY admin/ admin/
 COPY contracts/ contracts/
+ARG PUBLIC_APP_NAME=Shortener
+ENV PUBLIC_APP_NAME=$PUBLIC_APP_NAME
 RUN npm --prefix web run check-contracts && npm --prefix web run build && npm --prefix admin run build && cp -r admin/build web/build/_
 
 # Native musl toolchain: each target requires its own native builder (no QEMU).

@@ -487,20 +487,34 @@ fn api_result(
     {
         let w = crate::passkeys::webauthn(&s.origin).map_err(db_error)?;
         if path == "/api/auth/passkeys/authenticate/options" {
-            let i: EmailInput = decode(body)?;
-            return Ok(
-                Json(db.passkey_auth_options(&w, &i.email, &now).map_err(|_| {
-                    error(
-                        StatusCode::UNAUTHORIZED,
-                        "unauthorized",
-                        "passkey authentication unavailable",
-                    )
-                })?)
-                .into_response(),
-            );
+            let _: serde_json::Map<String, serde_json::Value> = decode(body)?;
+            // No account lookup or credential IDs before the authenticator identifies itself.
+            let options = db.passkey_auth_options(&w, "", &now).map_err(|_| {
+                error(
+                    StatusCode::UNAUTHORIZED,
+                    "unauthorized",
+                    "passkey authentication unavailable",
+                )
+            })?;
+            let challenge = options.challenge_id.clone();
+            return Ok(set_cookie(
+                Json(options).into_response(),
+                s,
+                "short_passkey",
+                &challenge,
+                300,
+            ));
         }
+
         if path == "/api/auth/passkeys/authenticate/verify" {
             let i: PasskeyVerify = decode(body)?;
+            if cookie(h, "short_passkey").as_deref() != Some(i.challenge_id.as_str()) {
+                return Err(error(
+                    StatusCode::UNAUTHORIZED,
+                    "unauthorized",
+                    "passkey verification failed",
+                ));
+            }
             let (user, session) = db.passkey_auth_verify(&w, i, &now).map_err(|_| {
                 error(
                     StatusCode::UNAUTHORIZED,
@@ -509,11 +523,17 @@ fn api_result(
                 )
             })?;
             return Ok(set_cookie(
-                Json(user).into_response(),
+                set_cookie(
+                    Json(user).into_response(),
+                    s,
+                    "short_session",
+                    &session,
+                    30 * 86400,
+                ),
                 s,
-                "short_session",
-                &session,
-                30 * 86400,
+                "short_passkey",
+                "",
+                0,
             ));
         }
     }
@@ -744,7 +764,7 @@ fn shell(s: &AppState, status: StatusCode) -> Response {
     let body = std::fs::read_to_string(s.static_dir.join("index.html"))
         .or_else(|_| std::fs::read_to_string(s.static_dir.join("200.html")))
         .unwrap_or_else(|_| {
-            "<!doctype html><html><body><h1>Shortener</h1><p>Not found</p></body></html>".into()
+            "<!doctype html><html><head><title>Application unavailable</title></head><body><h1>Application unavailable</h1><p>Static application files are missing.</p></body></html>".into()
         });
     html(status, body)
 }

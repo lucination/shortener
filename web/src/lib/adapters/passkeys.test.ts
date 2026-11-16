@@ -62,9 +62,23 @@ it("passes the flattened authentication envelope without inventing a publicKey w
       new Response(JSON.stringify({ challenge_id: "challenge", public_key })),
     )
     .mockResolvedValueOnce(new Response(JSON.stringify(user)));
-  expect(await authenticatePasskey(createApi(fetcher), user.email)).toEqual({
+  expect(await authenticatePasskey(createApi(fetcher))).toEqual({
     kind: "ok",
     value: user,
   });
   expect(startAuthentication).toHaveBeenCalledWith({ optionsJSON: public_key });
+});
+
+it("requests usernameless options without sending an email", async () => {
+  const fetcher = vi
+    .fn<typeof fetch>()
+    .mockResolvedValue(
+      new Response(
+        JSON.stringify({ error: { kind: "server", message: "Unavailable" } }),
+        { status: 503 },
+      ),
+    );
+  await authenticatePasskey(createApi(fetcher));
+  const [, options] = fetcher.mock.calls[0];
+  expect(JSON.parse(options!.body as string)).toEqual({});
 });

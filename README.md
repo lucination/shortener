@@ -1,3 +1,7 @@
+# Passkey upgrade note
+
+Passkey sign-in attempts started before the browser-binding update must be restarted after upgrading. Existing credentials are preserved. Credentials that are not discoverable cannot appear in the browser's account picker; sign in by email and enroll a discoverable passkey to use email-free sign-in.
+
 # Shortener
 
 Native Rust Loco + SQLite, with two independently built static SvelteKit applications.

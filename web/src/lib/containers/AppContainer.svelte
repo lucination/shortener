@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { appName } from "../adapters/branding";
   import { onMount } from "svelte";
   import AppShell, { type Section } from "../AppShell.svelte";
   import Dashboard from "../Dashboard.svelte";
@@ -36,6 +37,9 @@
     BulkAction as WireBulkAction,
   } from "../generated";
   import { enrollPasskey, authenticatePasskey } from "../adapters/passkeys";
+  import type { SignInState } from "../sign-in";
+  let passkeyAttempt: AbortController | undefined;
+  let signInState: SignInState = $state({ kind: "idle" });
   type Page =
     | {
         kind: "links";
@@ -99,7 +103,10 @@
   }
   function setPage(next: Page) {
     generation++;
+    passkeyAttempt?.abort();
+    passkeyAttempt = undefined;
     page = next;
+    signInState = { kind: "idle" };
     command = { kind: "none" };
     outcome = { kind: "idle" };
   }
@@ -180,6 +187,8 @@
     void start();
     return () => {
       generation++;
+      passkeyAttempt?.abort();
+      passkeyAttempt = undefined;
       session = { kind: "anonymous" };
     };
   });
@@ -189,9 +198,14 @@
     const request = generation;
     outcome = { kind: "pending" };
     if (mode.kind === "magic") {
+      signInState = { kind: "sending" };
       const result = await api.magic({ email: mode.email });
       if (request !== generation) return;
       notify(result, result.kind === "ok" ? result.value.message : "");
+      signInState =
+        result.kind === "ok"
+          ? { kind: "sent" }
+          : { kind: "email-error", message: result.error.message };
     }
   }
   async function passkeyLogin() {
@@ -201,15 +215,40 @@
       outcome.kind === "pending"
     )
       return;
-    const email = page.mode.email;
     const request = generation;
     outcome = { kind: "pending" };
-    const result = await authenticatePasskey(api, email);
+    signInState = { kind: "passkey-pending" };
+    const attempt = new AbortController();
+    passkeyAttempt = attempt;
+    const result = await authenticatePasskey(api, {
+      signal: attempt.signal,
+      onVerifying: () => {
+        if (request === generation) signInState = { kind: "passkey-verifying" };
+      },
+    });
+    if (passkeyAttempt === attempt) {
+      passkeyAttempt = undefined;
+      if (attempt.signal.aborted) {
+        signInState = { kind: "passkey-cancelled" };
+        outcome = { kind: "idle" };
+      }
+    }
     if (request !== generation) return;
+    if (result.kind === "failed")
+      signInState = { kind: "passkey-error", message: result.error.message };
     if (notify(result, "Signed in.")) {
       session = { kind: "authenticated", epoch: Symbol("session") };
       await loadLinks();
     }
+  }
+  function cancelPasskey() {
+    if (signInState.kind !== "passkey-pending") return;
+    generation++;
+    passkeyAttempt?.abort();
+    // Wait for any options response to settle before allowing another attempt:
+    // a late Set-Cookie must not overwrite the next ceremony's browser binding.
+    outcome = { kind: "pending" };
+    signInState = { kind: "passkey-cancelling" };
   }
   async function enroll() {
     if (page.kind !== "account" || page.enrollment.kind === "enrolling") return;
@@ -576,130 +615,143 @@
   }
 </script>
 
-<AppShell
-  section={section()}
-  authenticated={session.kind === "authenticated"}
-  onnav={navigate}
-  onlogout={logout}
->
-  {#if command.kind !== "none"}<ActionForm
-      view={commandView(command)}
-      {outcome}
-      onchange={commandValue}
-      onconfirm={confirmCommand}
-      oncancel={() => {
-        generation++;
-        command = { kind: "none" };
-        outcome = { kind: "idle" };
-      }}
-    />{:else if page.kind !== "auth" && page.kind !== "editor" && page.kind !== "import" && page.kind !== "account"}<ResourceStatus
-      state={outcome}
-    />{/if}
-  {#if session.kind === "discovering" && page.kind !== "not-found"}<ResourceStatus
-      state={{ kind: "pending" }}
-    />
-  {:else if session.kind === "failed"}<ResourceStatus
-      state={session.error}
-      onretry={start}
-    />
-  {:else if page.kind === "links"}<Dashboard
-      state={mapResource(page.state, (links) =>
-        filterLinks(
-          links.map(linkRow),
-          page.kind === "links" ? page.search : "",
-        ),
-      )}
-      search={page.search}
-      selected={page.selected}
-      onsearch={(search) => {
-        if (page.kind === "links") page = { ...page, search };
-      }}
-      onselect={(id) => {
-        if (page.kind === "links")
-          page = { ...page, selected: toggleSelection(page.selected, id) };
-      }}
-      oncreate={() =>
-        setPage({
-          kind: "editor",
-          mode: { kind: "create" },
-          draft: emptyDraft,
-        })}
-      onbulkcreate={() => setPage({ kind: "import", text: "" })}
-      onaction={action}
-      onbulk={(action) => {
-        if (page.kind === "links")
-          beginCommand({ kind: "bulk", ids: page.selected, action, value: "" });
-      }}
-      onretry={loadLinks}
-    />
-  {:else if page.kind === "editor"}<LinkEditor
-      mode={page.mode}
-      draft={page.draft}
-      {outcome}
-      onchange={(draft) => {
-        if (page.kind === "editor") page = { ...page, draft };
-      }}
-      onsubmit={saveLink}
-      oncancel={loadLinks}
-    />{#if page.mode.kind === "edit"}<button
-        class="mt-lh"
-        onclick={() => {
-          if (page.kind === "editor" && page.mode.kind === "edit")
-            beginCommand({ kind: "remove-password", id: page.mode.id });
-        }}>Remove existing password</button
-      >{/if}
-  {:else if page.kind === "import"}<BulkImport
-      text={page.text}
-      rows={parseBulk(page.text)}
-      {outcome}
-      onchange={(text) => {
-        if (page.kind === "import") page = { kind: "import", text };
-      }}
-      onfile={readFile}
-      onsubmit={importLinks}
-      oncancel={loadLinks}
-    />
-  {:else if page.kind === "analytics"}<Analytics
-      view={page.view}
-      range={page.range}
-      onrange={(range) => {
-        if (page.kind === "analytics") page = { ...page, range };
-      }}
-      onapply={() => {
-        if (page.kind === "analytics")
-          void loadAnalytics(
-            page.id,
-            page.view.label,
-            page.view.kind,
-            page.range,
-          );
-      }}
-      onback={loadLinks}
-    />
-  {:else if page.kind === "auth"}<AuthPanel
-      mode={page.mode}
-      {outcome}
-      onchange={(mode) => {
-        if (page.kind === "auth") page = { kind: "auth", mode };
-      }}
-      onsubmit={authenticate}
-      onpasskey={passkeyLogin}
-    />
-  {:else if page.kind === "account"}<AccountPanel
-      email={page.user.email}
-      retention={page.retention}
-      enrollment={page.enrollment}
-      {outcome}
-      onretention={(retention) => {
-        if (page.kind === "account") page = { ...page, retention };
-      }}
-      onsave={saveAccount}
-      onenroll={enroll}
-      onsignout={() => beginCommand({ kind: "signout" })}
-      onlogout={logout}
-    />
-  {:else}<PublicPage
-      page={{ kind: "not-found" }}
-      outcome={{ kind: "idle" }}
-    />{/if}
-</AppShell>
+{#if session.kind === "anonymous" && page.kind === "auth"}
+  <AuthPanel
+    {appName}
+    mode={page.mode}
+    state={signInState}
+    {outcome}
+    onchange={(mode) => {
+      if (page.kind === "auth") page = { kind: "auth", mode };
+    }}
+    onsubmit={authenticate}
+    onpasskey={passkeyLogin}
+    oncancel={cancelPasskey}
+  />
+{:else}
+  <AppShell
+    {appName}
+    section={section()}
+    authenticated={session.kind === "authenticated"}
+    onnav={navigate}
+    onlogout={logout}
+  >
+    {#if command.kind !== "none"}<ActionForm
+        view={commandView(command)}
+        {outcome}
+        onchange={commandValue}
+        onconfirm={confirmCommand}
+        oncancel={() => {
+          generation++;
+          command = { kind: "none" };
+          outcome = { kind: "idle" };
+        }}
+      />{:else if page.kind !== "auth" && page.kind !== "editor" && page.kind !== "import" && page.kind !== "account"}<ResourceStatus
+        state={outcome}
+      />{/if}
+    {#if session.kind === "discovering" && page.kind !== "not-found"}<ResourceStatus
+        state={{ kind: "pending" }}
+      />
+    {:else if session.kind === "failed"}<ResourceStatus
+        state={session.error}
+        onretry={start}
+      />
+    {:else if page.kind === "links"}<Dashboard
+        state={mapResource(page.state, (links) =>
+          filterLinks(
+            links.map(linkRow),
+            page.kind === "links" ? page.search : "",
+          ),
+        )}
+        search={page.search}
+        selected={page.selected}
+        onsearch={(search) => {
+          if (page.kind === "links") page = { ...page, search };
+        }}
+        onselect={(id) => {
+          if (page.kind === "links")
+            page = { ...page, selected: toggleSelection(page.selected, id) };
+        }}
+        oncreate={() =>
+          setPage({
+            kind: "editor",
+            mode: { kind: "create" },
+            draft: emptyDraft,
+          })}
+        onbulkcreate={() => setPage({ kind: "import", text: "" })}
+        onaction={action}
+        onbulk={(action) => {
+          if (page.kind === "links")
+            beginCommand({
+              kind: "bulk",
+              ids: page.selected,
+              action,
+              value: "",
+            });
+        }}
+        onretry={loadLinks}
+      />
+    {:else if page.kind === "editor"}<LinkEditor
+        mode={page.mode}
+        draft={page.draft}
+        {outcome}
+        onchange={(draft) => {
+          if (page.kind === "editor") page = { ...page, draft };
+        }}
+        onsubmit={saveLink}
+        oncancel={loadLinks}
+      />{#if page.mode.kind === "edit"}<button
+          class="mt-lh"
+          onclick={() => {
+            if (page.kind === "editor" && page.mode.kind === "edit")
+              beginCommand({ kind: "remove-password", id: page.mode.id });
+          }}>Remove existing password</button
+        >{/if}
+    {:else if page.kind === "import"}<BulkImport
+        text={page.text}
+        rows={parseBulk(page.text)}
+        {outcome}
+        onchange={(text) => {
+          if (page.kind === "import") page = { kind: "import", text };
+        }}
+        onfile={readFile}
+        onsubmit={importLinks}
+        oncancel={loadLinks}
+      />
+    {:else if page.kind === "analytics"}<Analytics
+        view={page.view}
+        range={page.range}
+        onrange={(range) => {
+          if (page.kind === "analytics") page = { ...page, range };
+        }}
+        onapply={() => {
+          if (page.kind === "analytics")
+            void loadAnalytics(
+              page.id,
+              page.view.label,
+              page.view.kind,
+              page.range,
+            );
+        }}
+        onback={loadLinks}
+      />
+    {:else if page.kind === "account"}<AccountPanel
+        email={page.user.email}
+        retention={page.retention}
+        enrollment={page.enrollment}
+        {outcome}
+        onretention={(retention) => {
+          if (page.kind === "account") page = { ...page, retention };
+        }}
+        onsave={saveAccount}
+        onenroll={enroll}
+        onsignout={() => beginCommand({ kind: "signout" })}
+        onlogout={logout}
+      />
+    {:else}<PublicPage
+        {appName}
+        page={{ kind: "not-found" }}
+        outcome={{ kind: "idle" }}
+      />{/if}
+  </AppShell>
+{/if}

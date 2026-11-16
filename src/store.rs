@@ -134,6 +134,9 @@ impl Store {
                 tx.execute(&format!("DELETE FROM {table} WHERE user_id=?"), [id])
                     .map_err(sql)?;
             }
+            tx.execute(
+                    "INSERT OR REPLACE INTO passkey_revocations(user_id) SELECT id FROM users WHERE id=?", [id]
+                ).map_err(sql)?;
             tx.commit().map_err(sql)
         })
     }
@@ -217,6 +220,9 @@ impl Store {
                     tx.execute(&format!("DELETE FROM {table} WHERE user_id=?"), [id])
                         .map_err(sql)?;
                 }
+                tx.execute(
+                    "INSERT OR REPLACE INTO passkey_revocations(user_id) SELECT id FROM users WHERE id=?", [id]
+                ).map_err(sql)?;
             }
             let u = tx
                 .query_row("SELECT * FROM users WHERE id=?", [id], user_row)
@@ -485,6 +491,8 @@ impl Store {
         db.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")
             .map_err(sql)?;
         db.execute_batch(include_str!("../migration/001_initial.sql"))
+            .map_err(sql)?;
+        db.execute_batch(include_str!("../migration/002_discoverable_challenges.sql"))
             .map_err(sql)?;
         db.execute(
             "INSERT OR IGNORE INTO domains(id,name)VALUES(1,?)",

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { appName } from "$shared/adapters/branding";
   import { onMount } from "svelte";
   import AuthPanel from "$shared/AuthPanel.svelte";
   import AdminPanel from "$shared/AdminPanel.svelte";
@@ -179,7 +180,7 @@
 
 <main class="app-shell">
   <header class="toolbar spread">
-    <strong>Shortener / ADMINISTRATION</strong
+    <strong>{appName} / ADMINISTRATION</strong
     >{#if session.kind === "authenticated"}<button onclick={logout}
         >Sign out</button
       >{/if}
@@ -187,6 +188,7 @@
   <hr class="rule" />
   {#if session.kind === "login"}
     <AuthPanel
+      {appName}
       mode={{ kind: "admin", token: session.token }}
       {outcome}
       onchange={(m) => {

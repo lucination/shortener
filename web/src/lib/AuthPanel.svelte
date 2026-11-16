@@ -1,51 +1,54 @@
 <script lang="ts">
+  import { DEFAULT_APP_NAME } from "./app-name";
   import type { AuthMode, Outcome } from "./view-models";
+  import SignInPage from "./SignInPage.svelte";
+  import type { SignInState } from "./sign-in";
   import ResourceStatus from "./ResourceStatus.svelte";
   let {
+    appName = DEFAULT_APP_NAME,
+    state = { kind: "idle" },
     mode,
     outcome,
     onchange = () => {},
     onsubmit = () => {},
     onpasskey = () => {},
+    oncancel = () => {},
   }: {
+    appName?: string;
+    state?: SignInState;
     mode: AuthMode;
     outcome: Outcome;
     onchange?: (mode: AuthMode) => void;
     onsubmit?: () => void;
     onpasskey?: () => void;
+    oncancel?: () => void;
   } = $props();
 </script>
 
-<section class="stack max-w-2xl mx-auto">
-  <p class="muted">
-    Shortener / {mode.kind === "admin" ? "ADMINISTRATION" : "YOUR WORKSPACE"}
-  </p>
-  <h1>{mode.kind === "admin" ? "Admin sign in" : "A shorter way in."}</h1>
-  <hr class="rule" />
-  <form
-    data-testid="auth-form"
-    class="box-frame stack"
-    onsubmit={(event) => {
-      event.preventDefault();
-      onsubmit();
-    }}
-  >
-    {#if mode.kind === "magic"}<h2>Sign in by email</h2>
-      <p>
-        Use the email address your administrator added. We will send a one-time
-        sign-in link.
-      </p>
-      <label class="field"
-        >Email address<input
-          type="email"
-          autocomplete="email"
-          required
-          value={mode.email}
-          placeholder="you@example.org"
-          oninput={(event) =>
-            onchange({ kind: "magic", email: event.currentTarget.value })}
-        /></label
-      >{:else}<h2>Administrator token</h2>
+{#if mode.kind === "magic"}
+  <SignInPage
+    {appName}
+    email={mode.email}
+    {state}
+    onchange={(email) => onchange({ kind: "magic", email })}
+    {onsubmit}
+    {onpasskey}
+    {oncancel}
+  />
+{:else}
+  <section class="stack max-w-2xl mx-auto">
+    <p class="muted">{appName} / ADMINISTRATION</p>
+    <h1>Admin sign in</h1>
+    <hr class="rule" />
+    <form
+      data-testid="auth-form"
+      class="box-frame stack"
+      onsubmit={(event) => {
+        event.preventDefault();
+        onsubmit();
+      }}
+    >
+      <h2>Administrator token</h2>
       <p>
         Enter the configured admin token. It is sent only to this server and is
         never stored in browser storage.
@@ -59,24 +62,11 @@
           oninput={(event) =>
             onchange({ kind: "admin", token: event.currentTarget.value })}
         /></label
-      >{/if}<ResourceStatus state={outcome} onretry={onsubmit} /><button
-      class="btn-primary"
-      disabled={outcome.kind === "pending"}
-      >{outcome.kind === "pending"
-        ? "Signing in…"
-        : mode.kind === "magic"
-          ? "Send sign-in link"
-          : "Sign in"}</button
-    >{#if mode.kind === "magic"}<button
-        type="button"
-        onclick={onpasskey}
-        disabled={outcome.kind === "pending"}>Use a passkey</button
-      >{/if}
-  </form>
-  {#if mode.kind === "magic"}
-    <p class="muted">
-      No public signup. No passwords to remember. Sign-in links expire and can
-      be used once.
-    </p>
-  {/if}
-</section>
+      >
+      <ResourceStatus state={outcome} onretry={onsubmit} />
+      <button class="btn-primary" disabled={outcome.kind === "pending"}
+        >{outcome.kind === "pending" ? "Signing in…" : "Sign in"}</button
+      >
+    </form>
+  </section>
+{/if}

@@ -9,7 +9,7 @@
 
 ## Presentation: stateless and controlled
 
-All top-level `src/lib/*.svelte` components render typed explicit props and emit callbacks. They do not own `$state`, fetch, sessions, navigation, storage, or application lifecycle. The architecture regression test enforces this boundary. `Dashboard`, `LinkEditor`, `BulkImport`, `Analytics`, `EventTable`, `AccountPanel`, `AuthPanel`, `AdminPanel`, `PublicPage`, `ActionForm`, `AppShell` and `ResourceStatus` are the actual production components used by both the SPA and Storybook.
+All top-level `src/lib/*.svelte` components render typed explicit props and emit callbacks. They do not own `$state`, fetch, sessions, navigation, storage, or application lifecycle. The architecture regression test enforces this boundary. `Dashboard`, `LinkEditor`, `BulkImport`, `Analytics`, `EventTable`, `AccountPanel`, `AuthPanel`, `SignInPage`, `AdminPanel`, `PublicPage`, `ActionForm`, `AppShell` and `ResourceStatus` are the actual production components used by both the SPA and Storybook.
 
 `PasskeySection` is a separate controlled component with an `idle | enrolling | succeeded(message) | failed(message)` enrollment union. `AccountPanel` composes it; enrollment feedback cannot escape into retention/session feedback. The container owns WebAuthn effects and guards stale completions, while independent account retention saves preserve enrollment state.
 
@@ -17,7 +17,7 @@ All top-level `src/lib/*.svelte` components render typed explicit props and emit
 
 ## Effect shell
 
-`containers/AppContainer.svelte` owns application state, lifecycle, session discovery, theme storage, clipboard, navigation and action orchestration. `adapters/api.ts` accepts a fetch implementation; every response is JSON `unknown`, checked by executable Zod schemas constrained by actual generated ts-rs DTOs. HTTP, network, and contract failures are distinct. Cookies use same-origin credentials; administrator tokens are not put into URLs or browser storage. Passkey browser effects are isolated in `adapters/passkeys.ts` and use standard WebAuthn serialization through SimpleWebAuthn.
+`containers/AppContainer.svelte` owns application state, lifecycle, session discovery, clipboard, navigation and action orchestration. `adapters/api.ts` accepts a fetch implementation; every response is JSON `unknown`, checked by executable Zod schemas constrained by actual generated ts-rs DTOs. HTTP, network, and contract failures are distinct. Cookies use same-origin credentials; administrator tokens are not put into URLs or browser storage. Passkey browser effects are isolated in `adapters/passkeys.ts` and use standard WebAuthn serialization through SimpleWebAuthn.
 
 Backend-rendered `/v/{short}` password and preview gates remain server-authoritative. The SPA does not attempt to discover password-protected destinations. `PublicPage` provides controlled design stories for these states; backend HTML gate integration is a separate acceptance boundary.
 
@@ -34,3 +34,12 @@ Build static Storybook and serve it via the admitted box supervisor; do not publ
 ## Verification
 
 `npm test`, `npm run check`, `npm run build`, `npm run build-storybook`, `node scripts/verify-browser.mjs` and the backend-generated contract drift check cover distinct boundaries. Adapter and container tests inject deterministic HTTP responses, explicitly simulated; they are not proof of live daemon behavior or physical passkey enrollment. Playwright checks every actual story canvas at desktop, mobile and short-height viewports, rejects backend/nonlocal requests, and exercises the interactive fixture harness.
+
+`SignInPage` is the shared Precision user sign-in presentation in both production
+and Storybook. `sign-in.ts` models its lifecycle independently of generic action
+feedback. `AuthPanel` composes it for user email/passkey login and retains the
+separate administrator-token presentation. Production never imports the story
+harness. `styles/presentation.css` owns shared visual tokens; system preference is
+the only theme authority. Cancelling holds resubmission until outstanding options
+settle (including their browser-binding cookie); stale options cannot open a picker.
+Assertion submission removes cancellation because session creation is authoritative.

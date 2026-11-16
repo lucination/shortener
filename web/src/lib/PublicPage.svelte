@@ -1,12 +1,15 @@
 <script lang="ts">
+  import { DEFAULT_APP_NAME } from "./app-name";
   import type { PublicView, Outcome } from "./view-models";
   import ResourceStatus from "./ResourceStatus.svelte";
   let {
+    appName = DEFAULT_APP_NAME,
     page,
     outcome,
     onpassword = () => {},
     oncontinue = () => {},
   }: {
+    appName?: string;
     page: PublicView;
     outcome: Outcome;
     onpassword?: (value: string) => void;
@@ -15,7 +18,7 @@
 </script>
 
 <section class="max-w-2xl mx-auto stack">
-  <p class="muted">Shortener / SHORT LINKS</p>
+  <p class="muted">{appName} / SHORT LINKS</p>
   <hr class="rule" />
   {#if page.kind === "not-found"}<h1>Link not found.</h1>
     <p>

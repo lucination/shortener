@@ -1,13 +1,16 @@
 <script lang="ts">
+  import { DEFAULT_APP_NAME } from "./app-name";
   import type { Snippet } from "svelte";
   export type Section = "links" | "account";
   let {
+    appName = DEFAULT_APP_NAME,
     children,
     section,
     authenticated = false,
     onnav = () => {},
     onlogout = () => {},
   }: {
+    appName?: string;
     children: Snippet;
     section: Section;
     authenticated?: boolean;
@@ -18,7 +21,7 @@
 
 <main class="app-shell">
   <header class="toolbar spread">
-    <strong>Shortener / SHORTENER</strong>
+    <strong>{appName}</strong>
     {#if authenticated}<button onclick={onlogout}>Sign out</button>{/if}
   </header>
   <hr class="rule" />

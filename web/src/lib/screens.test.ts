@@ -53,7 +53,7 @@ it("magic login emits submission and never sends email itself", async () => {
   });
   await fireEvent.submit(v.getByTestId("auth-form"));
   expect(onsubmit).toHaveBeenCalledOnce();
-  expect(v.getByText("Use a passkey")).toBeTruthy();
+  expect(v.getByText("Sign in with passkey")).toBeTruthy();
 });
 it("account exposes enrollment and signout without resetting access", async () => {
   const onenroll = vi.fn();
