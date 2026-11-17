@@ -3,7 +3,7 @@
   import { parsePasskeyName } from "../passkey-name";
   import { managementUrl } from "../management";
   import { appName } from "../adapters/branding";
-  import { onMount, onDestroy } from "svelte";
+  import { onMount, onDestroy, flushSync } from "svelte";
   import AppShell, { type Section } from "../AppShell.svelte";
   import Dashboard from "../Dashboard.svelte";
   import FocusedModal from "../presentation/FocusedModal.svelte";
@@ -126,6 +126,95 @@
     | { kind: "authenticated"; epoch: symbol };
   let session: Session = $state({ kind: "discovering" });
   let generation = 0;
+  let tokenName = $state("Chrome extension");
+  let tokenDays = $state(90);
+  let tokens: Resource<readonly import("../generated").AccessTokenMetadata[]> =
+    $state({ kind: "pending" });
+  let issuedToken: import("../generated").IssuedAccessToken | undefined =
+    $state();
+  let tokenFeedback: Outcome = $state({ kind: "idle" });
+  function clearTokenSecret() {
+    issuedToken = undefined;
+    tokenFeedback = { kind: "idle" };
+  }
+  onDestroy(() => {
+    generation++;
+    clearTokenSecret();
+  });
+  // A full-document navigation can freeze this component in the back/forward
+  // cache without unmounting it. Clear synchronously before that snapshot.
+  onMount(() => {
+    const hide = () =>
+      flushSync(() => {
+        generation++;
+        clearTokenSecret();
+      });
+    window.addEventListener("pagehide", hide);
+    return () => window.removeEventListener("pagehide", hide);
+  });
+  async function loadTokens() {
+    if (page.kind !== "account") return;
+    const request = generation;
+    tokens = { kind: "pending" };
+    const result = await api.accessTokens();
+    if (request !== generation || page.kind !== "account") return;
+    tokens = resultResource(result, (value) => value.items);
+    if (
+      result.kind === "failed" &&
+      result.error.kind === "http" &&
+      [401, 403].includes(result.error.status)
+    )
+      clearTokenSecret();
+  }
+  async function issueToken() {
+    if (page.kind !== "account" || tokenFeedback.kind === "pending") return;
+    const request = generation;
+    issuedToken = undefined;
+    tokenFeedback = { kind: "pending" };
+    const result = await api.issueAccessToken({
+      name: tokenName,
+      expires_in_days: tokenDays,
+    });
+    if (request !== generation || page.kind !== "account") return;
+    if (result.kind === "failed") {
+      tokenFeedback = failureOutcome(result.error);
+      return;
+    }
+    issuedToken = result.value;
+    tokenFeedback = { kind: "idle" };
+    await loadTokens();
+  }
+  async function revokeToken(id: number) {
+    if (page.kind !== "account" || tokenFeedback.kind === "pending") return;
+    const request = generation;
+    tokenFeedback = { kind: "pending" };
+    if (issuedToken?.metadata.id === id) issuedToken = undefined;
+    const result = await api.revokeAccessToken(id);
+    if (request !== generation || page.kind !== "account") return;
+    tokenFeedback =
+      result.kind === "ok"
+        ? { kind: "success", message: "Access token revoked." }
+        : failureOutcome(result.error);
+    if (result.kind === "ok") await loadTokens();
+  }
+  async function copyToken() {
+    if (!issuedToken || tokenFeedback.kind === "pending") return;
+    const request = generation,
+      token = issuedToken.token;
+    tokenFeedback = { kind: "pending" };
+    try {
+      await copy(token);
+      if (request === generation && issuedToken?.token === token)
+        tokenFeedback = { kind: "success", message: "Token copied." };
+    } catch {
+      if (request === generation && issuedToken?.token === token)
+        tokenFeedback = {
+          kind: "error",
+          reason: "network",
+          message: "Token could not be copied. Select it and copy manually.",
+        };
+    }
+  }
   let passkeyName = $state("");
   let passkeys: Resource<readonly { id: number; name: string }[]> = $state({
     kind: "pending",
@@ -193,6 +282,8 @@
     abandonEnrollment();
     clearCopy();
     generation++;
+    clearTokenSecret();
+    tokens = { kind: "pending" };
     passkeyAttempt?.abort();
     passkeyAttempt = undefined;
     page = next;
@@ -203,6 +294,7 @@
   function beginCommand(next: Exclude<Command, { kind: "none" }>) {
     abandonEnrollment();
     generation++;
+    clearTokenSecret();
     clearCopy();
     command = next;
     outcome = { kind: "idle" };
@@ -238,6 +330,7 @@
     abandonEnrollment();
     if (target === "links") await loadLinks();
     else if (target === "account") {
+      clearTokenSecret();
       const request = ++generation;
       const result = await api.me();
       if (request !== generation) return;
@@ -255,6 +348,7 @@
         passkeyFeedback = { kind: "idle" };
         passkeyName = "";
         await loadPasskeys();
+        await loadTokens();
       } else notify(result, "");
     }
   }
@@ -263,6 +357,7 @@
       setPage({ kind: "not-found" });
       return;
     }
+    clearTokenSecret();
     const request = ++generation;
     session = { kind: "discovering" };
     const result = await api.me();
@@ -284,6 +379,7 @@
     void start();
     return () => {
       generation++;
+      clearTokenSecret();
       passkeyAttempt?.abort();
       passkeyAttempt = undefined;
       session = { kind: "anonymous" };
@@ -342,6 +438,7 @@
   function cancelPasskey() {
     if (signInState.kind !== "passkey-pending") return;
     generation++;
+    clearTokenSecret();
     passkeyAttempt?.abort();
     // Wait for any options response to settle before allowing another attempt:
     // a late Set-Cookie must not overwrite the next ceremony's browser binding.
@@ -408,6 +505,7 @@
     if (session.kind !== "authenticated") return;
     const owner = session.epoch;
     // Success owns the session; failure feedback still owns the initiating page.
+    clearTokenSecret();
     const request = ++generation;
     outcome = { kind: "pending" };
     const result = await api.logout();
@@ -598,6 +696,7 @@
   }
   async function readFile(file: File) {
     if (page.kind !== "import") return;
+    clearTokenSecret();
     const request = ++generation;
     outcome = { kind: "idle" };
     if (file.size > 1024 * 1024) {
@@ -799,6 +898,7 @@
         onclose={() => {
           if (outcome.kind !== "pending") {
             generation++;
+            clearTokenSecret();
             command = { kind: "none" };
             outcome = { kind: "idle" };
           }
@@ -810,6 +910,7 @@
           onconfirm={confirmCommand}
           oncancel={() => {
             generation++;
+            clearTokenSecret();
             command = { kind: "none" };
             outcome = { kind: "idle" };
           }}
@@ -925,6 +1026,20 @@
         /></FocusedModal
       >
     {:else if page.kind === "account"}<AccountPanel
+        accessTokens={{
+          tokens,
+          name: tokenName,
+          days: tokenDays,
+          issued: issuedToken,
+          feedback: tokenFeedback,
+          onname: (value) => (tokenName = value),
+          ondays: (value) => (tokenDays = value),
+          oncreate: issueToken,
+          onrevoke: revokeToken,
+          oncopy: copyToken,
+          ondismiss: clearTokenSecret,
+          onretry: loadTokens,
+        }}
         enrollmentBusy={enrollmentAttempt !== undefined}
         {passkeyName}
         {passkeys}

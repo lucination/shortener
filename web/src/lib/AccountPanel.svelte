@@ -1,8 +1,11 @@
 <script lang="ts">
   import type { Outcome, EnrollmentState, Resource } from "./view-models";
   import ResourceStatus from "./ResourceStatus.svelte";
+  import AccessTokenSection from "./AccessTokenSection.svelte";
+  import type { ComponentProps } from "svelte";
   import PasskeySection from "./PasskeySection.svelte";
   let {
+    accessTokens = {},
     email,
     retention,
     outcome,
@@ -22,6 +25,7 @@
     onpasskeyrename = () => {},
     onpasskeyretry = () => {},
   }: {
+    accessTokens?: ComponentProps<typeof AccessTokenSection>;
     email: string;
     retention: string;
     outcome: Outcome;
@@ -63,6 +67,7 @@
     onrename={onpasskeyrename}
     onretry={onpasskeyretry}
   />
+  <AccessTokenSection {...accessTokens} />
   <form
     class="box-frame stack"
     onsubmit={(event) => {

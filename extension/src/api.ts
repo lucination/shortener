@@ -28,7 +28,7 @@ export async function createLink(
   }
   if (response.status === 401 || response.status === 403)
     throw new Error(
-      "User session not accepted. Sign in again and update Settings.",
+      "Access token not accepted. Create a replacement in Account → Access tokens and update Settings.",
     );
   if (response.status !== 201)
     throw new Error(

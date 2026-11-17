@@ -35,3 +35,11 @@ test("ready title points to the short URL but clicking copies rich text instead 
   assert.equal(plain, 1);
   assert.match(root.textContent, /Automatic URL copy did not complete/i);
 });
+
+test("setup copy directs users to scoped access tokens rather than session cookies", () => {
+  const document = new JSDOM('<main id="app"></main>').window.document;
+  const root = document.querySelector("#app");
+  render(root, { kind: "setup" }, { copyText: () => {}, copyRich: () => {} });
+  assert.match(root.textContent, /access token/);
+  assert.doesNotMatch(root.textContent, /user session/);
+});

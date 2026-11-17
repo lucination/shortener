@@ -16,7 +16,7 @@
           placeholder="https://short.example"
           required /></label
       ><label
-        >User session token<input
+        >Access token<input
           id="token"
           type="password"
           autocomplete="off"
@@ -24,8 +24,9 @@
           required
       /></label>
       <p>
-        Use your own user session, never an admin token. Stored locally in this
-        browser, not synced. Treat this value like a password.
+        Create a token in Account → Access tokens on your service, then paste
+        its one-time value here. It can only create links. Stored locally in
+        this browser, not synced. Treat it like a password.
       </p>
       <p>
         HTTPS required; HTTP is allowed only on loopback for development. Saving

@@ -2,10 +2,12 @@
 use crate::{domain::*, dto::*};
 use rusqlite::{Connection, OptionalExtension, params};
 use std::sync::{Arc, Mutex};
+mod access_tokens;
 mod short_code;
 #[derive(Clone)]
 enum Authority {
     Internal,
+    Access { hash: String },
     User { id: i32, hash: String },
     Admin { hash: String },
 }
@@ -95,6 +97,7 @@ impl Store {
     ) -> DbResult<()> {
         let valid=match &self.authority{
    Authority::Internal=>true,
+   Authority::Access{..}=>false,
    Authority::User{id,hash}=>target==Some(*id)&&db.query_row("SELECT EXISTS(SELECT 1 FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.kind='user' AND s.user_id=? AND s.expires_at>? AND u.verified_at IS NOT NULL AND u.suspended=0 AND u.deleted_at IS NULL)",params![hash,id,now],|r|r.get::<_,bool>(0)).map_err(sql)?,
    Authority::Admin{hash}=>db.query_row("SELECT EXISTS(SELECT 1 FROM sessions WHERE token_hash=? AND kind='admin' AND expires_at>?)",params![hash,now],|r|r.get::<_,bool>(0)).map_err(sql)?,
   };
@@ -514,6 +517,8 @@ impl Store {
             .map_err(sql)?;
         db.execute_batch(include_str!("../migration/003_passkey_names.sql"))
             .map_err(sql)?;
+        db.execute_batch(include_str!("../migration/004_access_tokens.sql"))
+            .map_err(sql)?;
         db.execute(
             "INSERT OR IGNORE INTO domains(id,name)VALUES(1,?)",
             [&domain],
@@ -570,13 +575,29 @@ impl Store {
         owner: i32,
         input: LinkInput,
         now: &str,
+        candidate: impl FnMut() -> String,
+    ) -> DbResult<Link> {
+        self.create_link_with_clock(owner, input, || now.to_owned(), candidate)
+    }
+    fn create_link_with_clock(
+        &self,
+        owner: i32,
+        input: LinkInput,
+        clock: impl FnOnce() -> String,
         mut candidate: impl FnMut() -> String,
     ) -> DbResult<Link> {
         let v = NewLink::try_from(input)?;
         let hash = v.password.as_deref().map(hash_password).transpose()?;
         self.with(|db|{
    let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(sql)?;
-   self.authorize(&tx,Some(owner),now)?;
+   let observed=clock(); let now=observed.as_str();
+   let owner=if let Authority::Access{hash}=&self.authority { access_tokens::owner(&tx,hash,now)? } else { self.authorize(&tx,Some(owner),now)?; owner };
+   if let Authority::Access{hash}=&self.authority {
+       let window=parse_instant(now)?.timestamp()/60;
+       let count:i32=tx.query_row("INSERT INTO rate_limits(key,window,count)VALUES(?,?,1) ON CONFLICT(key)DO UPDATE SET count=CASE WHEN excluded.window>rate_limits.window THEN 1 ELSE MIN(rate_limits.count+1,61) END,window=MAX(rate_limits.window,excluded.window) RETURNING count",params![token_hash(&format!("access-create:{owner}")),window],|r|r.get(0)).map_err(sql)?;
+       if count>60{return Err("create rate limit exceeded".into());}
+       tx.execute("UPDATE access_tokens SET last_used_at=CASE WHEN last_used_at IS NULL OR last_used_at<? THEN ? ELSE last_used_at END WHERE token_hash=?",params![now,now,hash]).map_err(sql)?;
+   }
    let eligible:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM users u WHERE u.id=? AND suspended=0 AND deleted_at IS NULL AND (link_quota IS NULL OR (SELECT count(*) FROM links WHERE owner_id=u.id AND deleted_at IS NULL)<link_quota))",[owner],|r|r.get(0)).map_err(sql)?;
    if !eligible{return Err("owner unavailable or link quota exceeded".into());}
    tx.execute("INSERT INTO links(owner_id,destination,title,description,expires_at,click_limit,password_hash,interstitial,query_mode,retention_days,created_at)VALUES(?,?,?,?,?,?,?,?,?,?,?)",params![owner,v.destination.as_str(),v.title,v.description,v.expires_at.map(instant),v.click_limit.map(ClickLimit::get),hash,v.interstitial,serde_json::to_value(v.query_mode).unwrap().as_str().unwrap(),v.retention.map(RetentionDays::get),now]).map_err(sql)?;
@@ -672,4 +693,9 @@ pub(crate) fn insert_session(db: &Connection, user: Option<i32>, now: &str) -> D
 }
 fn valid_grant(db: &Connection, id: i32, token: &str, now: &str) -> DbResult<bool> {
     db.query_row("SELECT EXISTS(SELECT 1 FROM grants g JOIN links l ON l.id=g.link_id WHERE g.token_hash=? AND g.link_id=? AND g.version=l.password_version AND g.expires_at>?)",params![token_hash(token),id,now],|r|r.get(0)).map_err(sql)
+}
+
+/// Exact public token grammar; sessions are a different credential namespace.
+pub fn access_token_format(token: &str) -> DbResult<()> {
+    access_tokens::access_hash(token).map(|_| ())
 }

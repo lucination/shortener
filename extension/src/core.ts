@@ -34,8 +34,8 @@ export function serviceOrigin(value: string): string {
 
 export function parseSettings(settings: Settings): Settings {
   const service = serviceOrigin(settings.service);
-  if (!settings.token || /[\s\x00-\x1f\x7f]/u.test(settings.token))
-    throw new Error("Enter a valid user session token.");
+  if (!/^short_at_[0-9a-f]{64}$/u.test(settings.token))
+    throw new Error("Enter a valid access token from Account → Access tokens.");
   return { service, token: settings.token };
 }
 

@@ -9,12 +9,25 @@ use shortener::{
 use tower::ServiceExt;
 
 #[tokio::test]
-async fn bearer_creation_uses_existing_user_session_and_owner_scope() {
+async fn bearer_creation_uses_dedicated_access_token_and_owner_scope() {
     let now = chrono::Utc::now().to_rfc3339();
     let db = Store::open(":memory:", "short.example").unwrap();
     let owner = db.create_user("extension@example.test", &now).unwrap();
     let magic = db.issue_magic(&owner.email, &now).unwrap().unwrap();
-    let (_, token) = db.consume_magic(&magic, &now).unwrap();
+    let (_, session) = db.consume_magic(&magic, &now).unwrap();
+    let token = db
+        .user_scope(&session, &now)
+        .unwrap()
+        .issue_access_token(
+            owner.id,
+            shortener::dto::AccessTokenInput {
+                name: "Chrome extension".into(),
+                expires_in_days: 90,
+            },
+            &now,
+        )
+        .unwrap()
+        .token;
     let app = router(AppState::new(db.clone()));
     let response = app
         .oneshot(

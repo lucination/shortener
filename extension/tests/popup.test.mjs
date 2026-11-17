@@ -29,7 +29,11 @@ test("popup excludes competing copy handlers through rich rejection and fallback
       storage: {
         local: {
           get: async () => ({
-            settings: { service: "https://short.example", token: "session" },
+            settings: {
+              service: "https://short.example",
+              token:
+                "short_at_dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            },
           }),
         },
       },

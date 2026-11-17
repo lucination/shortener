@@ -20,6 +20,9 @@ function createRequest(fetcher: typeof fetch) {
       response = await fetcher(path, {
         method,
         credentials: "same-origin",
+        ...(path.startsWith("/api/account/tokens")
+          ? { cache: "no-store" as const }
+          : {}),
         headers:
           body === undefined
             ? { Accept: "application/json" }
@@ -105,6 +108,17 @@ export function createApi(fetcher: typeof fetch) {
       ),
     account: (body: DTO.AccountPatch) =>
       request("/api/account", schema.userSchema, "PATCH", body),
+    accessTokens: () =>
+      request("/api/account/tokens", schema.accessTokenListSchema),
+    issueAccessToken: (body: DTO.AccessTokenInput) =>
+      request(
+        "/api/account/tokens",
+        schema.issuedAccessTokenSchema,
+        "POST",
+        body,
+      ),
+    revokeAccessToken: (id: number) =>
+      request(`/api/account/tokens/${id}`, schema.messageSchema, "DELETE"),
     passkeys: () => request("/api/account/passkeys", schema.passkeyListSchema),
     renamePasskey: (id: number, body: DTO.PasskeyRename) =>
       request(

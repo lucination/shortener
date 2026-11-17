@@ -29,21 +29,35 @@ test("POSTs the existing DTO with user bearer authority, not cookies, and refuse
   try {
     assert.deepEqual(
       await createLink(
-        { service, token: "user-secret" },
+        {
+          service,
+          token:
+            "short_at_ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        },
         { destination: "https://page.example" },
       ),
       { addresses: [] },
     );
     assert.equal(requests[0].path, "/api/links");
     assert.equal(requests[0].method, "POST");
-    assert.equal(requests[0].headers.authorization, "Bearer user-secret");
+    assert.equal(
+      requests[0].headers.authorization,
+      "Bearer short_at_ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    );
     assert.equal(requests[0].headers.cookie, undefined);
     assert.deepEqual(JSON.parse(requests[0].body), {
       destination: "https://page.example",
     });
     redirect = true;
     await assert.rejects(
-      createLink({ service, token: "user-secret" }, {}),
+      createLink(
+        {
+          service,
+          token:
+            "short_at_ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        },
+        {},
+      ),
       /Check your account/,
     );
     assert.equal(
