@@ -4,6 +4,12 @@ Passkey sign-in attempts started before the browser-binding update must be resta
 
 # Shortener
 
+The optional [browser companion](extension/README.md) shortens the active page
+and copies either the plain short URL or a formatted title hyperlink. Shared
+Chrome/Firefox/Safari Web Extension packages are built locally; Safari requires
+conversion and signing on macOS. See the extension guide for installation,
+manual user-session configuration and verification limitations.
+
 Native Rust Loco + SQLite, with two independently built static SvelteKit applications.
 The user workspace is `/`; administration is `/_/` (enter the URL manually).
 User APIs are `/api`; administrator APIs are `/_/api`, with separate session cookies.

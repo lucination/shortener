@@ -170,8 +170,24 @@ pub(crate) fn origin_ok(s: &AppState, h: &HeaderMap) -> bool {
             .and_then(|v| v.to_str().ok())
             .is_none_or(|v| matches!(v, "same-origin" | "none"))
 }
+// Non-cookie authority is deliberately limited to the extension's single create route.
+// Reuse the existing expiring/revocable USER session; never accept admin authority.
+fn creation_bearer<'a>(method: &Method, path: &str, h: &'a HeaderMap) -> Option<&'a str> {
+    if *method != Method::POST || path != "/api/links" {
+        return None;
+    }
+    let value = h
+        .get(header::AUTHORIZATION)?
+        .to_str()
+        .ok()?
+        .strip_prefix("Bearer ")?;
+    (!value.is_empty() && !value.chars().any(char::is_whitespace)).then_some(value)
+}
 async fn api(State(s): State<AppState>, req: Request) -> Response {
-    if !matches!(*req.method(), Method::GET | Method::HEAD) && !origin_ok(&s, req.headers()) {
+    if !matches!(*req.method(), Method::GET | Method::HEAD)
+        && creation_bearer(req.method(), req.uri().path(), req.headers()).is_none()
+        && !origin_ok(&s, req.headers())
+    {
         return error(
             StatusCode::FORBIDDEN,
             "origin",
@@ -549,7 +565,10 @@ fn api_result(
             ));
         }
     }
-    let token = cookie(h, "short_session").ok_or_else(|| authority_error(db, h, &now, false))?;
+    let token = creation_bearer(method, path, h)
+        .map(str::to_owned)
+        .or_else(|| cookie(h, "short_session"))
+        .ok_or_else(|| authority_error(db, h, &now, false))?;
     let user = db.authenticate_user(&token, &now).map_err(|_| {
         error(
             StatusCode::UNAUTHORIZED,

@@ -52,6 +52,14 @@ jobs:
         run: |
           npm run check
           npm run build
+      - name: Companion extension types, behavior, packages and real Chromium clipboard
+        run: |
+          npm run check --prefix extension
+          npm test --prefix extension
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb xauth xdotool xclip
+          npx --prefix web playwright install --with-deps chromium
+          xvfb-run -a npm run test:browser --prefix extension
 
   native-image:
     needs: test
