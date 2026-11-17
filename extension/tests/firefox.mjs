@@ -12,7 +12,11 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { assertRequest, assertClipboard } from "./firefox-contract.mjs";
+import {
+  assertRequest,
+  assertClipboard,
+  nativeEnvironment,
+} from "./firefox-contract.mjs";
 import { nativeChecks } from "../scripts/native-policy.mjs";
 const evidence = process.env.EXTENSION_EVIDENCE;
 if (!evidence || !process.env.FIREFOX_BIN || !process.env.GECKODRIVER)
@@ -189,6 +193,7 @@ try {
     .setFirefoxOptions(options)
     .setFirefoxService(
       new firefox.ServiceBuilder(process.env.GECKODRIVER)
+        .setEnvironment(nativeEnvironment(process.env))
         .addArguments("--allow-system-access")
         .setStdio("inherit"),
     )

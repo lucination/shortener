@@ -22,3 +22,7 @@ export function assertClipboard(plain, html, expected) {
     dom.window.close();
   }
 }
+
+export function nativeEnvironment(environment) {
+  return { ...environment, MOZ_REMOTE_ALLOW_SYSTEM_ACCESS: "1" };
+}

@@ -165,7 +165,10 @@ The harness emits actual screenshots, native clipboard readbacks and
 No live account, live service token, AMO API call or external service fixture is
 used. Fixture values are deliberately non-secret test data. The test-only
 geckodriver `--allow-system-access` flag allows browser-chrome control, not a normal
-extension installation requirement.
+extension installation requirement. Pinned Firefox 160 additionally reads
+`MOZ_REMOTE_ALLOW_SYSTEM_ACCESS=1`; the harness grants this only in the owned
+geckodriver/browser child environment, while preserving its X11 environment.
+It is not an AMO credential, static acceptance boolean or production setting.
 
 **Execution status:** local native acceptance is blocked: the admitted sandbox
 aborts official Firefox 160.0.1 and 140.0 ESR before extension installation with

@@ -87,3 +87,12 @@ test("explicit plain copy cannot pass using automatic-copy stale clipboard data"
     /input: "plain sentinel"[^]*await clickPopup\("#app button"\)/,
   );
 });
+test("pinned Firefox 160 receives its explicit RemoteAgent environment grant while retaining X11", () => {
+  assert.equal(typeof api.nativeEnvironment, "function");
+  const original = { DISPLAY: ":98", PATH: "/fixture/bin" };
+  assert.deepEqual(api.nativeEnvironment(original), {
+    ...original,
+    MOZ_REMOTE_ALLOW_SYSTEM_ACCESS: "1",
+  });
+  assert.deepEqual(original, { DISPLAY: ":98", PATH: "/fixture/bin" });
+});
