@@ -20,26 +20,25 @@ before retrying after a timeout, disconnect, redirect or malformed response.
 From the repository root, with Node 22 and Python 3:
 
 ```sh
-npm ci --prefix web --no-audit --no-fund
+npm ci --prefix extension --ignore-scripts --no-audit --no-fund
 npm run check --prefix extension
 npm test --prefix extension
 ```
 
 The build emits `extension/dist/chrome/`, `firefox/`, `safari/` and one
-deterministic ZIP per platform. There is no separate extension dependency tree or
-lockfile: TypeScript and test tooling come from the pinned web lockfile. Outputs
+deterministic ZIP per platform. Extension dependencies and TypeScript/test tooling are pinned in
+`extension/package-lock.json`, independently of the web application. Outputs
 are ignored; no credentials or settings are bundled.
 
 - **Chrome/Chromium:** open `chrome://extensions`, enable Developer mode, choose
   Load unpacked and select `extension/dist/chrome`. Pin the toolbar action.
 - **Firefox:** open `about:debugging#/runtime/this-firefox`, Load Temporary Add-on,
   and select `extension/dist/firefox/manifest.json`. Temporary installs disappear
-  on restart. A normal distribution needs Mozilla signing. The sample Gecko ID
-  must be replaced with the publisher's chosen ID before store publication.
-  Store privacy/data-transmission declarations also require publisher review:
-  this extension sends the chosen page URL/title and user credential to the
-  explicitly configured service. The development manifest does not assert that
-  no data is transmitted or claim completed store-policy compliance.
+  on restart. A normal distribution needs Mozilla signing. The stable Gecko ID must be confirmed with the intended publisher before
+  first submission. The page URL, title and dedicated token are sent only to the
+  configured service. Desktop Firefox 140+ uses built-in
+  browsing-activity/authentication/website-content consent. See FIREFOX-PUBLICATION.md for
+  listed submission, source reproduction and the unresolved native runtime gate.
 - **Safari:** the ZIP/directory is **Web Extension converter input, not an
   installable Safari app**. On macOS with Xcode, run:
 
@@ -138,3 +137,10 @@ background worker, history access, remote script or broad required host access i
 needed. The popup follows a compact, square Monospace Web grid with system light
 and dark colors, reusing the application's self-hosted JetBrains Mono variable
 fonts and their OFL license.
+
+## Firefox publication
+
+See [FIREFOX-PUBLICATION.md](FIREFOX-PUBLICATION.md) for listed AMO automation,
+protected credential setup, source reproduction and actual Firefox acceptance.
+The extension now owns its pinned development dependencies: run `npm ci` here,
+not in the web application, for extension-only build/check/test gates.

@@ -4,9 +4,21 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "check": "../web/node_modules/.bin/tsc -p tsconfig.json --noEmit",
+    "check": "tsc -p tsconfig.json --noEmit",
     "build": "node scripts/build.mjs",
-    "test": "npm run build && node --test tests/*.test.mjs",
-    "test:browser": "node tests/browser.mjs"
+    "test": "npm run build && node --test --test-concurrency=1 tests/*.test.mjs",
+    "test:browser": "node tests/browser.mjs",
+    "lint:firefox": "web-ext lint --source-dir dist/firefox.zip --warnings-as-errors --no-config-discovery",
+    "test:firefox": "node tests/firefox.mjs",
+    "source:check": "python3 scripts/check-source-bundle.py"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "devDependencies": {
+    "jsdom": "26.1.0",
+    "selenium-webdriver": "4.38.0",
+    "typescript": "5.9.3",
+    "web-ext": "10.8.0"
   }
 }

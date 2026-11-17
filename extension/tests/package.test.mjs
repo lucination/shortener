@@ -59,3 +59,15 @@ test("all platforms package shared popup with minimal permissions and no persist
     }
   }
 });
+
+test("Firefox declares transmitted browsing activity and requires built-in consent", async () => {
+  const {
+    browser_specific_settings: { gecko },
+  } = JSON.parse(
+    await readFile(new URL("../dist/firefox/manifest.json", import.meta.url)),
+  );
+  assert.equal(gecko.strict_min_version, "140.0");
+  assert.deepEqual(gecko.data_collection_permissions, {
+    required: ["browsingActivity", "authenticationInfo", "websiteContent"],
+  });
+});

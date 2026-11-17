@@ -7,11 +7,7 @@ await rm(`${root}compiled`, { recursive: true, force: true });
 await rm(`${root}dist`, { recursive: true, force: true });
 execFileSync(
   process.execPath,
-  [
-    `${root}../web/node_modules/typescript/bin/tsc`,
-    "-p",
-    `${root}tsconfig.json`,
-  ],
+  [`${root}node_modules/typescript/bin/tsc`, "-p", `${root}tsconfig.json`],
   { stdio: "inherit" },
 );
 const base = {
@@ -49,9 +45,17 @@ for (const platform of ["chrome", "firefox", "safari"]) {
       ? {
           ...base,
           browser_specific_settings: {
+            gecko_android: { strict_min_version: "142.0" },
             gecko: {
               id: "shortener-companion@shortener.invalid",
-              strict_min_version: "128.0",
+              strict_min_version: "140.0",
+              data_collection_permissions: {
+                required: [
+                  "browsingActivity",
+                  "authenticationInfo",
+                  "websiteContent",
+                ],
+              },
             },
           },
         }

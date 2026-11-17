@@ -1,0 +1,6 @@
+{
+  "accepted": false,
+  "version": "0.1.0",
+  "unsignedZipSha256": null,
+  "reason": "Native Firefox toolbar popup and plain/HTML clipboard acceptance is pending; admitted sandbox Firefox startup is blocked."
+}

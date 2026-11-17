@@ -1,3 +1,5 @@
 /compiled/
 /dist/
 /artifacts/
+/node_modules/
+/web-ext-artifacts/

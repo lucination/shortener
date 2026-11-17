@@ -1,0 +1,74 @@
+name: Firefox extension
+on:
+  pull_request:
+    paths:
+      [
+        "extension/**",
+        "contracts/bindings/**",
+        "web/static/fonts/**",
+        ".github/workflows/firefox.yml",
+      ]
+  push:
+    branches: [main]
+    tags: ["extension-v*"]
+  workflow_dispatch: # build-only dry run; never grants publication authority
+permissions:
+  contents: read
+concurrency:
+  group: firefox-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22.23.4"
+      - run: npm ci --ignore-scripts
+        working-directory: extension
+      - run: npm run check && npm test && npm run lint:firefox && npm run source:check
+        working-directory: extension
+      - name: Validate release tag and main ancestry (no secrets)
+        if: startsWith(github.ref, 'refs/tags/')
+        working-directory: extension
+        run: |
+          node --input-type=module -e "import {releaseContext} from './scripts/release-context.mjs'; const r=releaseContext({...process.env,WEB_EXT_API_KEY:'presence-only',WEB_EXT_API_SECRET:'presence-only',GITHUB_RUN_ATTEMPT:'1'}); if(!r.ok) throw Error(r.reason); console.log(r);"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: firefox-${{ github.sha }}
+          path: |
+            extension/dist/firefox.zip
+            extension/dist/firefox-source.zip
+          if-no-files-found: error
+          retention-days: 30
+  submit:
+    needs: verify
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/extension-v') && github.repository == 'lucination/shortener'
+    environment: firefox-addons
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22.23.4"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: firefox-${{ github.sha }}
+          path: extension/dist
+      - run: npm ci --ignore-scripts && python3 -m zipfile -e dist/firefox.zip dist/firefox && npm run lint:firefox
+        working-directory: extension
+      - name: Submit listed Firefox version (no automatic retries)
+        working-directory: extension
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.WEB_EXT_API_KEY }}
+          WEB_EXT_API_SECRET: ${{ secrets.WEB_EXT_API_SECRET }}
+        run: node scripts/submit-firefox.mjs
