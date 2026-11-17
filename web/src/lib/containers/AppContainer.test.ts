@@ -65,9 +65,11 @@ it("keeps per-link bulk failures beside the affected confirmation instead of cla
     );
   });
   const v = render(AppContainer, { api: createApi(fetcher) });
-  await waitFor(() => expect(v.getByRole("checkbox")).toBeTruthy());
-  await fireEvent.click(v.getByRole("checkbox"));
-  await fireEvent.click(v.getByRole("button", { name: "disable" }));
+  await waitFor(() =>
+    expect(v.getByTitle("Select all visible links")).toBeTruthy(),
+  );
+  await fireEvent.click(v.getByTitle("Select all visible links"));
+  await fireEvent.click(v.getByTitle("Disable selected links"));
   await fireEvent.click(v.getByRole("button", { name: "Confirm" }));
   await waitFor(() =>
     expect(v.getByText(/Link is no longer available/)).toBeTruthy(),

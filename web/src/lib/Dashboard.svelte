@@ -7,6 +7,7 @@
     BulkAction,
   } from "./view-models";
   import ResourceStatus from "./ResourceStatus.svelte";
+  import { bulkActionLabels } from "./view-models";
   import {
     Copy,
     Pencil,
@@ -15,6 +16,8 @@
     Pause,
     Play,
     Trash2,
+    CalendarClock,
+    Archive,
   } from "@lucide/svelte";
   let {
     state,
@@ -26,6 +29,7 @@
     oncreate = () => {},
     onbulkcreate = () => {},
     onselect = () => {},
+    onselectall = () => {},
     onaction = () => {},
     onbulk = () => {},
     onretry = () => {},
@@ -39,6 +43,7 @@
     oncreate?: () => void;
     onbulkcreate?: () => void;
     onselect?: (id: number) => void;
+    onselectall?: (selected: boolean) => void;
     onaction?: (action: LinkAction, id: number) => void;
     onbulk?: (action: BulkAction) => void;
     onretry?: () => void;
@@ -58,6 +63,10 @@
     "expiration",
     "retention",
   ];
+  const visibleRows = $derived(state.kind === "ready" ? state.value : []);
+  const selectedVisible = $derived(
+    visibleRows.filter((row) => selected.includes(row.id)).length,
+  );
   const actionTitle = (action: LinkAction, enabled: boolean): string =>
     action === "copy"
       ? "Copy address"
@@ -101,8 +110,21 @@
   </div>
   {#if mode === "manage" && selected.length > 0}<div class="box-frame toolbar">
       <strong>{selected.length} selected</strong
-      >{#each bulkActions as action}<button onclick={() => onbulk(action)}
-          >{action}</button
+      >{#each bulkActions as action}<button
+          class="icon-button"
+          title={action === "expiration" || action === "retention"
+            ? bulkActionLabels[action]
+            : `${bulkActionLabels[action]} selected links`}
+          onclick={() => onbulk(action)}
+          >{#if action === "enable"}<Play
+              size={16}
+            />{:else if action === "disable"}<Pause
+              size={16}
+            />{:else if action === "delete"}<Trash2
+              size={16}
+            />{:else if action === "expiration"}<CalendarClock
+              size={16}
+            />{:else}<Archive size={16} />{/if}</button
         >{/each}
     </div>{/if}
   <ResourceStatus {state} {onretry} />
@@ -118,14 +140,26 @@
         <table class="grid-table">
           <thead
             ><tr
-              >{#if mode === "manage"}<th>Select</th>{/if}<th
-                class="frozen-identity">Link / destination</th
-              ><th>Short address</th><th>Clicks</th><th>Status</th
+              >{#if mode === "manage"}<th class="selection-cell"
+                  ><input
+                    type="checkbox"
+                    title="Select all visible links"
+                    checked={visibleRows.length > 0 &&
+                      selectedVisible === visibleRows.length}
+                    indeterminate={selectedVisible > 0 &&
+                      selectedVisible < visibleRows.length}
+                    onchange={(event) =>
+                      onselectall(event.currentTarget.checked)}
+                  /></th
+                >{/if}<th class="frozen-identity">Link / destination</th><th
+                >Short address</th
+              ><th class="compact-cell">Clicks</th><th class="compact-cell"
+                >Status</th
               >{#if mode === "manage"}<th colspan="6">Actions</th>{/if}</tr
             ></thead
           ><tbody>
             {#each state.value as row (row.id)}<tr
-                >{#if mode === "manage"}<td
+                >{#if mode === "manage"}<td class="selection-cell"
                     ><input
                       type="checkbox"
                       title={`Select ${row.label}`}
@@ -144,7 +178,8 @@
                       onclick={() => onaction("copy", row.id)}
                       ><code>{row.address}</code></button
                     >{:else}<code>{row.address}</code>{/if}</td
-                ><td>{row.clicks.toLocaleString()}</td><td
+                ><td class="compact-cell">{row.clicks.toLocaleString()}</td><td
+                  class="compact-cell"
                   ><span class="link-status"
                     ><span class:off={!row.enabled} class="status-dot"
                     ></span><span>{row.enabled ? "Enabled" : "Disabled"}</span

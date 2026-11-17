@@ -33,6 +33,13 @@ export type LinkAction =
   "copy" | "edit" | "stats" | "events" | "toggle" | "delete";
 export type BulkAction =
   "enable" | "disable" | "delete" | "expiration" | "retention";
+export const bulkActionLabels: Readonly<Record<BulkAction, string>> = {
+  enable: "Enable",
+  disable: "Disable",
+  delete: "Delete",
+  expiration: "Set expiration",
+  retention: "Set retention",
+};
 export const filterLinks = (
   rows: readonly LinkRow[],
   query: string,

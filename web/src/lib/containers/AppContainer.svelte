@@ -22,6 +22,7 @@
   import { mapResource, resultResource, failureOutcome } from "../resource";
   import {
     filterLinks,
+    bulkActionLabels,
     toggleSelection,
     emptyDraft,
     type Resource,
@@ -650,7 +651,7 @@
     )
       return {
         kind: "value",
-        title: `Set ${value.action} for ${value.ids.length} links`,
+        title: `${bulkActionLabels[value.action]} for ${value.ids.length} ${value.ids.length === 1 ? "link" : "links"}`,
         description:
           "Blank clears the override. Only selected link IDs are changed.",
         label: value.action === "expiration" ? "Expiration" : "Retention days",
@@ -667,7 +668,7 @@
             : value.kind === "delete-link"
               ? "Delete this link?"
               : value.kind === "bulk"
-                ? `${value.action} ${value.ids.length} links?`
+                ? `${bulkActionLabels[value.action]} ${value.ids.length} ${value.ids.length === 1 ? "link" : "links"}?`
                 : "Confirm action?",
       description:
         value.kind === "signout"
@@ -677,7 +678,7 @@
             : value.kind === "delete-link" ||
                 (value.kind === "bulk" && value.action === "delete")
               ? "Deleted addresses remain reserved."
-              : "Apply this change to the selected links.",
+              : `Apply this change to the selected ${value.kind === "bulk" && value.ids.length === 1 ? "link" : "links"}.`,
     };
   }
   function commandValue(value: string) {
@@ -839,6 +840,19 @@
         onselect={(id) => {
           if (page.kind === "links")
             page = { ...page, selected: toggleSelection(page.selected, id) };
+        }}
+        onselectall={(checked) => {
+          if (page.kind !== "links" || page.state.kind !== "ready") return;
+          const visible = filterLinks(
+            page.state.value.map(linkRow),
+            page.search,
+          ).map((row) => row.id);
+          page = {
+            ...page,
+            selected: checked
+              ? [...new Set([...page.selected, ...visible])]
+              : page.selected.filter((id) => !visible.includes(id)),
+          };
         }}
         oncreate={() =>
           setPage({

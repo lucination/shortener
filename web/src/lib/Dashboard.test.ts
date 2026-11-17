@@ -1,6 +1,58 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent } from "@testing-library/svelte";
 import Dashboard from "./Dashboard.svelte";
+import { simulatedLinkRows } from "./fixtures";
+
+it("emits all five bulk actions from distinct titled icons and retains the count", async () => {
+  const onbulk = vi.fn();
+  const v = render(Dashboard, {
+    state: { kind: "ready", value: simulatedLinkRows },
+    selected: [1],
+    onbulk,
+  });
+  expect(v.getByText("1 selected")).toBeTruthy();
+  for (const [action, title] of [
+    ["enable", "Enable selected links"],
+    ["disable", "Disable selected links"],
+    ["delete", "Delete selected links"],
+    ["expiration", "Set expiration"],
+    ["retention", "Set retention"],
+  ]) {
+    const button = v.getByTitle(title);
+    expect(button.querySelector("svg")).toBeTruthy();
+    expect(button.textContent?.trim()).toBe("");
+    await fireEvent.click(button);
+    expect(onbulk).toHaveBeenLastCalledWith(action);
+  }
+  expect(onbulk).toHaveBeenCalledTimes(5);
+});
+
+it("controls visible-row select-all including partial selection without owning state", async () => {
+  const onselectall = vi.fn();
+  const onselect = vi.fn();
+  const state = { kind: "ready" as const, value: simulatedLinkRows };
+  const v = render(Dashboard, { state, selected: [1], onselectall, onselect });
+  const header = v.getByTitle("Select all visible links") as HTMLInputElement;
+  expect(header.checked).toBe(false);
+  expect(header.indeterminate).toBe(true);
+  await fireEvent.click(header);
+  expect(onselectall).toHaveBeenLastCalledWith(true);
+  await v.rerender({
+    state,
+    selected: simulatedLinkRows.map((row) => row.id),
+    onselectall,
+    onselect,
+  });
+  expect(header.checked).toBe(true);
+  expect(header.indeterminate).toBe(false);
+  await fireEvent.click(header);
+  expect(onselectall).toHaveBeenLastCalledWith(false);
+  await fireEvent.click(v.getByTitle(`Select ${simulatedLinkRows[0].label}`));
+  expect(onselect).toHaveBeenCalledExactlyOnceWith(simulatedLinkRows[0].id);
+  await v.rerender({ state, mode: "read-only", selected: [1] });
+  expect(v.queryAllByRole("checkbox")).toHaveLength(0);
+  expect(v.queryByText("1 selected")).toBeNull();
+});
 describe("dashboard", () => {
   it("emits search and create actions without owning application state", async () => {
     const onsearch = vi.fn();

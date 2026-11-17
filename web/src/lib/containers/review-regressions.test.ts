@@ -190,18 +190,20 @@ for (const status of [200, 503])
           : list(),
     );
     const v = render(AppContainer, { api: createApi(fetcher) });
-    await waitFor(() => expect(v.getByRole("checkbox")).toBeTruthy());
-    await fireEvent.click(v.getByRole("checkbox"));
-    await fireEvent.click(v.getByRole("button", { name: "disable" }));
+    await waitFor(() =>
+      expect(v.getByTitle("Select all visible links")).toBeTruthy(),
+    );
+    await fireEvent.click(v.getByTitle("Select all visible links"));
+    await fireEvent.click(v.getByTitle("Disable selected links"));
     await fireEvent.click(v.getByRole("button", { name: "Confirm" }));
-    await fireEvent.click(v.getByRole("button", { name: "delete" }));
-    expect(v.getByText("delete 1 links?")).toBeTruthy();
+    await fireEvent.click(v.getByTitle("Delete selected links"));
+    expect(v.getByText("Delete 1 link?")).toBeTruthy();
     pending.release(
       status === 200
         ? json({ updated: [], items: [] })
         : json({ code: "server", message: "OLD FAILURE" }, status),
     );
     await settle();
-    expect(v.getByText("delete 1 links?")).toBeTruthy();
+    expect(v.getByText("Delete 1 link?")).toBeTruthy();
     expect(v.queryByText("OLD FAILURE")).toBeNull();
   });

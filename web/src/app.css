@@ -229,8 +229,18 @@ code {
   border-bottom: 0;
 }
 .grid-table td.action-cell {
-  width: 30px;
+  width: 1%;
   padding: 0 2px;
+}
+.grid-table :is(.compact-cell, .selection-cell) {
+  width: 1%;
+}
+.grid-table .selection-cell {
+  text-align: center;
+}
+.grid-table .selection-cell input {
+  display: block;
+  margin: 0 auto;
 }
 :is(.app-shell, #storybook-root) .icon-button {
   display: inline-grid;

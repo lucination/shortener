@@ -52,6 +52,7 @@ export const Populated: Story = {
   args: { state: { kind: "ready", value: simulatedLinkRows } },
 };
 export const Selected: Story = { args: { selected: [1, 2] } };
+export const ReadOnly: Story = { args: { mode: "read-only" } };
 export const Empty: Story = { args: { state: { kind: "ready", value: [] } } };
 export const Pending: Story = { args: { state: { kind: "pending" } } };
 export const Error: Story = {
