@@ -9,9 +9,9 @@ on:
         ".github/workflows/firefox.yml",
       ]
   push:
-    branches: [main]
+    branches: [main, feat/firefox-publication]
     tags: ["extension-v*"]
-  workflow_dispatch: # build-only dry run; never grants publication authority
+  workflow_dispatch: # build/native acceptance only, never manual publication
 permissions:
   contents: read
 concurrency:
@@ -33,21 +33,78 @@ jobs:
         working-directory: extension
       - run: npm run check && npm test && npm run lint:firefox && npm run source:check
         working-directory: extension
-      - name: Validate release tag and main ancestry (no secrets)
-        if: startsWith(github.ref, 'refs/tags/')
-        working-directory: extension
-        run: |
-          node --input-type=module -e "import {releaseContext} from './scripts/release-context.mjs'; const r=releaseContext({...process.env,WEB_EXT_API_KEY:'presence-only',WEB_EXT_API_SECRET:'presence-only',GITHUB_RUN_ATTEMPT:'1'}); if(!r.ok) throw Error(r.reason); console.log(r);"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: firefox-${{ github.sha }}
+          name: firefox-build-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             extension/dist/firefox.zip
             extension/dist/firefox-source.zip
           if-no-files-found: error
           retention-days: 30
-  submit:
+  native:
     needs: verify
+    runs-on: ubuntu-24.04 # standard public-repository runner; no paid service
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22.23.4"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: firefox-build-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: extension/dist
+      - name: Install secret-free native test prerequisites
+        working-directory: extension
+        env:
+          FIREFOX_TOOLS: ${{ runner.temp }}/firefox-tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends xvfb xauth xdotool xclip libgtk-3-0t64 libdbus-glib-1-2 libasound2t64
+          npm ci --ignore-scripts
+          python3 scripts/install-native-tools.py
+      - name: Actual headed Firefox toolbar and X11 clipboard acceptance
+        working-directory: extension
+        env:
+          FIREFOX_BIN: ${{ runner.temp }}/firefox-tools/firefox/firefox
+          GECKODRIVER: ${{ runner.temp }}/firefox-tools/geckodriver
+          EXTENSION_EVIDENCE: dist/native
+        run: xvfb-run -a -s '-screen 0 1280x960x24' npm run test:firefox
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: firefox-native-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            extension/dist/firefox.zip
+            extension/dist/firefox-source.zip
+            extension/dist/native/
+          if-no-files-found: error
+          retention-days: 30
+  release-admission:
+    needs: [verify, native]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/extension-v') && github.repository == 'lucination/shortener'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22.23.4"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: firefox-native-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: extension/dist
+      - name: Validate tag, main ancestry, versions and same-run native receipt (no secrets)
+        working-directory: extension
+        run: |
+          node --input-type=module -e "import {releaseContext} from './scripts/release-context.mjs'; const r=releaseContext({...process.env,WEB_EXT_API_KEY:'presence-only',WEB_EXT_API_SECRET:'presence-only'}); if(!r.ok) throw Error(r.reason); console.log(r);"
+  submit:
+    needs: [release-admission, native]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/extension-v') && github.repository == 'lucination/shortener'
     environment: firefox-addons
     runs-on: ubuntu-24.04
@@ -62,7 +119,7 @@ jobs:
           node-version: "22.23.4"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: firefox-${{ github.sha }}
+          name: firefox-native-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: extension/dist
       - run: npm ci --ignore-scripts && python3 -m zipfile -e dist/firefox.zip dist/firefox && npm run lint:firefox
         working-directory: extension

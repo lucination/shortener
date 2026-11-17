@@ -2,8 +2,14 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
 import { admit } from "./publication-policy.mjs";
+import { verifyRuntime } from "./native-policy.mjs";
 export function releaseContext(env = process.env) {
-  const acceptance = JSON.parse(readFileSync("firefox-acceptance.json"));
+  let acceptance;
+  try {
+    acceptance = JSON.parse(readFileSync("dist/native/firefox-runtime.json"));
+  } catch {
+    acceptance = null;
+  }
   const artifactHash = createHash("sha256")
     .update(readFileSync("dist/firefox.zip"))
     .digest("hex");
@@ -27,10 +33,14 @@ export function releaseContext(env = process.env) {
       "refs/remotes/origin/main",
     ]).status === 0;
   return admit({
-    runtimeAccepted:
-      acceptance.accepted === true &&
-      acceptance.version === pkg.version &&
-      acceptance.unsignedZipSha256 === artifactHash,
+    runtimeAccepted: verifyRuntime(acceptance, {
+      artifactSha256: artifactHash,
+      sourceSha: execFileSync("git", ["rev-parse", "HEAD"], {
+        encoding: "utf8",
+      }).trim(),
+      runId: env.GITHUB_RUN_ID,
+      runAttempt: env.GITHUB_RUN_ATTEMPT,
+    }),
     event: env.GITHUB_EVENT_NAME,
     ref: env.GITHUB_REF,
     repository: env.GITHUB_REPOSITORY,

@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
+import { nativeChecks } from "../scripts/native-policy.mjs";
 import { releaseContext } from "../scripts/release-context.mjs";
 test("real release context binds ancestry, package/lock/ZIP versions, credentials and acceptance hash before effects", () => {
   const original = process.cwd();
@@ -18,7 +19,7 @@ test("real release context binds ancestry, package/lock/ZIP versions, credential
   const put = (path, value) => writeFileSync(path, JSON.stringify(value));
   try {
     process.chdir(temp);
-    mkdirSync("dist");
+    mkdirSync("dist/native", { recursive: true });
     execFileSync("git", ["init", "-q"]);
     execFileSync("git", [
       "-c",
@@ -43,16 +44,25 @@ test("real release context binds ancestry, package/lock/ZIP versions, credential
     const hash = createHash("sha256")
       .update(readFileSync("dist/firefox.zip"))
       .digest("hex");
-    put("firefox-acceptance.json", {
-      accepted: true,
-      version: "0.1.0",
-      unsignedZipSha256: hash,
-    });
+    const receipt = {
+      schema: 1,
+      stage: "complete",
+      artifactSha256: hash,
+      sourceSha: execFileSync("git", ["rev-parse", "HEAD"], {
+        encoding: "utf8",
+      }).trim(),
+      runId: "123",
+      runAttempt: "1",
+      browserVersion: "160.0.1",
+      checks: Object.fromEntries(nativeChecks.map((k) => [k, "passed"])),
+    };
+    put("dist/native/firefox-runtime.json", receipt);
     const env = {
       GITHUB_EVENT_NAME: "push",
       GITHUB_REF: "refs/tags/extension-v0.1.0",
       GITHUB_REPOSITORY: "lucination/shortener",
       GITHUB_RUN_ATTEMPT: "1",
+      GITHUB_RUN_ID: "123",
       WEB_EXT_API_KEY: "test-presence",
       WEB_EXT_API_SECRET: "test-presence",
     };
@@ -70,17 +80,16 @@ test("real release context binds ancestry, package/lock/ZIP versions, credential
       releaseContext({ ...env, GITHUB_EVENT_NAME: "pull_request" }).reason,
       /untrusted/,
     );
-    put("firefox-acceptance.json", {
-      accepted: true,
-      version: "0.1.0",
-      unsignedZipSha256: "stale",
+    put("dist/native/firefox-runtime.json", {
+      ...receipt,
+      artifactSha256: "stale",
     });
     assert.match(releaseContext(env).reason, /native Firefox/);
-    put("firefox-acceptance.json", {
-      accepted: true,
-      version: "0.1.0",
-      unsignedZipSha256: hash,
-    });
+    put("dist/native/firefox-runtime.json", receipt);
+    assert.match(
+      releaseContext({ ...env, GITHUB_RUN_ID: "different-run" }).reason,
+      /native Firefox/,
+    );
     // Actual CLI fails without credentials before it can construct a JWT or fetch.
     const cli = spawnSync(
       process.execPath,
