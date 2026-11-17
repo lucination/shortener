@@ -24,7 +24,9 @@ export function render(
       return;
     case "setup":
       root.append(
-        paragraph("Set your service URL and user session in Settings."),
+        paragraph(
+          "Set your service URL and access token in Settings. Create a token in Account → Access tokens.",
+        ),
       );
       return;
     case "error":

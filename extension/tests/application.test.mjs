@@ -18,7 +18,11 @@ test("popup captures the active page, publishes loading while the API is held, t
     storage: {
       local: {
         get: async () => ({
-          settings: { service: "https://short.example", token: "session" },
+          settings: {
+            service: "https://short.example",
+            token:
+              "short_at_dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          },
         }),
       },
     },
@@ -45,7 +49,13 @@ test("popup captures the active page, publishes loading while the API is held, t
 test("missing settings and denied host access do not create a link", async () => {
   for (const saved of [
     {},
-    { settings: { service: "https://short.example", token: "secret" } },
+    {
+      settings: {
+        service: "https://short.example",
+        token:
+          "short_at_cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      },
+    },
   ]) {
     const states = [];
     let creates = 0;

@@ -5,7 +5,11 @@ import { shorten } from "../compiled/extension/src/application.js";
 test("creates the active page under existing user authority and automatically copies the plain short URL", async () => {
   const calls = [];
   const result = await shorten(
-    { service: "https://short.example", token: "user-session" },
+    {
+      service: "https://short.example",
+      token:
+        "short_at_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    },
     { title: "A page", url: "https://page.example/article" },
     {
       create: async (settings, input) => {
@@ -41,7 +45,11 @@ test("rejects unsafe or malformed short addresses before clipboard output", asyn
   ]) {
     let copied = false;
     const result = await shorten(
-      { service: "https://short.example", token: "session" },
+      {
+        service: "https://short.example",
+        token:
+          "short_at_dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      },
       { url: "https://page.example" },
       {
         create: async () => ({ addresses: [address] }),
@@ -58,7 +66,11 @@ test("rejects unsafe or malformed short addresses before clipboard output", asyn
 test("clipboard denial preserves the created link for an explicit retry without another POST", async () => {
   let creates = 0;
   const result = await shorten(
-    { service: "https://short.example", token: "session" },
+    {
+      service: "https://short.example",
+      token:
+        "short_at_dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    },
     { title: "Title", url: "https://page.example/" },
     {
       create: async () => {
@@ -91,7 +103,11 @@ test("invalid settings and unsupported pages fail before transmitting credential
   ]) {
     let calls = 0;
     const result = await shorten(
-      { service, token: "session" },
+      {
+        service,
+        token:
+          "short_at_dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      },
       { url: "https://page.example" },
       {
         create: async () => {
@@ -113,7 +129,11 @@ test("invalid settings and unsupported pages fail before transmitting credential
   ]) {
     let calls = 0;
     const result = await shorten(
-      { service: "https://short.example", token: "session" },
+      {
+        service: "https://short.example",
+        token:
+          "short_at_dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      },
       { url },
       {
         create: async () => {
@@ -126,4 +146,27 @@ test("invalid settings and unsupported pages fail before transmitting credential
     assert.equal(result.kind, "error", String(url));
     assert.equal(calls, 0);
   }
+});
+
+test("settings reject session and malformed credentials instead of retaining old bearer authority", async () => {
+  const { parseSettings } = await import("../compiled/extension/src/core.js");
+  for (const token of [
+    "session",
+    "a".repeat(64),
+    "short_at_" + "a".repeat(63),
+    "short_at_" + "A".repeat(64),
+    "short_at_" + "a".repeat(64) + "\n",
+    "short_at_" + "a".repeat(64) + "\u2028",
+  ])
+    assert.throws(
+      () => parseSettings({ service: "https://short.example", token }),
+      /access token/,
+    );
+  assert.equal(
+    parseSettings({
+      service: "https://short.example",
+      token: "short_at_" + "a".repeat(64),
+    }).token.length,
+    73,
+  );
 });

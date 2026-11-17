@@ -170,22 +170,22 @@ pub(crate) fn origin_ok(s: &AppState, h: &HeaderMap) -> bool {
             .and_then(|v| v.to_str().ok())
             .is_none_or(|v| matches!(v, "same-origin" | "none"))
 }
-// Non-cookie authority is deliberately limited to the extension's single create route.
-// Reuse the existing expiring/revocable USER session; never accept admin authority.
-fn creation_bearer<'a>(method: &Method, path: &str, h: &'a HeaderMap) -> Option<&'a str> {
-    if *method != Method::POST || path != "/api/links" {
+// Only this route can replace cookie authority; malformed credentials fail closed.
+fn creation_authorization(method: &Method, path: &str, h: &HeaderMap) -> bool {
+    *method == Method::POST && path == "/api/links" && h.contains_key(header::AUTHORIZATION)
+}
+fn access_bearer(h: &HeaderMap) -> Option<&str> {
+    if h.get_all(header::AUTHORIZATION).iter().count() != 1 {
         return None;
     }
-    let value = h
-        .get(header::AUTHORIZATION)?
+    h.get(header::AUTHORIZATION)?
         .to_str()
         .ok()?
-        .strip_prefix("Bearer ")?;
-    (!value.is_empty() && !value.chars().any(char::is_whitespace)).then_some(value)
+        .strip_prefix("Bearer ")
 }
 async fn api(State(s): State<AppState>, req: Request) -> Response {
     if !matches!(*req.method(), Method::GET | Method::HEAD)
-        && creation_bearer(req.method(), req.uri().path(), req.headers()).is_none()
+        && !creation_authorization(req.method(), req.uri().path(), req.headers())
         && !origin_ok(&s, req.headers())
     {
         return error(
@@ -290,7 +290,13 @@ pub(crate) fn set_cookie(
     r
 }
 fn db_error(e: String) -> Response {
-    if e == "session no longer authorized" {
+    if e == "create rate limit exceeded" {
+        error(
+            StatusCode::TOO_MANY_REQUESTS,
+            "rate_limit",
+            "try again later",
+        )
+    } else if e == "session no longer authorized" {
         error(
             StatusCode::UNAUTHORIZED,
             "unauthorized",
@@ -340,6 +346,16 @@ fn api_sync(s: &AppState, method: &Method, path: &str, h: &HeaderMap, body: &[u8
     if path
         .split('?')
         .next()
+        .is_some_and(|p| p == "/api/account/tokens" || p.starts_with("/api/account/tokens/"))
+    {
+        response.headers_mut().insert(
+            header::CACHE_CONTROL,
+            axum::http::HeaderValue::from_static("no-store"),
+        );
+    }
+    if path
+        .split('?')
+        .next()
         .and_then(|p| p.strip_prefix("/api/links/"))
         .is_some_and(|tail| tail.split('/').nth(1) == Some("stats"))
     {
@@ -360,6 +376,31 @@ fn api_result(
     let (path, query) = path.split_once('?').unwrap_or((path, ""));
     let now = crate::domain::instant(chrono::Utc::now());
     let db = &s.store;
+    if h.contains_key(header::AUTHORIZATION) {
+        if !creation_authorization(method, path, h) {
+            return Err(error(
+                StatusCode::UNAUTHORIZED,
+                "unauthorized",
+                "create-only access token required",
+            ));
+        }
+        let bearer = access_bearer(h).ok_or_else(|| {
+            error(
+                StatusCode::UNAUTHORIZED,
+                "unauthorized",
+                "invalid access token",
+            )
+        })?;
+        // Parse before decoding the request; no session-cookie fallback.
+        crate::store::access_token_format(bearer).map_err(db_error)?;
+        let input: LinkInput = decode(body)?;
+        check_static_alias(s, &input).map_err(db_error)?;
+        return Ok((
+            StatusCode::CREATED,
+            Json(db.create_access_link(bearer, input).map_err(db_error)?),
+        )
+            .into_response());
+    }
     if path == "/_/api/login" && *method == Method::POST {
         let input: TokenInput = decode(body)?;
         // HMAC verifier avoids content-dependent comparison of the configured secret.
@@ -565,10 +606,7 @@ fn api_result(
             ));
         }
     }
-    let token = creation_bearer(method, path, h)
-        .map(str::to_owned)
-        .or_else(|| cookie(h, "short_session"))
-        .ok_or_else(|| authority_error(db, h, &now, false))?;
+    let token = cookie(h, "short_session").ok_or_else(|| authority_error(db, h, &now, false))?;
     let user = db.authenticate_user(&token, &now).map_err(|_| {
         error(
             StatusCode::UNAUTHORIZED,
@@ -586,6 +624,29 @@ fn api_result(
     let db = &scoped;
     let segments: Vec<_> = path.trim_matches('/').split('/').collect();
     match (method.as_str(), path) {
+        ("GET", "/api/account/tokens") => {
+            return Ok(Json(db.access_tokens(user.id, &now).map_err(db_error)?).into_response());
+        }
+        ("POST", "/api/account/tokens") => {
+            return Ok((
+                StatusCode::CREATED,
+                Json(
+                    db.issue_access_token(user.id, decode(body)?, &now)
+                        .map_err(db_error)?,
+                ),
+            )
+                .into_response());
+        }
+        ("DELETE", _) if path.starts_with("/api/account/tokens/") => {
+            let id = path
+                .strip_prefix("/api/account/tokens/")
+                .unwrap()
+                .parse::<i32>()
+                .map_err(|_| db_error("not found".into()))?;
+            db.revoke_access_token(user.id, id, &now)
+                .map_err(db_error)?;
+            return Ok(message("access token revoked"));
+        }
         ("GET", "/api/me") => return Ok(Json(user).into_response()),
         ("GET", "/api/account/passkeys") => {
             return Ok((

@@ -18,7 +18,11 @@ test("settings request only the selected service before storing credentials, the
     storage: {
       local: {
         get: async () => ({
-          settings: { service: "https://old.example", token: "old" },
+          settings: {
+            service: "https://old.example",
+            token:
+              "short_at_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          },
         }),
         set: async (settings) => calls.push(["store", settings]),
       },
@@ -26,7 +30,8 @@ test("settings request only the selected service before storing credentials, the
   };
   const running = saveSettings(api, {
     service: "https://short.example/",
-    token: "new",
+    token:
+      "short_at_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
   });
   assert.deepEqual(
     calls[0],
@@ -36,7 +41,16 @@ test("settings request only the selected service before storing credentials, the
   await running;
   assert.deepEqual(calls, [
     ["grant", { origins: ["https://short.example/*"] }],
-    ["store", { settings: { service: "https://short.example", token: "new" } }],
+    [
+      "store",
+      {
+        settings: {
+          service: "https://short.example",
+          token:
+            "short_at_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        },
+      },
+    ],
     ["remove", { origins: ["https://old.example/*"] }],
   ]);
 });
@@ -54,14 +68,19 @@ test("permission denial and invalid settings never persist the credential", asyn
     storage: { local: { set: async () => stored++ } },
   };
   await assert.rejects(
-    saveSettings(api, { service: "https://short.example", token: "secret" }),
+    saveSettings(api, {
+      service: "https://short.example",
+      token:
+        "short_at_cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    }),
     /denied/,
   );
   assert.equal(stored, 0);
   await assert.rejects(
     saveSettings(api, {
       service: "https://user:pass@evil.example",
-      token: "secret",
+      token:
+        "short_at_cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
     }),
   );
   assert.equal(requested, 1);

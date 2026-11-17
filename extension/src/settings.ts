@@ -43,7 +43,7 @@ forget.addEventListener("click", () => {
         origins: [permissionPattern(previous.service)],
       });
     status.textContent =
-      "Settings forgotten. This does not sign out or revoke the session on the service.";
+      "Settings forgotten. This does not revoke the access token on the service. Revoke it in Account → Access tokens.";
   })()
     .catch(() => {
       status.textContent =

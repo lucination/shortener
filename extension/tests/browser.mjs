@@ -74,14 +74,22 @@ try {
   const settings = await context.newPage();
   await settings.goto(`chrome-extension://${id}/settings.html`);
   await settings.locator("#service").fill("https://short.example/api");
-  await settings.locator("#token").fill("test-user-session");
+  await settings
+    .locator("#token")
+    .fill(
+      "short_at_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    );
   await settings.getByRole("button", { name: "Save", exact: true }).click();
   await expect(settings.locator("#status")).toContainText("origin", {
     timeout: 8000,
   });
   console.log("PASS: actual extension settings rejects a service path");
   await settings.locator("#service").fill(origin);
-  await settings.locator("#token").fill("test-user-session");
+  await settings
+    .locator("#token")
+    .fill(
+      "short_at_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    );
   await settings.getByRole("button", { name: "Save", exact: true }).click();
   try {
     await expect(settings.locator("#status")).toContainText("Saved.", {
@@ -191,7 +199,10 @@ try {
   );
   assertEqual(requests[0].body.destination, pageURL);
   assertEqual(requests[0].body.title, "Article & Notes <proof>");
-  assertEqual(requests[0].authorization, "Bearer test-user-session");
+  assertEqual(
+    requests[0].authorization,
+    "Bearer short_at_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  );
   assertEqual(requests[0].cookie, undefined);
   release();
   await expect
@@ -399,7 +410,7 @@ try {
   ({ evaluate, click, sessionId } = await openPopup());
   await expect
     .poll(() => evaluate('document.querySelector("#app").textContent'))
-    .toContain("User session not accepted.");
+    .toContain("Access token not accepted.");
   const failedShot = await wire.send(
     "Page.captureScreenshot",
     { format: "png" },

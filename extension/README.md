@@ -64,34 +64,30 @@ browser's extension settings.
 ## Service and authentication
 
 Open **Settings** in the popup (or the browser's extension options). Enter the
-service origin, such as `https://short.example`, and **your user session token**.
-HTTPS is required except for `http://localhost`, `127.0.0.1` or `[::1]` development
-services. Do not enter a path, credentials, query or fragment. The origin is an
-explicit trust decision: only configure a service you control/trust.
+service origin, such as `https://short.example`, and an **access token**.
+HTTPS is required except for loopback development services. Do not enter a path,
+credentials, query or fragment. Only configure a service you control/trust.
 
-This repository has **no existing user API-token issuance facility**. Its existing
-account authority is the expiring, revocable `short_session` cookie. This change
-adds a deliberately narrow adapter: **only `POST /api/links`** accepts that same
-user-session value as `Authorization: Bearer …`. It still uses the existing user
-authentication, account status, ownership, quota and transactional store scope.
-There is no new long-lived token type, CORS relaxation or admin-token support.
-Other mutation routes retain their same-origin cookie/CSRF policy. Deploying this
-server change is required before an older server can accept the extension.
+Sign in to the user application, open **Account → Access tokens**, enter a name
+(for example, Chrome extension), choose an expiration, and select **Create access
+token**. Copy the one-time value into Settings. The default lifetime is 90 days;
+30, 90, 180 and 365 days are selectable, with a maximum of 365 days. The server
+stores only a hash. After leaving Account, the secret cannot be displayed again.
 
-To configure manually, sign in to the user application, open your browser's
-developer tools → Application/Storage → Cookies for the service, and copy the
-**value** of `short_session` into the extension's password field. Do not include
-`short_session=`. Do not use `short_admin`, an admin login secret, or a magic-link
-token. HttpOnly prevents page JavaScript from reading the session; the extension
-does not request cookies permission or scrape it. This manual setup is an
-intentional limitation, not a claim that the service has a dedicated API-token
-screen. User sessions currently expire after 30 days. Sign in and update Settings
-when rejected. Sign out/revocation, expiry, suspension and deletion also apply to
-this credential. Forget settings removes the local copy, **not** the server-side
-session; use the account's sign-out-everywhere action to revoke sessions.
+Access tokens authorize **only `POST /api/links`**. They cannot list/edit links,
+read Account, administer the service, or issue other tokens. Existing
+`short_session` and `short_admin` cookie values are **never accepted as Bearer
+credentials**. Do not extract cookies or use magic-link/admin login secrets.
+No cookies permission, session scraping or permissive CORS is added.
 
-The token is password-equivalent account authority, stored in `storage.local`,
-not browser sync; it is not encrypted against a compromised browser/profile.
+Expiration, individual revocation, suspension and account deletion stop token
+use. Sign out and Sign out everywhere affect sessions, not these independently
+authorized tokens. Revoke an individual token in Account; forgetting extension
+settings removes only its local copy. If a token is lost or rejected, revoke it
+and issue a replacement.
+
+The access token is stored in `storage.local`, not browser sync. It is not
+encrypted against a compromised browser/profile; treat it like a password.
 Save grants optional host access only for the chosen service host; changing to a
 different host removes the old grant after saving. WebExtension host permissions
 cover all paths and ports on a selected scheme/host, but requests use only the
@@ -124,7 +120,7 @@ actual popup via CDP after a real X11 action shortcut. It does not replace the
 extension's active-tab or clipboard adapters with mocks.
 
 Firefox and Safari packages share the same scripts, but packaging checks are not
-runtime acceptance. Clipboard API support, host-access prompts, session setup and
+runtime acceptance. Clipboard API support, host-access prompts, access-token setup and
 rich pasting into Notes must be checked on those browsers before distribution.
 
 ## Architecture

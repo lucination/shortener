@@ -37,3 +37,7 @@ export type PasskeyEnrollment = { challenge_id: string, credential: JsonValue, n
 export type PasskeySummary = { id: number, name: string, };
 export type PasskeyList = { items: Array<PasskeySummary>, };
 export type PasskeyRename = { name: string, };
+export type AccessTokenInput = { name: string, expires_in_days: number, };
+export type AccessTokenMetadata = { id: number, name: string, prefix: string, scope: string, created_at: string, expires_at: string, last_used_at: string | null, };
+export type AccessTokenList = { items: Array<AccessTokenMetadata>, };
+export type IssuedAccessToken = { metadata: AccessTokenMetadata, token: string, };

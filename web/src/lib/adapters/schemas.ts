@@ -150,3 +150,20 @@ export const passkeySummarySchema = z.object({
 export const passkeyListSchema = z.object({
   items: z.array(passkeySummarySchema),
 }) satisfies z.ZodType<DTO.PasskeyList>;
+
+export const accessTokenMetadataSchema = z.object({
+  id,
+  name: z.string(),
+  prefix: z.string().regex(/^short_at_[0-9a-f]{8}$/),
+  scope: z.literal("links:create"),
+  created_at: z.string().datetime({ offset: true }),
+  expires_at: z.string().datetime({ offset: true }),
+  last_used_at: z.string().datetime({ offset: true }).nullable(),
+}) satisfies z.ZodType<DTO.AccessTokenMetadata>;
+export const accessTokenListSchema = z.object({
+  items: z.array(accessTokenMetadataSchema),
+}) satisfies z.ZodType<DTO.AccessTokenList>;
+export const issuedAccessTokenSchema = z.object({
+  metadata: accessTokenMetadataSchema,
+  token: z.string().regex(/^short_at_[0-9a-f]{64}$/),
+}) satisfies z.ZodType<DTO.IssuedAccessToken>;
