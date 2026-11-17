@@ -43,7 +43,7 @@ policy and metadata. The extension never collects background browsing history.
 
 ## One-time publisher setup (human action; not performed by CI)
 
-1. Sign in to https://addons.mozilla.org/developers/ using the intended Lucination
+1. Sign in to https://addons.mozilla.org/developers/ using the explicitly chosen
    publisher's Mozilla account. Create an account only if the owner chooses to.
    Complete email verification, the developer agreement and any required account
    security prompts. Check the public developer profile/display name before the
@@ -70,6 +70,18 @@ policy and metadata. The extension never collects background browsing history.
    account identity or deployment path. Sources/build are reproducible without
    one; interactive shortening requires the service. Listing assets and reviewer
    access are human submission readiness gates, not fabricated automation output.
+
+## Publisher authorization boundary
+
+The GitHub repository identity is separate from the store publisher identity.
+Do not infer a legal name, contact address or Mozilla account from GitHub or an
+operator profile. Before any release tag or store write, the owner must explicitly
+approve the intended publisher account and listing/contact metadata. If publisher
+identity changes, replace the protected environment credentials with credentials
+for the approved account first. Secret presence is not account verification or
+publication authorization. Native acceptance is secret-free and does not validate
+or use publisher credentials. No publisher credential values should be retrieved
+for these tests.
 
 ## Release and dry run
 
@@ -134,12 +146,14 @@ AMO reads/writes and live publication have not been exercised by local tests.
 The headed Selenium harness installs the **real packaged ZIP** in a disposable
 profile. It saves and forgets Settings, accepts the actual optional-host prompt using the visible inner native button
 geometry and a real X11 click (not a non-rendered custom-element host click),
-opens the real toolbar shortcut, and checks a local fixture POST. The active
+opens the real toolbar/Extensions-menu action, and checks a local fixture POST. The active
 article is on `localhost`, while the service is on `127.0.0.1` at a distinct port.
 The fixture asserts the actual URL/title, a dedicated test Bearer token and no
 cookie, with a service cookie pre-seeded to make the observation meaningful.
 
-The browser chrome context observes the actual native popup. BiDi evaluates the
+The browser chrome context observes the actual native popup without resetting
+frame focus or switching to content while native panels are open. The potentially
+conflicting default keyboard shortcut is not used as acceptance authority. BiDi evaluates the
 background Settings view's `browser.extension.getViews({type:'popup'})` without
 activating that Settings tab or replacing the extension's adapters. Popup controls
 are clicked through real X11 coordinates. `xclip` reads the system clipboard's

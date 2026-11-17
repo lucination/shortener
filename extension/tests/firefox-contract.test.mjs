@@ -130,21 +130,65 @@ test("native screen point uses a visible inner control, not a zero-box custom-el
     }),
   );
 });
-test("native action acceptance uses its real manifest shortcut without private toolbar customization imports", async () => {
+test("native action acceptance uses the real browser action without private toolbar customization imports", async () => {
   const { readFile } = await import("node:fs/promises");
   const source = await readFile(
     new URL("./firefox.mjs", import.meta.url),
     "utf8",
   );
   assert.doesNotMatch(source, /CustomizableUI|addWidgetToArea/);
-  assert.match(source, /ctrl\+shift\+y/);
+  assert.match(source, /unified-extensions-item-action-button/);
 });
-test("physical shortcut explicitly focuses the owned Firefox article window before sending keys", async () => {
+test("native physical input explicitly focuses the owned Firefox window before activating its action", async () => {
   const { readFile } = await import("node:fs/promises");
   const source = await readFile(
     new URL("./firefox.mjs", import.meta.url),
     "utf8",
   );
-  assert.match(source, /"windowfocus"[^]*"ctrl\+shift\+y"/);
+  assert.match(source, /"windowfocus"/);
   assert.match(source, /moz:processID/);
+});
+test("owned X11 focus is established before the first permission-request gesture, not only the later shortcut", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const source = await readFile(
+    new URL("./firefox.mjs", import.meta.url),
+    "utf8",
+  );
+  assert.ok(
+    source.indexOf('"windowfocus"') <
+      source.indexOf('receipt.stage = "save-permission-prompt"'),
+  );
+});
+
+test("native panel ownership stays in Chrome context while content status is observed through BiDi", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const source = await readFile(
+    new URL("./firefox.mjs", import.meta.url),
+    "utf8",
+  );
+  assert.doesNotMatch(source, /switchTo\(\)\.defaultContent/);
+  const prompt = source
+    .split("Accept the actual optional-host permission notification")[1]
+    .split("Save did not grant service host access")[0];
+  assert.doesNotMatch(prompt, /await content\(\)/);
+  assert.match(prompt, /inSettings/);
+});
+test("native action can use the real Extensions menu without assuming the Linux default shortcut is available", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const source = await readFile(
+    new URL("./firefox.mjs", import.meta.url),
+    "utf8",
+  );
+  assert.match(source, /unified-extensions-button/);
+  assert.match(source, /unified-extensions-item-action-button/);
+});
+test("publisher instructions remain neutral and require explicit owner authorization independent of repository identity", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const doc = await readFile(
+    new URL("../FIREFOX-PUBLICATION.md", import.meta.url),
+    "utf8",
+  );
+  assert.doesNotMatch(doc, /intended Lucination|lucination\.hal@|259780978/);
+  assert.match(doc, /explicitly.*approve|explicitly\napprove/);
+  assert.match(doc, /Secret presence is not account verification/);
 });

@@ -101,11 +101,12 @@ const pageServer = createServer((req, res) => {
 });
 let driver, bidi, settingsHandle;
 const native = async () => {
-  await driver.switchTo().defaultContent();
-  await driver.setContext("chrome");
+  if ((await driver.getContext()) !== "chrome")
+    await driver.setContext("chrome");
 };
 const content = async () => {
-  await driver.setContext("content");
+  if ((await driver.getContext()) !== "content")
+    await driver.setContext("content");
 };
 const snapshot = async (name) =>
   writeFile(`${evidence}/${name}.png`, await driver.takeScreenshot(), "base64");
@@ -134,6 +135,40 @@ const popup = (code) =>
   inSettings(
     `(()=>{const p=browser.extension.getViews({type:'popup'})[0];if(!p)throw Error('Native popup view is absent');return (${code})(p);})()`,
   );
+async function visibleChromeBox(selector) {
+  return driver.executeScript(
+    `
+   for (const host of document.querySelectorAll(arguments[0])) {
+     const panel=host.closest('panel');
+     if (panel && panel.state!=='open') continue;
+     let e=host;
+     while(e.shadowRoot?.querySelector('button')) e=e.shadowRoot.querySelector('button');
+     if (host.disabled || e.disabled) continue;
+     const r=e.getBoundingClientRect();
+     if(r.width>0 && r.height>0) return {x:r.x,y:r.y,width:r.width,height:r.height,screenX:window.mozInnerScreenX,screenY:window.mozInnerScreenY};
+   }
+   return null;
+ `,
+    selector,
+  );
+}
+async function clickChromeControl(selector) {
+  await native();
+  let box;
+  await wait(async () => {
+    box = await visibleChromeBox(selector);
+    return Boolean(box);
+  }, "Native browser action control was not visible: " + selector);
+  const point = screenPoint(box);
+  execFileSync("xdotool", [
+    "mousemove",
+    "--sync",
+    String(point.x),
+    String(point.y),
+    "click",
+    "1",
+  ]);
+}
 async function clickPopup(selector) {
   const point = await popup(
     `p=>{const e=p.document.querySelector(${JSON.stringify(selector)});if(!e)throw Error('Missing popup control');const r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};}`,
@@ -217,66 +252,8 @@ try {
   await driver.wait(until.elementLocated(By.css("#settings-form")), 15000);
   await driver.findElement(By.id("service")).sendKeys(service);
   await driver.findElement(By.id("token")).sendKeys(token);
-  receipt.stage = "save-permission-prompt";
-  await driver.findElement(By.css('button[type="submit"]')).click();
-  await native();
-  // Accept the actual optional-host permission notification, if Firefox needs it.
-  await wait(async () => {
-    const box = await driver.executeScript(`
-      const n=PopupNotifications.panel?.querySelector('popupnotification');
-      if (!n || PopupNotifications.panel.state!=='open') return null;
-      let button=n.button;
-      while(button?.shadowRoot?.querySelector('button')) button=button.shadowRoot.querySelector('button');
-      if(!button || button.disabled) return null;
-      const r=button.getBoundingClientRect();
-      return {x:r.x,y:r.y,width:r.width,height:r.height,screenX:window.mozInnerScreenX,screenY:window.mozInnerScreenY};
-    `);
-    if (box && box.width > 0 && box.height > 0) {
-      const point = screenPoint(box);
-      receipt.hostPromptClick = {
-        ...point,
-        source: "visible native inner button geometry",
-      };
-      execFileSync("xdotool", [
-        "mousemove",
-        "--sync",
-        String(point.x),
-        String(point.y),
-        "click",
-        "1",
-      ]);
-      return true;
-    }
-    await content();
-    const text = await driver.findElement(By.id("status")).getText();
-    await native();
-    return text.includes("Saved.");
-  }, "Save did not grant service host access");
-  await content();
-  await wait(
-    async () =>
-      (await driver.findElement(By.id("status")).getText()).includes("Saved."),
-    "Settings were not saved",
-  );
-  pass("settings-save");
-  const pattern = `${service.replace(/:\d+$/, "")}/*`;
-  assert.equal(
-    await driver.executeAsyncScript(
-      "browser.permissions.contains({origins:[arguments[0]]}).then(arguments[arguments.length-1]);",
-      pattern,
-    ),
-    true,
-  );
-  pass("host-grant");
-  await snapshot("settings-saved");
-  await driver.switchTo().newWindow("tab");
-  await driver.get(destination);
-  assert.equal(await driver.getTitle(), title);
-  await native();
-
-  receipt.stage = "native-toolbar";
-  // Bind real X11 input to the owned article window, including on an Xvfb
-  // server without a window manager after the permission panel relinquishes focus.
+  // Bind real X11 input to the owned Settings window, including on an Xvfb
+  // server without a window manager before the first permission-request gesture.
   const pid = (await driver.getCapabilities()).get("moz:processID");
   assert.ok(Number.isInteger(pid) && pid > 0);
   const windowId = execFileSync(
@@ -288,7 +265,7 @@ try {
       "--pid",
       String(pid),
       "--name",
-      "Article & Notes",
+      "Shortener settings",
     ],
     { encoding: "utf8", timeout: 5000 },
   )
@@ -310,8 +287,82 @@ try {
     timeout: 2000,
   }).trim();
   assert.equal(receipt.x11FocusAfter, windowId);
-  // The real action shortcut supplies the active-tab grant and native popup.
-  execFileSync("xdotool", ["key", "--clearmodifiers", "ctrl+shift+y"]);
+  receipt.stage = "save-permission-prompt";
+  await driver.findElement(By.css('button[type="submit"]')).click();
+  await native();
+  // Accept the actual optional-host permission notification, if Firefox needs it.
+  await wait(async () => {
+    const box = await driver.executeScript(`
+      const n=PopupNotifications.panel?.querySelector('popupnotification');
+      if (!n || PopupNotifications.panel.state!=='open') return null;
+      let button=n.button;
+      while(button?.shadowRoot?.querySelector('button')) button=button.shadowRoot.querySelector('button');
+      if(!button || button.disabled) return null;
+      const r=button.getBoundingClientRect();
+      return {x:r.x,y:r.y,width:r.width,height:r.height,screenX:window.mozInnerScreenX,screenY:window.mozInnerScreenY};
+    `);
+    if (box && box.width > 0 && box.height > 0 && !receipt.hostPromptClick) {
+      const point = screenPoint(box);
+      receipt.hostPromptClick = {
+        ...point,
+        source: "visible native inner button geometry",
+      };
+      execFileSync("xdotool", [
+        "mousemove",
+        "--sync",
+        String(point.x),
+        String(point.y),
+        "click",
+        "1",
+      ]);
+    }
+    const text = await inSettings(
+      'document.querySelector("#status").textContent',
+    );
+    return text.includes("Saved.");
+  }, "Save did not grant service host access");
+  await content();
+  await wait(
+    async () =>
+      (await driver.findElement(By.id("status")).getText()).includes("Saved."),
+    "Settings were not saved",
+  );
+  pass("settings-save");
+  const pattern = `${service.replace(/:\d+$/, "")}/*`;
+  assert.equal(
+    await driver.executeAsyncScript(
+      "browser.permissions.contains({origins:[arguments[0]]}).then(arguments[arguments.length-1]);",
+      pattern,
+    ),
+    true,
+  );
+  pass("host-grant");
+  await snapshot("settings-saved");
+  receipt.manifestCommands = await driver.executeAsyncScript(
+    "browser.commands.getAll().then(arguments[arguments.length-1]);",
+  );
+  await driver.switchTo().newWindow("tab");
+  await driver.get(destination);
+  assert.equal(await driver.getTitle(), title);
+  await native();
+
+  receipt.stage = "native-toolbar";
+  execFileSync("xdotool", ["windowfocus", "--sync", windowId], {
+    timeout: 5000,
+  });
+  receipt.x11ActionFocusAfter = execFileSync("xdotool", ["getwindowfocus"], {
+    encoding: "utf8",
+    timeout: 2000,
+  }).trim();
+  assert.equal(receipt.x11ActionFocusAfter, windowId);
+  // Use the actual toolbar/Extensions-menu action rather than assuming the
+  // default ctrl+shift+y binding is available on this OS/browser.
+  const actionSelector =
+    '.unified-extensions-item-action-button[data-extensionid="' + id + '"]';
+  if (!(await visibleChromeBox(actionSelector)))
+    await clickChromeControl("#unified-extensions-button");
+  await clickChromeControl(actionSelector);
+  receipt.activation = "real native toolbar/Extensions-menu action";
   await wait(
     async () =>
       driver.executeScript(
