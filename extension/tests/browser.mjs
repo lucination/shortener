@@ -16,7 +16,9 @@ const id = [
   .map((c) => String.fromCharCode(97 + parseInt(c, 16)))
   .join("");
 const profile = await mkdtemp(`${tmpdir()}/shortener-browser-`);
-const artifacts = fileURLToPath(new URL("../artifacts", import.meta.url));
+const artifacts =
+  process.env.EXTENSION_EVIDENCE ||
+  fileURLToPath(new URL("../artifacts", import.meta.url));
 await mkdir(artifacts, { recursive: true });
 const requests = [];
 let release;
@@ -73,6 +75,33 @@ try {
   });
   const settings = await context.newPage();
   await settings.goto(`chrome-extension://${id}/settings.html`);
+  await settings.evaluate(() =>
+    chrome.storage.local.set({
+      settings: {
+        service: "https://old.example",
+        token: "legacy-session-credential",
+      },
+    }),
+  );
+  await settings.reload();
+  await expect(settings.locator("#service")).toHaveValue("https://old.example");
+  await expect(settings.locator("#token")).toHaveValue("");
+  await expect(settings.locator("#status")).toContainText(
+    "Account → Access tokens",
+  );
+  await settings.locator("#forget").click();
+  await expect(settings.locator("#status")).toContainText(
+    "Settings forgotten.",
+  );
+  assertEqual(
+    await settings.evaluate(
+      async () => (await chrome.storage.local.get("settings")).settings,
+    ),
+    undefined,
+  );
+  console.log(
+    "PASS: legacy service retained for migration, credential never prefilled, Forget succeeds",
+  );
   await settings.locator("#service").fill("https://short.example/api");
   await settings
     .locator("#token")
@@ -437,6 +466,22 @@ try {
   await settings.bringToFront();
   await settings.reload();
   await expect(settings.locator("#service")).toHaveValue(origin);
+  await settings.evaluate(
+    (service) =>
+      chrome.storage.local.set({
+        settings: { service, token: "legacy-session-credential" },
+      }),
+    origin,
+  );
+  await settings.reload();
+  await expect(settings.locator("#service")).toHaveValue(origin);
+  await expect(settings.locator("#token")).toHaveValue("");
+  await expect(settings.locator("#status")).toContainText(
+    "Account → Access tokens",
+  );
+  await settings.screenshot({
+    path: `${artifacts}/settings-legacy-migration.png`,
+  });
   await settings.locator("#forget").click();
   await expect(settings.locator("#status")).toContainText(
     "Settings forgotten.",

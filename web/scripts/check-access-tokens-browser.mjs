@@ -12,9 +12,45 @@ const browser = await chromium.launch({
   ignoreDefaultArgs: ["--disable-back-forward-cache"],
 });
 const observations = [];
+async function iconGeometry(button) {
+  const geometry = await button.evaluate((node) => {
+    const rect = (n) => {
+      const r = n.getBoundingClientRect();
+      return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+    };
+    const text = [...node.childNodes].find(
+      (n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim(),
+    );
+    const range = document.createRange();
+    range.selectNodeContents(text);
+    return {
+      button: rect(node),
+      icon: rect(node.querySelector("svg")),
+      text: rect(range),
+    };
+  });
+  const { button: b, icon: i, text: t } = geometry;
+  assert(i.right <= t.left, "icon and label must be horizontally inline");
+  for (const r of [i, t]) {
+    assert(
+      r.top >= b.top && r.bottom <= b.bottom,
+      "icon and label must fit vertically inside button",
+    );
+    assert(
+      r.left >= b.left && r.right <= b.right,
+      "icon and label must fit horizontally inside button",
+    );
+  }
+  assert(
+    Math.abs((i.top + i.bottom - t.top - t.bottom) / 2) <= 1,
+    "icon and label must be vertically centered together",
+  );
+  return geometry;
+}
+
 try {
   for (const theme of ["light", "dark"])
-    for (const width of [1280, 390]) {
+    for (const width of [1280, 390, 320]) {
       const context = await browser.newContext({
         viewport: { width, height: 900 },
         colorScheme: theme,
@@ -61,6 +97,18 @@ try {
           exact: true,
         });
         await expect(secretInput).toBeVisible();
+        const copyGeometry = await iconGeometry(
+          section.getByRole("button", { name: "Copy token", exact: true }),
+        );
+        const revokeGeometry = await iconGeometry(
+          section.getByRole("button", { name: "Revoke", exact: true }),
+        );
+        // Mask the actual one-time secret; never put a usable credential in evidence.
+        await page.screenshot({
+          path: `${directory}/issued-${theme}-${width}.png`,
+          fullPage: true,
+          mask: [secretInput],
+        });
         const token = await secretInput.inputValue();
         assert.match(token, /^short_at_[0-9a-f]{64}$/);
         await page.evaluate(() => {
@@ -158,6 +206,8 @@ try {
           theme,
           width,
           geometry,
+          copyGeometry,
+          revokeGeometry,
           createdOwner: link.owner_id,
           clipboard: "real readback matched",
           revoked: true,

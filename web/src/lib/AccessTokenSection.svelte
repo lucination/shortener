@@ -86,7 +86,10 @@
         /></label
       >
       <div class="toolbar">
-        <button onclick={oncopy} disabled={feedback.kind === "pending"}
+        <button
+          class="with-icon"
+          onclick={oncopy}
+          disabled={feedback.kind === "pending"}
           ><Copy size={14} />Copy token</button
         ><button onclick={ondismiss}>Done</button>
       </div>
@@ -98,6 +101,7 @@
     {#each tokens.value as token (token.id)}<div class="token-row stack">
         <div class="toolbar spread">
           <strong>{token.name}</strong><button
+            class="with-icon"
             title={`Revoke ${token.name}`}
             onclick={() => onrevoke(token.id)}
             disabled={feedback.kind === "pending"}

@@ -1,6 +1,6 @@
 import { extensionApi } from "./platform.js";
-import { storedSettings, permissionPattern } from "./core.js";
-import { saveSettings } from "./configuration.js";
+import { storedSettings, storedService } from "./core.js";
+import { saveSettings, forgetSettings } from "./configuration.js";
 const api = extensionApi();
 const form = document.querySelector<HTMLFormElement>("#settings-form")!;
 const service = document.querySelector<HTMLInputElement>("#service")!;
@@ -33,31 +33,32 @@ form.addEventListener("submit", (event) => {
 forget.addEventListener("click", () => {
   busy(true);
   void (async () => {
-    const saved = (await api.storage.local.get("settings")).settings;
-    await api.storage.local.remove("settings");
+    await forgetSettings(api);
     service.value = "";
     token.value = "";
-    const previous = storedSettings(saved);
-    if (previous)
-      await api.permissions.remove({
-        origins: [permissionPattern(previous.service)],
-      });
     status.textContent =
       "Settings forgotten. This does not revoke the access token on the service. Revoke it in Account → Access tokens.";
   })()
-    .catch(() => {
+    .catch((error: unknown) => {
       status.textContent =
-        "Could not finish forgetting settings. Check browser extension permissions.";
+        error instanceof Error
+          ? error.message
+          : "Could not finish forgetting settings. Check browser extension permissions.";
     })
     .finally(() => busy(false));
 });
 void api.storage.local
   .get("settings")
   .then((saved) => {
-    const settings = storedSettings(saved.settings);
-    if (settings) {
-      service.value = settings.service;
-      token.value = settings.token;
+    const origin = storedService(saved.settings);
+    if (origin) service.value = origin;
+    try {
+      const settings = storedSettings(saved.settings);
+      if (settings) token.value = settings.token;
+    } catch {
+      token.value = "";
+      status.textContent =
+        "Saved credential is no longer supported. Create a token in Account → Access tokens, then save it here, or Forget settings.";
     }
   })
   .catch(() => {
