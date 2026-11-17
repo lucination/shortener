@@ -107,6 +107,6 @@ it("admin links are a read-only view, not owner mutation controls with no handle
     view: { kind: "links", state: { kind: "ready", value: [] } },
     outcome: { kind: "idle" },
   });
-  expect(v.queryByText("+ Create link")).toBeNull();
+  expect(v.queryByText("Create link")).toBeNull();
   expect(v.queryByText("Import / paste")).toBeNull();
 });

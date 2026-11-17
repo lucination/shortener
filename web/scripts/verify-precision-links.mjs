@@ -55,7 +55,7 @@ try {
           .getByRole("heading", { name: "Links", exact: true })
           .waitFor();
       }
-      await page.getByText("+ Create link", { exact: true }).click();
+      await page.getByText("Create link", { exact: true }).first().click();
       const dialog = page.getByRole("dialog");
       await dialog.waitFor();
       const geometry = await dialog.evaluate((e) => {
@@ -98,7 +98,7 @@ try {
       await page.getByRole("button", { name: "Cancel", exact: true }).click();
       await page.getByRole("heading", { name: "Links", exact: true }).waitFor();
       if (width === 390 && height === 420) {
-        await page.getByText("+ Create link", { exact: true }).click();
+        await page.getByText("Create link", { exact: true }).first().click();
         await page
           .getByLabel("Destination URL", { exact: true })
           .fill("https://example.test/short-height-proof");
@@ -125,7 +125,7 @@ try {
       });
     }
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.getByText("+ Create link", { exact: true }).click();
+  await page.getByText("Create link", { exact: true }).first().click();
   await page
     .getByLabel("Destination URL", { exact: true })
     .fill("https://example.test/precision-browser");

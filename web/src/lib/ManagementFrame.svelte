@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
+  import { ArrowLeft } from "@lucide/svelte";
   let {
     identity,
     children,
@@ -11,7 +12,7 @@
 
 <main class="app-shell management-page">
   {#if identity}<div class="management-identity stack">
-      <a href="/">← Back to links</a>
+      <a href="/" class="with-icon"><ArrowLeft size={14} />Back to links</a>
       <div>
         <strong>{identity.label}</strong>
         <p class="muted break">{identity.address}</p>

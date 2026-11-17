@@ -18,6 +18,7 @@
     Trash2,
     CalendarClock,
     Archive,
+    Plus,
   } from "@lucide/svelte";
   let {
     state,
@@ -90,8 +91,8 @@
     </div>
     {#if mode === "manage"}<div class="toolbar">
         <button onclick={onbulkcreate}>Import / paste</button><button
-          class="btn-primary"
-          onclick={oncreate}>+ Create link</button
+          class="btn-primary with-icon"
+          onclick={oncreate}><Plus size={14} />Create link</button
         >
       </div>{/if}
   </div>

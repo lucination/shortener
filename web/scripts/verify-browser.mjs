@@ -280,7 +280,8 @@ try {
     .fill("handbook");
   assert.equal(await page.getByText("Field notes", { exact: true }).count(), 0);
   await page
-    .getByRole("button", { name: "+ Create link", exact: true })
+    .getByRole("button", { name: "Create link", exact: true })
+    .first()
     .click();
   await page.getByLabel("Destination URL").fill("https://example.org/test");
   await page.getByRole("button", { name: "Save link", exact: true }).click();

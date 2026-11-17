@@ -219,7 +219,7 @@ try {
         });
         await page.goto(`${base}/_/`);
         await page
-          .getByRole("button", { name: "+ Add user", exact: true })
+          .getByRole("button", { name: "Add user", exact: true })
           .click();
         await page.getByLabel("Email address").fill("new@example.org");
         await page

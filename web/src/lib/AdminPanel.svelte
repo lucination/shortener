@@ -3,6 +3,7 @@
   import ResourceStatus from "./ResourceStatus.svelte";
   import EventTable from "./EventTable.svelte";
   import Dashboard from "./Dashboard.svelte";
+  import { Plus } from "@lucide/svelte";
   let {
     view,
     outcome,
@@ -29,8 +30,9 @@
               : "Events"}
         </h1>
       </div>
-      {#if view.kind === "users"}<button class="btn-primary" onclick={oncreate}
-          >+ Add user</button
+      {#if view.kind === "users"}<button
+          class="btn-primary with-icon"
+          onclick={oncreate}><Plus size={14} />Add user</button
         >{/if}
     </div>{/if}
   <ResourceStatus state={outcome} />{#if view.kind !== "links"}<ResourceStatus

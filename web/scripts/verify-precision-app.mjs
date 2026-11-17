@@ -40,8 +40,10 @@ const check = async (name, fn) => {
   checks.push(name);
   console.log("PASS", name);
 };
-const click = async (name) =>
-  page.getByRole("button", { name, exact: true }).click();
+const click = async (name) => {
+  const target = page.getByRole("button", { name, exact: true });
+  await (name === "Create link" ? target.first() : target).click();
+};
 const me = async () => (await context.request.get("/api/me")).json();
 const links = async () =>
   (await (await context.request.get("/api/links")).json()).items;
@@ -56,7 +58,7 @@ try {
       await page.goto("/");
       await page.getByRole("heading", { name: "Links", exact: true }).waitFor();
       assert.equal((await me()).email, process.env.PRECISION_EMAIL);
-      await click("+ Create link");
+      await click("Create link");
       await page
         .getByLabel("Destination URL", { exact: true })
         .fill("https://example.test/controlled?fixed=1");
@@ -371,7 +373,7 @@ try {
       await page.getByRole("heading", { name: "Users", exact: true }).waitFor();
       assert.equal((await me()).email, process.env.PRECISION_EMAIL);
       const email = `${alias}@example.test`;
-      await click("+ Add user");
+      await click("Add user");
       await page.getByLabel("Email address", { exact: true }).fill(email);
       await click("Confirm");
       await row(email).waitFor();
@@ -430,7 +432,7 @@ try {
         await page.getByRole("heading", { name, exact: true }).waitFor();
         assert.equal(await page.getByRole("heading", { level: 1 }).count(), 1);
         assert.equal(
-          await page.getByText("+ Create link", { exact: true }).count(),
+          await page.getByText("Create link", { exact: true }).count(),
           0,
         );
         for (const colorScheme of ["light", "dark"])

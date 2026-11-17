@@ -84,7 +84,7 @@ describe("dashboard", () => {
     );
     expect(onsearch).toHaveBeenCalledWith("notes");
     expect(view.getByText("Field notes")).toBeTruthy();
-    await fireEvent.click(view.getByText("+ Create link"));
+    await fireEvent.click(view.getByText("Create link"));
     expect(oncreate).toHaveBeenCalledOnce();
   });
 });

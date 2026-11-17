@@ -833,7 +833,8 @@ fn public_document(title: &str, content: String) -> String {
     format!(
         include_str!("../web/src/lib/presentation/native-document.html"),
         title = escape(title),
-        content = content
+        content = content,
+        style = include_str!("../web/src/lib/presentation/native-critical.css")
     )
 }
 fn shell(s: &AppState, status: StatusCode) -> Response {
@@ -850,14 +851,20 @@ fn shell(s: &AppState, status: StatusCode) -> Response {
             Ok(body) => html(status, body),
             Err(_) => html(
                 StatusCode::SERVICE_UNAVAILABLE,
-                "<!doctype html><h1>Development frontend unavailable</h1>".into(),
+                public_document(
+                    "Development frontend unavailable",
+                    "<h1>Development frontend unavailable</h1>".into(),
+                ),
             ),
         };
     }
     let body = std::fs::read_to_string(s.static_dir.join("index.html"))
         .or_else(|_| std::fs::read_to_string(s.static_dir.join("200.html")))
         .unwrap_or_else(|_| {
-            "<!doctype html><html><head><title>Application unavailable</title></head><body><h1>Application unavailable</h1><p>Static application files are missing.</p></body></html>".into()
+            public_document(
+                "Application unavailable",
+                "<h1>Application unavailable</h1><p>Static application files are missing.</p>".into(),
+            )
         });
     html(status, body)
 }

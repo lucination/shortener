@@ -38,7 +38,7 @@ it("opens the complete controlled link editor in a focused dialog and returns to
   expect(v.container.textContent).not.toMatch(
     /WORKSPACE|Humans|Human redirects|shorter way/,
   );
-  await fireEvent.click(v.getByText("+ Create link"));
+  await fireEvent.click(v.getByText("Create link"));
   expect(v.getByRole("dialog").contains(v.getByLabelText("Click limit"))).toBe(
     true,
   );

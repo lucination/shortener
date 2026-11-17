@@ -95,7 +95,7 @@ it("runs session -> list -> controlled editor -> actual API adapter save lifecyc
   });
   const v = render(AppContainer, { api: createApi(fetcher) });
   await waitFor(() => expect(v.getByText("No matching links")).toBeTruthy());
-  await fireEvent.click(v.getByText("+ Create link"));
+  await fireEvent.click(v.getAllByText("Create link")[0]);
   await fireEvent.input(v.getByLabelText("Destination URL"), {
     target: { value: "https://example.org" },
   });
@@ -149,7 +149,7 @@ it("does not let an old completed save replace a newly selected screen", async (
   );
   const v = render(AppContainer, { api: createApi(fetcher) });
   await waitFor(() => expect(v.getByText("No matching links")).toBeTruthy());
-  await fireEvent.click(v.getByText("+ Create link"));
+  await fireEvent.click(v.getAllByText("Create link")[0]);
   await fireEvent.input(v.getByLabelText("Destination URL"), {
     target: { value: "https://example.org" },
   });

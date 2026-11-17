@@ -134,7 +134,7 @@
     if (c.action === "quota" || c.action === "retention")
       return {
         kind: "value",
-        title: `Change ${c.action}`,
+        title: c.action === "quota" ? "Change link quota" : "Change retention",
         description: "Blank restores the default. Quota may be zero.",
         label: c.action === "quota" ? "Link quota" : "Retention days",
         type: "number",
@@ -142,7 +142,7 @@
       };
     return {
       kind: "confirm",
-      title: `${c.action} user #${c.id}?`,
+      title: `${{ suspend: "Suspend", reactivate: "Reactivate", signout: "Sign out", delete: "Soft delete" }[c.action]} user #${c.id}?`,
       description:
         "Only this account is changed. Signing out preserves passkeys.",
     };

@@ -107,14 +107,14 @@ try {
       }
       assert(token, "actual SMTP message");
       await page.goto(`/auth/verify?token=${token}`);
-      await page.getByText("+ Create link", { exact: true }).waitFor();
+      await page.getByText("Create link", { exact: true }).first().waitFor();
     },
   );
   const alias = `browser-${Date.now()}`;
   await check(
     "user container creates a real link, direct backend redirects without JS",
     async () => {
-      await page.getByText("+ Create link", { exact: true }).click();
+      await page.getByText("Create link", { exact: true }).first().click();
       await page
         .getByLabel("Destination URL", { exact: true })
         .fill("https://example.test/browser?fixed=1");
@@ -138,7 +138,7 @@ try {
   await check(
     "inline validation preserves submitted input with a clear recovery",
     async () => {
-      await page.getByText("+ Create link", { exact: true }).click();
+      await page.getByText("Create link", { exact: true }).first().click();
       await page
         .getByLabel("Destination URL", { exact: true })
         .fill("https://example.test/again");

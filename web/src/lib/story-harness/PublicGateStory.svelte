@@ -2,6 +2,7 @@
   import type { PublicView, Outcome } from "../view-models";
   import PublicPage from "../PublicPage.svelte";
   import documentTemplate from "../presentation/native-document.html?raw";
+  import criticalCss from "../presentation/native-critical.css?raw";
   import passwordTemplate from "../presentation/native-password.html?raw";
   import previewTemplate from "../presentation/native-preview.html?raw";
   import errorTemplate from "../presentation/native-unlock-error.html?raw";
@@ -35,6 +36,7 @@
     return fill(documentTemplate, {
       title: page.kind === "password" ? "Protected link" : "Preview",
       content,
+      style: criticalCss,
     }).replace(
       '<link rel=stylesheet href="/presentation.css">',
       `<style>${css}</style>`,

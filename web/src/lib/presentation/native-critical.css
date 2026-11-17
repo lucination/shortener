@@ -1,0 +1,88 @@
+/* Essential native presentation survives unavailable static assets. */
+:root {
+  color-scheme: light dark;
+  font:
+    400 13px/1.5 system-ui,
+    sans-serif;
+  --dl-bg: light-dark(oklch(0.985 0 0), oklch(0.21 0.006 285.885));
+  --dl-panel: light-dark(oklch(1 0 0), oklch(0.274 0.006 286.033));
+  --dl-text: light-dark(oklch(0.21 0.006 285.885), oklch(1 0 0));
+  --dl-line: light-dark(oklch(0.21 0.006 285.885 / 0.16), oklch(1 0 0 / 0.24));
+  --dl-primary: light-dark(
+    oklch(0.623 0.214 259.815),
+    oklch(0.546 0.245 262.881)
+  );
+  --dl-on-primary: oklch(1 0 0);
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--dl-bg);
+  color: var(--dl-text);
+}
+.app-shell.native-public {
+  width: min(480px, 100%);
+  margin: auto;
+  padding: min(12vh, 80px) 14px 24px;
+}
+.stack {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  align-content: start;
+}
+.box-frame {
+  border: 1px solid var(--dl-line);
+  border-radius: 4px;
+  padding: 12px;
+  background: var(--dl-panel);
+  min-width: 0;
+}
+h1 {
+  font:
+    600 15px/1.5 system-ui,
+    sans-serif;
+}
+h1,
+p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.field {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  min-width: 0;
+}
+input,
+button {
+  font:
+    400 12px/20px system-ui,
+    sans-serif;
+  height: 28px;
+  padding: 2px 9px;
+  border: 1px solid var(--dl-line);
+  border-radius: 4px;
+  color: var(--dl-text);
+  background: var(--dl-panel);
+  min-width: 0;
+  max-width: 100%;
+}
+input {
+  width: 100%;
+}
+.btn-primary {
+  background: var(--dl-primary);
+  color: var(--dl-on-primary);
+  cursor: pointer;
+}
+a {
+  color: var(--dl-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.break {
+  overflow-wrap: anywhere;
+}

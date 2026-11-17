@@ -1,0 +1,99 @@
+# UI consistency acceptance matrix
+
+## Scope and invariants
+
+Audit the actual user/admin entrypoints, controlled current components, focused
+management pages, dialogs, and native public/error documents. Keep the existing
+neutral theme, density, shared tokens and authority-specific shells. This is not
+a new navigation or visual design.
+
+- User shell: `AppShell`, authenticated Links/Account/Sign out only.
+- Admin shell: separate `AdminContainer`, Users/Links/Usage/Events only; no admin
+  navigation is added to the user application.
+- Creator editor/statistics: `ManagementFrame`, contextual identity and Back to
+  links, without inventing account/admin navigation on these native-owned URLs.
+- User sign-in: existing focused sign-in card and brand bar. Its 20px title and
+  34px controls intentionally differ from the dense workspace's 15px/28px scale.
+- Public and denied native documents: bounded, anonymous, inert document frame;
+  never mount the SPA or authenticated navigation. Native denials remain generic.
+- All families use the existing light/dark theme, system sans fallback, flat
+  surfaces, shared primary/error tokens, small radii and bounded phone controls.
+
+## Page-by-page matrix
+
+| Family / entry                           | Production boundary                                        | States inspected / exercised                                                                                           | Shell, controls and icon acceptance                                                                                                                                                                                |
+| ---------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| User links `/`                           | `AppContainer` → `AppShell` → `Dashboard`                  | Populated, selected, empty, pending, failed, copy success/rejection; enabled/disabled rows                             | Flexible identity/address; compact selection/Clicks/Status/six separate actions; aligned headers and centered checkboxes; Plus creation icon; all five bulk icons; filtered select-all preserves hidden selections |
+| Account                                  | `AccountPanel`, `PasskeySection` inside user shell         | Account, enrollment pending/success/error, named key list                                                              | Shared field/panel tokens; enrollment feedback stays local; retention and session sections retain existing lifecycle                                                                                               |
+| Create link                              | `FocusedModal` → `LinkEditor`                              | Create, saving, alias conflict                                                                                         | Existing dialog and primary Save/Cancel; phone-bounded actions and inputs                                                                                                                                          |
+| Creator edit `/{short}/edit`             | `ManagementContainer` → `ManagementFrame` → `LinkEditor`   | Edit, long address, failure, password removal confirmation                                                             | Same editor controls as create; immutable address; Lucide ArrowLeft with unchanged Back href                                                                                                                       |
+| Creator statistics `/{short}/statistics` | `ManagementContainer` → `Analytics` → `StatisticsOverview` | Populated, empty, loading, failed, date/detail interactions                                                            | Existing focused identity shell, shared date controls; clicks-only chart and all-event summary/rankings unchanged                                                                                                  |
+| Creator events                           | `FocusedModal` → `Analytics` → `EventTable`                | Populated, empty, date range                                                                                           | Shared dense table and toolbar; horizontal table scrolling is intentional, not document overflow                                                                                                                   |
+| Bulk import                              | `FocusedModal` → `BulkImport`                              | Review, invalid rows, pending, partial failure                                                                         | Shared file/text fields, table and primary action; callbacks and retry behavior unchanged                                                                                                                          |
+| User confirmations/forms                 | `ActionForm`                                               | Enable/Disable/Delete, expiration/retention for one and multiple links; create-user and generic confirm/value variants | Sentence-case headings, singular/plural nouns, sentence-case Confirm; cancel/open do not submit; exact lowercase API discriminants preserved                                                                       |
+| User sign-in                             | `AuthPanel` → `SignInPage`                                 | Idle, sending, sent/resend, email error, passkey pending/cancelled/error, custom brand                                 | Existing focused shell; shared theme; real Link/KeyRound icons; no authenticated navigation or Sign out                                                                                                            |
+| Admin sign-in `/_/`                      | `AdminContainer` → `AuthPanel`                             | Unknown authority, token, rejected, discovery error                                                                    | Separate administrative shell; shared dense form controls; navigation withheld before authentication                                                                                                               |
+| Admin users                              | `AdminPanel` users                                         | Active/suspended, pending, failed, empty                                                                               | Existing shell/table; Plus Add user icon; all six user workflows have sentence-case heading/Confirm copy                                                                                                           |
+| Admin user dialogs                       | `AdminContainer` → `FocusedModal` → `ActionForm`           | Create, suspend, reactivate, sign out, soft delete, quota, retention                                                   | Same controlled ActionForm used by user workflows; no callback or authority changes                                                                                                                                |
+| Admin links                              | `AdminPanel` → read-only `Dashboard`                       | Populated/read-only, failure/retry                                                                                     | Compact metadata, no selection or mutation actions; frozen identity remains paired with its header                                                                                                                 |
+| Admin usage                              | `AdminPanel` usage                                         | Metric cards                                                                                                           | Existing shared shell, numeric typography and panel tokens                                                                                                                                                         |
+| Admin events                             | `AdminPanel` → `EventTable`                                | Populated and empty                                                                                                    | Same event table presentation as creator events; authority remains admin-only                                                                                                                                      |
+| Public preview                           | `native-document.html` + `native-preview.html`             | Escaped destination/title/description, Continue form                                                                   | Same neutral bounded public frame and primary token; native POST flow retained; no JavaScript                                                                                                                      |
+| Password gate                            | `native-document.html` + `native-password.html`            | Required password form                                                                                                 | Same field/button/panel geometry; native unlock POST and autocomplete unchanged                                                                                                                                    |
+| Wrong password                           | `native-document.html` + `native-unlock-error.html`        | Failure / Try again                                                                                                    | Same native public frame; safe native link retained                                                                                                                                                                |
+| Creator-page denial                      | `management_not_found` → native document                   | Generic not-found document, with optional stylesheet unavailable                                                       | Inert/no navigation/no forms/no script; generic content and native status/cache policy preserved                                                                                                                   |
+| SPA public not-found                     | `PublicPage`                                               | Unavailable view                                                                                                       | Existing anonymous bounded frame, shared heading/body/link tokens; no admin controls                                                                                                                               |
+| Missing static application               | `shell` → `public_document`                                | Static asset failure                                                                                                   | Essential inline native theme survives missing stylesheet; no SPA or navigation injected                                                                                                                           |
+| Development frontend unavailable         | `shell` → `public_document`                                | Upstream dev frontend failure                                                                                          | Same dependency-free native presentation; existing service-unavailable status retained                                                                                                                             |
+| Shared feedback                          | `ResourceStatus`                                           | Network, validation, authentication, pending                                                                           | Existing bounded inline panels and error token; ellipses in progress prose remain punctuation, not icon controls                                                                                                   |
+
+Layout route files only select these containers/import shared CSS; they do not
+introduce another page design. Story harnesses render current production
+components/templates with explicit fixtures, not substitute UI implementations.
+
+## Findings and corrections
+
+1. Replaced the three remaining text UI symbols: Dashboard creation `+`, admin
+   creation `+`, and management Back `←`, with installed Lucide Plus/ArrowLeft.
+   Preserved labels, callbacks, hrefs and control sizes; reconciled old selectors.
+2. Corrected lowercase/raw administrator confirmation discriminants in headings,
+   including `signout`, while retaining lowercase internal actions and API calls.
+3. The two emergency native documents were unstyled and lacked the normal public
+   frame. Route only their presentation through the existing inert renderer, and
+   inline a minimal critical stylesheet for all native documents. A token-parity
+   regression keeps those critical colors equal to the shared application theme.
+   No HTTP ownership, redirect, password, session or cache policy is changed.
+4. Retained ordinary punctuation/data: progress ellipses, search placeholder
+   ellipsis, missing-value em dash, date ranges, middle-dot separators, numeric
+   ranges and arithmetic/source operators. No standalone ellipsis/close/arrow
+   control or additional Unicode symbol was found in native templates.
+
+## Executable evidence
+
+- `npm test`: component/real-container regressions, including exact bulk callbacks,
+  selection transitions, confirmations, icon callbacks and native token parity.
+- `scripts/verify-dashboard-columns.mjs`: 1280/1920/390, both themes, manage and
+  read-only; geometry and frozen identity at two nonzero scroll positions.
+- `scripts/verify-dashboard-selection.mjs`: real built app/adapters with fixture
+  responses, one/two-link workflows and exact intercepted bulk payloads. No live
+  mutations; filtering/select-all and cancellation are exercised.
+- `scripts/verify-page-consistency.mjs`: enumerate the served current Storybook
+  index rather than a handpicked subset; render every entry in both themes at
+  1440/390, inspect native child frames, and render all native document variants
+  without the optional stylesheet. Save per-case screenshots and `page-matrix.json`.
+- `scripts/verify-application-pages.mjs`: serve both actual static builds on an
+  ephemeral loopback-only fixture server; exercise user/account/auth/management
+  and admin families plus modal open/cancel, without transmitting writes. Save
+  screenshots and `application-pages.json`.
+
+The scripts require explicit evidence directories. Fixture responses are synthetic
+test inputs, not observations of production. Browser receipts contain exact case
+totals and failures; they are not replaced by this checklist.
+
+## Verification boundary
+
+Native template browser rendering and source-boundary assertions do not establish
+that a Rust router test ran. Cargo/Rust test availability must be disclosed in the
+handoff, along with any pending native compile/format/runtime verification. Do not
+claim production deployment, remote publication or full backend acceptance from
+these frontend and template checks.

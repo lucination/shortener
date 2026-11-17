@@ -156,6 +156,14 @@ code {
   gap: 8px;
   align-items: center;
 }
+.with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.with-icon > svg {
+  flex-shrink: 0;
+}
 .spread {
   justify-content: space-between;
 }
