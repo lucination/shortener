@@ -124,7 +124,7 @@ try {
     }
     await context.close();
   }
-  for (const width of [1280, 390, 320])
+  for (const width of [1440, 390, 320])
     for (const colorScheme of ["light", "dark"]) {
       const context = await browser.newContext({
         viewport: { width, height: 850 },
@@ -284,11 +284,51 @@ try {
       assert(statusOffsets.every((value) => value <= 1));
       await page.getByTitle("View statistics").last().click();
       await page.waitForURL(`${base}/Note-A/statistics`);
-      await page.getByText("Clicks per day").waitFor();
+      await page.getByText("Daily activity").waitFor();
       assert.equal(await page.locator(".focused-dialog").count(), 0);
       assert.equal((await page.reload()).status(), 200);
-      await page.getByText("Human redirects", { exact: true }).waitFor();
-      assert(await page.locator(".stats-breakdowns").count());
+      await page.getByTestId("human-total").waitFor();
+      assert.equal(await page.locator(".so-apply.btn-primary").count(), 1);
+      const primary = await page.locator(".so-apply").evaluate((node) => {
+        const probe = document.createElement("span");
+        probe.style.color = "var(--dl-primary)";
+        node.append(probe);
+        const expected = getComputedStyle(probe).color;
+        const actual = getComputedStyle(node).backgroundColor;
+        probe.remove();
+        return { expected, actual };
+      });
+      assert.equal(primary.actual, primary.expected);
+
+      assert.deepEqual(
+        await page.locator(".so-total > span").allTextContents(),
+        ["Clicks", "Bot redirects", "Previews"],
+      );
+      assert.equal(
+        await page
+          .locator(".so-chart-panel [data-metric], .so-chart-panel select")
+          .count(),
+        0,
+      );
+      const day = page.locator(".so-chart [data-day]").last();
+      await day.click();
+      await page.getByTestId("day-detail").waitFor();
+      const observed = await page.locator(".so-observed").innerText();
+      const endDate = await page.getByLabel("To", { exact: true }).inputValue();
+      await page.getByLabel("From", { exact: true }).fill(endDate);
+      assert.equal(await page.locator(".so-observed").innerText(), observed);
+      await page
+        .getByRole("button", { name: "Apply dates", exact: true })
+        .click();
+      await page
+        .getByText(`${endDate} — ${endDate} · UTC`, { exact: true })
+        .waitFor();
+      assert.equal(await page.getByTestId("day-detail").count(), 0);
+      assert.equal(await page.locator("[data-day]").count(), 1);
+      await page.getByLabel("Period").selectOption("28");
+      await page.locator("[data-day]").first().waitFor();
+      assert.equal(await page.locator("[data-day]").count(), 28);
+      assert(await page.locator(".so-all-breakdowns").count());
       assert(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= innerWidth,
@@ -351,10 +391,14 @@ try {
         (await page.goto(`${base}/${"a".repeat(64)}/edit`)).status(),
         200,
       );
-      await page.getByLabel("Custom alias", { exact: true }).waitFor();
+      await page.getByText("a".repeat(64), { exact: true }).waitFor();
       assert.equal(
-        await page.getByLabel("Custom alias", { exact: true }).inputValue(),
+        await page.locator(".immutable-address").innerText(),
         "a".repeat(64),
+      );
+      assert.equal(
+        await page.getByLabel("Custom alias", { exact: true }).count(),
+        0,
       );
       const longBoxes = await page
         .locator("form,input,select,form button")

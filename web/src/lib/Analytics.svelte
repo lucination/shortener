@@ -2,144 +2,80 @@
   import type { AnalyticsView, DateRange } from "./view-models";
   import ResourceStatus from "./ResourceStatus.svelte";
   import EventTable from "./EventTable.svelte";
-  import { completeDays } from "./statistics";
+  import StatisticsOverview from "./StatisticsOverview.svelte";
+  import { dayDetail, type DayDetail } from "./statistics-chart";
   let {
     view,
     range,
     onrange = () => {},
     onapply = () => {},
     onback = () => {},
+    onperiod,
+    period = "custom",
   }: {
     view: AnalyticsView;
     range: DateRange;
     onrange?: (range: DateRange) => void;
     onapply?: () => void;
     onback?: () => void;
+    onperiod?: (days: number) => void;
+    period?: string;
   } = $props();
-  const points = (days: readonly { human: number }[], peak: number) =>
-    days
-      .map(
-        (day, index) =>
-          `${30 + index * (740 / Math.max(1, days.length - 1))},${175 - (day.human / peak) * 140}`,
-      )
-      .join(" ");
+  let detail = $state<DayDetail>({ kind: "idle" });
+  // The observation, not an unsubmitted date draft, owns chart interaction.
+  $effect(() => {
+    view.state;
+    view.label;
+    detail = { kind: "idle" };
+  });
 </script>
 
-<section class="stack">
-  <div class="toolbar spread">
-    <div>
-      <h1>{view.kind === "stats" ? "Link statistics" : "Click events"}</h1>
-      <p class="muted break">{view.label}</p>
+{#if view.kind === "stats"}
+  <StatisticsOverview
+    state={view.state}
+    {range}
+    label={view.label}
+    {detail}
+    onday={(action) => (detail = dayDetail(detail, action))}
+    {onrange}
+    {onapply}
+    {onback}
+    {onperiod}
+    {period}
+  />
+{:else}
+  <section class="stack">
+    <div class="toolbar spread">
+      <div>
+        <h1>Click events</h1>
+        <p class="muted break">{view.label}</p>
+      </div>
+      <button onclick={onback}>Back to links</button>
     </div>
-    <button onclick={onback}>Back to links</button>
-  </div>
-  <div class="toolbar date-toolbar">
-    <label class="field"
-      >From<input
-        type="date"
-        value={range.from}
-        oninput={(event) =>
-          onrange({ ...range, from: event.currentTarget.value })}
-      /></label
-    ><label class="field"
-      >To<input
-        type="date"
-        value={range.to}
-        oninput={(event) =>
-          onrange({ ...range, to: event.currentTarget.value })}
-      /></label
-    ><button onclick={onapply}>Apply dates</button>
-  </div>
-  <p class="muted">
-    Dates are inclusive, in UTC. Clicks count human redirects, not unique
-    visitors.
-  </p>
-  <ResourceStatus state={view.state} onretry={onapply} />
-  {#if view.kind === "stats" && view.state.kind === "ready"}{@const stats =
-      view.state.value}
-    {@const period = stats.range ?? range}
-    {@const days = completeDays(stats.days, period)}
-    {@const peak = Math.max(1, ...days.map((day) => day.human))}
-    <div class="metric-grid stats-metrics">
-      <div>
-        <div class="muted">Clicks</div>
-        <div class="metric-value">{stats.human.toLocaleString()}</div>
-        <p class="muted">Human redirects</p>
-      </div>
-      <div>
-        <div class="muted">Bot redirects</div>
-        <div class="metric-value">{stats.bot.toLocaleString()}</div>
-      </div>
-      <div>
-        <div class="muted">Previews</div>
-        <div class="metric-value">{stats.preview.toLocaleString()}</div>
-      </div>
-    </div>
-    <div class="box-frame stats-timeline">
-      <h2>Clicks per day</h2>
-      {#if stats.days.length && days.length}<svg
-          class="chart"
-          viewBox="0 0 800 210"
-          preserveAspectRatio="none"
-          ><line
-            x1="30"
-            x2="770"
-            y1="175"
-            y2="175"
-            stroke="currentColor"
-            stroke-width="2"
-          /><line
-            x1="30"
-            x2="30"
-            y1="20"
-            y2="175"
-            stroke="currentColor"
-            stroke-width="2"
-          /><polyline
-            points={points(days, peak)}
-            fill="none"
-            stroke="currentColor"
-            stroke-width="3"
-          />{#each days as day, index}<circle
-              cx={30 + index * (740 / Math.max(1, days.length - 1))}
-              cy={175 - (day.human / peak) * 140}
-              r="4"
-              fill="currentColor"
-              ><title>{day.day}: {day.human} clicks</title></circle
-            >{/each}</svg
-        >
-        <div class="toolbar spread muted">
-          <span>{period.from}</span><span>{period.to}</span>
-        </div>{:else}<p>No redirects in this date range.</p>{/if}
+    <div class="toolbar date-toolbar">
+      <label class="field"
+        >From<input
+          type="date"
+          value={range.from}
+          oninput={(event) =>
+            onrange({ ...range, from: event.currentTarget.value })}
+        /></label
+      ><label class="field"
+        >To<input
+          type="date"
+          value={range.to}
+          oninput={(event) =>
+            onrange({ ...range, to: event.currentTarget.value })}
+        /></label
+      ><button onclick={onapply}>Apply dates</button>
     </div>
     <p class="muted">
-      Breakdowns include all recorded events, including bots and previews. Top
-      20 per category.
+      Dates are inclusive, in UTC. Clicks count human redirects, not unique
+      visitors.
     </p>
-    <div class="stats-breakdowns">
-      {#each [{ title: "Countries", rows: stats.countries }, { title: "Devices", rows: stats.devices }, { title: "Referrers", rows: stats.referrers }] as group}<div
-          class="box-frame stack"
-        >
-          <h2>{group.title}</h2>
-          {#if !group.rows.length}<p class="muted">
-              No observations
-            </p>{/if}{#each [...group.rows].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)) as row, index}<div
-            >
-              <div class="toolbar spread">
-                <span class="break"
-                  ><span class="muted">{index + 1}.</span> {row.label}</span
-                ><strong>{row.count}</strong>
-              </div>
-              <meter
-                class="w-full"
-                min="0"
-                max={Math.max(1, ...group.rows.map((item) => item.count))}
-                value={row.count}>{row.count}</meter
-              >
-            </div>{/each}
-        </div>{/each}
-    </div>
-  {:else if view.kind === "events" && view.state.kind === "ready"}<EventTable
-      rows={view.state.value}
-    />{/if}
-</section>
+    <ResourceStatus state={view.state} onretry={onapply} />
+    {#if view.kind === "events" && view.state.kind === "ready"}<EventTable
+        rows={view.state.value}
+      />{/if}
+  </section>
+{/if}

@@ -94,19 +94,27 @@
     }}
   >
     <div class="form-grid">
-      {#each fields as field}<label class="field"
-          >{field.label}<input
-            type={field.type}
-            value={draft[field.key]}
-            placeholder={field.placeholder}
-            disabled={outcome.kind === "pending" ||
-              (mode.kind === "edit" && field.key === "alias")}
-            required={field.key === "destination"}
-            min={field.type === "number" ? 1 : undefined}
-            oninput={(event) =>
-              onchange({ ...draft, [field.key]: event.currentTarget.value })}
-          /></label
-        >{/each}
+      {#each fields as field}{#if mode.kind === "edit" && field.key === "alias"}<div
+            class="field"
+          >
+            <span>Short address</span>
+            <p class="immutable-address break">{draft.alias}</p>
+            <p class="muted">
+              Archive this link and create a new one to use a different short
+              address.
+            </p>
+          </div>{:else}<label class="field"
+            >{field.label}<input
+              type={field.type}
+              value={draft[field.key]}
+              placeholder={field.placeholder}
+              disabled={outcome.kind === "pending"}
+              required={field.key === "destination"}
+              min={field.type === "number" ? 1 : undefined}
+              oninput={(event) =>
+                onchange({ ...draft, [field.key]: event.currentTarget.value })}
+            /></label
+          >{/if}{/each}
       <label class="field"
         >Incoming query parameters<select
           value={draft.queryMode}

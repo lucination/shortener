@@ -92,5 +92,5 @@ it("retains Clicks as the primary metric label without workspace chrome", () => 
   expect(v.container.textContent).not.toMatch(
     /approximate|must not be summed|WORKSPACE|Daily UTC|Inclusive dates/,
   );
-  expect(v.container.querySelectorAll(".metric-grid > div")).toHaveLength(3);
+  expect(v.container.querySelectorAll(".so-total")).toHaveLength(3);
 });

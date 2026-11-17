@@ -679,11 +679,36 @@ fn api_result(
             return Ok(Json(BulkResponse { items }).into_response());
         }
         ("POST", "/api/links/bulk-update") => {
-            return Ok(Json(
-                db.bulk_update(user.id, decode(body)?, &now)
-                    .map_err(db_error)?,
-            )
-            .into_response());
+            // An optional alias assertion can accompany an otherwise valid
+            // bulk action. Check every assertion before any per-link write; do
+            // not silently discard a rename alongside a metadata update.
+            let raw: serde_json::Value = decode(body)?;
+            let input: BulkUpdate = decode(body)?;
+            // Bound all preflight target reads before looking up any ID.
+            if input.ids.is_empty() || input.ids.len() > 1000 {
+                return Err(db_error("bulk update requires 1..1000 IDs".into()));
+            }
+            for alias in [raw.get("alias"), raw.pointer("/action/alias")]
+                .into_iter()
+                .flatten()
+            {
+                for id in &input.ids {
+                    let link = db.link(*id).map_err(db_error)?;
+                    if link.owner_id != user.id || link.deleted_at.is_some() {
+                        return Err(error(StatusCode::NOT_FOUND, "not_found", "not found"));
+                    }
+                    let current = link
+                        .addresses
+                        .iter()
+                        .find(|address| address.domain_id == 1)
+                        .ok_or_else(|| error(StatusCode::NOT_FOUND, "not_found", "not found"))?;
+                    crate::domain::unchanged_short_address(&current.short_code, alias.as_str())
+                        .map_err(db_error)?;
+                }
+            }
+            return Ok(
+                Json(db.bulk_update(user.id, input, &now).map_err(db_error)?).into_response(),
+            );
         }
         _ => {}
     }

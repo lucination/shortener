@@ -80,6 +80,14 @@ fn present<'de, D: serde::Deserializer<'de>, T: Deserialize<'de>>(
 }
 #[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
 pub struct LinkPatch {
+    // Compatibility assertion only; never changes the existing address.
+    #[serde(
+        default,
+        deserialize_with = "present",
+        skip_serializing_if = "Option::is_none"
+    )]
+    #[ts(optional)]
+    pub alias: Option<Option<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub destination: Option<String>,

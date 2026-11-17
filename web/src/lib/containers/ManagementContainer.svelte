@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { recentRange, selectedPeriod } from "../statistics";
+  import { onMount, untrack } from "svelte";
   import { createApi, type Api } from "../adapters/api";
   import { managementPath } from "../management";
   import { linkDraft, statsView } from "../mappings";
@@ -21,7 +22,12 @@
   let {
     api = createApi(fetch),
     navigate = (path: string) => location.assign(path),
-  }: { api?: Api; navigate?: (path: string) => void } = $props();
+    now = () => new Date(),
+  }: {
+    api?: Api;
+    navigate?: (path: string) => void;
+    now?: () => Date;
+  } = $props();
   type Page =
     | { kind: "loading" }
     | { kind: "not-found" }
@@ -31,11 +37,8 @@
   let page: Page = $state({ kind: "loading" });
   let outcome: Outcome = $state({ kind: "idle" });
   let confirmation: "none" | "remove-password" = $state("none");
-  const end = new Date();
-  let range: DateRange = $state({
-    from: new Date(end.getTime() - 6 * 86400000).toISOString().slice(0, 10),
-    to: end.toISOString().slice(0, 10),
-  });
+  let clock = $state(untrack(() => now()));
+  let range: DateRange = $state(untrack(() => recentRange(7, clock)));
   let generation = 0;
   const back = () => navigate("/");
   const denied = (error: import("../adapters/api").ApiError) =>
@@ -198,6 +201,12 @@
         {range}
         onrange={(value) => (range = value)}
         onapply={loadStats}
+        period={selectedPeriod(range, clock)}
+        onperiod={(days) => {
+          clock = now();
+          range = recentRange(days, clock);
+          void loadStats();
+        }}
         onback={back}
       />
     {:else}<LinkEditor

@@ -1,0 +1,297 @@
+/* Inherit app.css typography and controls; use the existing theme in both modes. */
+.statistics-overview {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  container-type: inline-size;
+  font:
+    400 13px/1.5 system-ui,
+    sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.statistics-overview small {
+  font:
+    400 11px/1.5 system-ui,
+    sans-serif;
+  color: var(--dl-muted);
+}
+.so-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.so-heading > div {
+  min-width: 0;
+}
+.so-link-name {
+  margin-top: 4px !important;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.so-datebar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
+}
+.so-datebar label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--dl-muted);
+  min-width: 0;
+}
+.so-datebar input {
+  width: 144px;
+}
+/* Keep native editing/picker behavior, without the browser's extra date inset. */
+:is(.app-shell, #storybook-root) .so-datebar input[type="date"] {
+  min-width: 136px;
+  font-variant-numeric: tabular-nums;
+}
+.so-datebar input[type="date"]::-webkit-datetime-edit {
+  padding: 0;
+  font: inherit;
+  color: inherit;
+}
+.so-datebar input[type="date"]::-webkit-datetime-edit-fields-wrapper {
+  padding: 0;
+}
+/* UA field padding survives the editor reset: remove the second inset and
+   the added spacing on either side of each native date separator. */
+.so-datebar input[type="date"]::-webkit-datetime-edit-month-field,
+.so-datebar input[type="date"]::-webkit-datetime-edit-day-field,
+.so-datebar input[type="date"]::-webkit-datetime-edit-year-field {
+  padding: 0;
+}
+.so-datebar input[type="date"]::-webkit-calendar-picker-indicator {
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  margin: 0 0 0 6px;
+  opacity: 0.6;
+  cursor: pointer;
+}
+.so-datebar select {
+  width: 124px;
+}
+
+.so-scope,
+.so-observed {
+  font-size: 11px;
+  color: var(--dl-muted);
+}
+.so-observed {
+  padding-top: 12px;
+  border-top: 1px solid var(--dl-faint);
+}
+.so-totals {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.so-total {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  background: var(--dl-panel);
+  border: 1px solid var(--dl-line);
+  border-radius: 4px;
+}
+.so-total > span {
+  font-size: 11px;
+  color: var(--dl-muted);
+}
+.statistics-overview .so-total strong {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.so-chart-panel,
+.so-ranking {
+  border: 1px solid var(--dl-line);
+  border-radius: 4px;
+  background: var(--dl-panel);
+  padding: 12px;
+  min-width: 0;
+}
+.so-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.so-detail-row {
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--dl-muted);
+}
+.so-detail-row strong {
+  color: var(--dl-text);
+  font-size: 12px;
+}
+.so-detail-row small {
+  white-space: nowrap;
+}
+:is(.app-shell, #storybook-root) .so-detail-row button {
+  height: 24px;
+  padding: 0 6px;
+  font-size: 11px;
+}
+.so-plot {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  height: 216px;
+  margin-top: 8px;
+}
+.so-y-axis {
+  position: relative;
+  color: var(--dl-muted);
+  font-size: 11px;
+}
+.so-y-axis span {
+  position: absolute;
+  right: 10px;
+  transform: translateY(-50%);
+}
+.so-chart {
+  display: block;
+  width: 100%;
+  height: 216px;
+  overflow: hidden;
+  fill: var(--dl-primary);
+}
+.so-gridline {
+  stroke: var(--dl-faint);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.so-bar {
+  fill: var(--dl-primary);
+  opacity: 0.8;
+  pointer-events: none;
+}
+.so-hit {
+  fill: transparent;
+  cursor: pointer;
+}
+.so-selected .so-hit {
+  fill: var(--dl-faint);
+}
+.so-selected .so-bar {
+  opacity: 1;
+}
+.so-chart-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--dl-muted);
+}
+.so-x-axis {
+  padding-left: 38px;
+  margin-top: 4px;
+}
+.so-all-breakdowns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.so-rank-row {
+  margin: 12px 0;
+}
+.so-rank-row:last-child {
+  margin-bottom: 0;
+}
+.so-rank-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 12px;
+  font-size: 12px;
+}
+.so-rank-title > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.so-rank-title strong {
+  flex-shrink: 0;
+}
+.so-rank-title small {
+  display: inline-block;
+  min-width: 18px;
+  margin-right: 4px;
+}
+.so-track {
+  height: 5px;
+  background: var(--dl-faint);
+  border-radius: 2px;
+  margin-top: 6px;
+  overflow: hidden;
+}
+.so-track i {
+  display: block;
+  height: 100%;
+  background: var(--dl-primary);
+  opacity: 0.65;
+  border-radius: 2px;
+}
+.so-chart-empty {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 12px;
+  min-height: 276px;
+  font-size: 12px;
+  color: var(--dl-muted);
+}
+.so-state {
+  padding: 12px;
+  background: var(--dl-panel);
+  border: 1px solid var(--dl-line);
+  border-radius: 4px;
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}
+.so-error {
+  color: var(--dl-danger);
+}
+.so-empty {
+  padding-block: 12px;
+  color: var(--dl-muted);
+}
+@container (max-width: 700px) {
+  .so-all-breakdowns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .so-total {
+    padding: 8px;
+  }
+  .so-totals {
+    gap: 6px;
+  }
+  .so-total small {
+    font-size: 10px;
+  }
+  .so-datebar label {
+    flex: 1 1 136px;
+  }
+  .so-datebar :is(input, select) {
+    width: 100%;
+  }
+  .so-plot,
+  .so-chart {
+    height: 184px;
+  }
+}

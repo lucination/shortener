@@ -13,6 +13,14 @@
 - Actual serialized Rust DTOs derive ts-rs. `web/scripts/sync-contracts.mjs` copies the deterministic export; admin imports this same generated-contract parser, not duplicate wire types.
 - Production: native Loco + SQLite serves both static builds; no Node runtime. Development only: Caddy3000 keeps same-origin Rust short/API/auth authority and proxies user Vite5173/admin Vite5174 and their distinct HMR paths.
 
+- A created short address is immutable identity. Create may accept a custom alias; existing-link editors display the current alias as text, never a writable field, and PATCH payloads omit it. The store rejects different/null alias assertions before any row write; equal exact aliases/no field remain compatible. Native bulk-update checks root/action alias assertions across all target links before any write. Admin has no link-update route and bulk import is create-only, never upserts existing addresses. A different address requires the existing archive flow and a new link; do not change reservation, deletion or redirect semantics.
+
+## Current presentation
+
+- Creator statistics uses `Analytics.svelte` → controlled `StatisticsOverview.svelte`: totals → clicks-only discrete daily chart → all three all-event rankings. Keep bot/preview summary cards; no chart metric tabs, summary subtitles or breakdown caveats. Pure integer chart math and day-detail reducer live in `statistics-chart.ts`; native date padding and layout live in `statistics-overview.css` for production and stories alike.
+- `ManagementContainer` owns real requests, UTC clock-based presets, draft dates and applied observations. Chart detail belongs to the observed response and resets on replacement, never on draft-only edits. Keep events on the existing table path and preserve native creator/no-store authority.
+- Storybook contains current controlled app components only. `Workspace/Statistics` is canonical and renders actual Analytics inside ManagementFrame with a story-local fixture harness; no API wiring. `Workspace/Editor` consolidates current create/edit/long-address/error states using the real LinkEditor and ManagementFrame; separate Administration stories render their actual production components. Do not restore design alternatives, comparison/playground entries or duplicate application harnesses.
+
 ## Contribution checks
 
 Keep credentials outside Git. Use disposable local test databases and loopback mail capture. Run Rust tests, format checks, frontend type checks, tests, generated-contract drift checks and both static builds before submitting changes. Preserve third-party notices and font licenses.

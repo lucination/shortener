@@ -4,7 +4,7 @@ import Analytics from "./Analytics.svelte";
 import { simulatedStatsView } from "./fixtures";
 import { simulatedStats } from "./fixtures";
 import { statsView } from "./mappings";
-it("explains metric scope and ranks observed breakdowns below the timeline", () => {
+it("keeps clicks-only overview and all-event totals without explanatory subtitles", () => {
   const v = render(Analytics, {
     range: { from: "2026-11-08", to: "2026-11-14" },
     view: {
@@ -13,10 +13,10 @@ it("explains metric scope and ranks observed breakdowns below the timeline", () 
       state: { kind: "ready", value: simulatedStatsView },
     },
   });
-  expect(v.getByText("Human redirects")).toBeTruthy();
-  expect(v.getByText(/Breakdowns include all recorded events/)).toBeTruthy();
+  expect(v.queryByText("Human redirects", { exact: true })).toBeNull();
+  expect(v.queryByText(/Breakdowns include all recorded events/)).toBeNull();
   expect(v.getByText(/Dates are inclusive/)).toBeTruthy();
-  expect(v.container.querySelector(".stats-breakdowns")).toBeTruthy();
+  expect(v.container.querySelector(".so-all-breakdowns")).toBeTruthy();
 });
 it("keeps the observed timeline period when unsubmitted date controls change", () => {
   const value = statsView({

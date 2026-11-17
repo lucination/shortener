@@ -7,3 +7,8 @@ storybook-previous/
 test-results/
 playwright-report/
 .fontcheck/
+
+/statistics-evidence/
+/storybook-static-before-*/
+
+/storybook-static-candidate/

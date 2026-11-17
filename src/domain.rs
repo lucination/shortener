@@ -363,3 +363,13 @@ pub fn global_retention_days(value: Option<&str>) -> Result<i32, String> {
         .map_err(|_| "GLOBAL_RETENTION_DAYS must be positive (1..=3650)")?;
     RetentionDays::parse(n).map(RetentionDays::get)
 }
+
+/// Existing short addresses are identity, not editable metadata. A supplied
+/// alias in a compatibility PATCH may only assert the current exact alias.
+pub fn unchanged_short_address(current: &str, proposed: Option<&str>) -> Result<(), String> {
+    if proposed == Some(current) {
+        Ok(())
+    } else {
+        Err("Short address cannot be changed. Archive this link and create a new one.".into())
+    }
+}

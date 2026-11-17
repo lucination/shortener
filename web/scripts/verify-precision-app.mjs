@@ -237,11 +237,8 @@ try {
           await row("Edited control proof")
             .getByTitle("View statistics", { exact: true })
             .click();
-          await page.getByText("Clicks per day", { exact: true }).waitFor();
-          assert.equal(
-            await page.locator(".metric-value").first().innerText(),
-            "1",
-          );
+          await page.getByText("Daily activity", { exact: true }).waitFor();
+          assert.equal(await page.getByTestId("human-total").innerText(), "1");
           const geometry = await page
             .locator(".management-page")
             .evaluate((e) => {

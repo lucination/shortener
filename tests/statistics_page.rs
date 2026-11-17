@@ -292,3 +292,138 @@ async fn management_pages_hide_every_denial_and_override_static_files() {
         );
     }
 }
+
+#[tokio::test]
+async fn existing_alias_update_attempts_fail_atomically_and_keep_native_redirect_identity() {
+    let db = Store::open(":memory:", "example.com").unwrap();
+    let now = shortener::domain::instant(chrono::Utc::now());
+    let (owner, cookie) = member(&db, "immutable@example.test", &now);
+    let link = db.create_link(owner, serde_json::from_value(serde_json::json!({"destination":"https://example.test/original", "alias":"Keep-A"})).unwrap(), &now).unwrap();
+    let before = serde_json::to_value(db.link(link.id).unwrap()).unwrap();
+    let app = router(AppState::new(db.clone()));
+    for (path, body) in [
+        (
+            format!("/api/links/{}", link.id),
+            serde_json::json!({"alias":"Change-A", "title":"Do not write"}),
+        ),
+        (
+            "/api/links/bulk-update".into(),
+            serde_json::json!({"ids":[link.id], "alias":"Change-A", "action":{"type":"disable"}}),
+        ),
+        (
+            "/api/links/bulk-update".into(),
+            serde_json::json!({"ids":[link.id], "action":{"type":"disable", "alias":"Change-A"}}),
+        ),
+    ] {
+        let method = if path.ends_with("bulk-update") {
+            "POST"
+        } else {
+            "PATCH"
+        };
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(method)
+                    .uri(path)
+                    .header("origin", "http://localhost:3000")
+                    .header("content-type", "application/json")
+                    .header("cookie", &cookie)
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        let body = to_bytes(response.into_body(), 4096).await.unwrap();
+        assert!(String::from_utf8_lossy(&body).contains("Short address cannot be changed"));
+        assert_eq!(
+            serde_json::to_value(db.link(link.id).unwrap()).unwrap(),
+            before
+        );
+    }
+    // Bulk import is create-only, never upserts an existing address.
+    let imported = app.clone().oneshot(Request::builder().method("POST").uri("/api/links/bulk").header("origin", "http://localhost:3000").header("content-type", "application/json").header("cookie", &cookie).body(Body::from(serde_json::json!({"items":[{"destination":"https://example.test/replacement", "alias":"Keep-A"}]}).to_string())).unwrap()).await.unwrap();
+    assert_eq!(imported.status(), StatusCode::OK);
+    let result: serde_json::Value =
+        serde_json::from_slice(&to_bytes(imported.into_body(), 4096).await.unwrap()).unwrap();
+    assert_eq!(result["items"][0]["status"], "failed");
+    assert_eq!(
+        serde_json::to_value(db.link(link.id).unwrap()).unwrap(),
+        before
+    );
+    // Admin exposes link reads, not a second rename/update authority.
+    let admin = db.admin_session(&now).unwrap();
+    let rejected = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/_/api/links/{}", link.id))
+                .header("origin", "http://localhost:3000")
+                .header("content-type", "application/json")
+                .header("cookie", format!("short_admin={admin}"))
+                .body(Body::from(
+                    serde_json::json!({"alias":"Change-A"}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(rejected.status(), StatusCode::NOT_FOUND);
+    assert_eq!(
+        serde_json::to_value(db.link(link.id).unwrap()).unwrap(),
+        before
+    );
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/api/links/{}", link.id))
+                .header("origin", "http://localhost:3000")
+                .header("content-type", "application/json")
+                .header("cookie", &cookie)
+                .body(Body::from(
+                    serde_json::json!({"alias":"Keep-A", "title":"Valid edit"}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let updated = db.link(link.id).unwrap();
+    assert_eq!(updated.title.as_deref(), Some("Valid edit"));
+    assert_eq!(updated.addresses[0].id, link.addresses[0].id);
+    let redirect = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/Keep-A")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(redirect.status(), StatusCode::FOUND);
+    assert_eq!(
+        redirect.headers()["location"],
+        "https://example.test/original"
+    );
+    assert_eq!(
+        get(app, "/Change-A", "", "localhost:3000").await.0,
+        StatusCode::NOT_FOUND
+    );
+}
+
+#[tokio::test]
+async fn bulk_alias_assertions_preserve_size_admission_before_target_reads() {
+    let db = Store::open(":memory:", "example.com").unwrap();
+    let now = shortener::domain::instant(chrono::Utc::now());
+    let (_, cookie) = member(&db, "bounded-bulk@example.test", &now);
+    let app = router(AppState::new(db));
+    let response = app.oneshot(Request::builder().method("POST").uri("/api/links/bulk-update").header("origin", "http://localhost:3000").header("content-type", "application/json").header("cookie", cookie).body(Body::from(serde_json::json!({"ids":vec![i32::MAX;1001],"alias":"Keep-A","action":{"type":"disable"}}).to_string())).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    let body = to_bytes(response.into_body(), 4096).await.unwrap();
+    assert!(String::from_utf8_lossy(&body).contains("bulk update requires 1..1000 IDs"));
+}

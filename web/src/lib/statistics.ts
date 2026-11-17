@@ -13,3 +13,24 @@ export function completeDays(
     return { day, human: observed.get(day) ?? 0 };
   });
 }
+
+/** UTC-inclusive presets; the adapter supplies the clock observation. */
+export function recentRange(days: number, now: Date): DateRange {
+  const to = now.toISOString().slice(0, 10);
+  return {
+    from: new Date(Date.parse(`${to}T00:00:00Z`) - (days - 1) * 86400000)
+      .toISOString()
+      .slice(0, 10),
+    to,
+  };
+}
+export function selectedPeriod(range: DateRange, now: Date): string {
+  return (
+    [7, 14, 28]
+      .find((days) => {
+        const preset = recentRange(days, now);
+        return preset.from === range.from && preset.to === range.to;
+      })
+      ?.toString() ?? "custom"
+  );
+}

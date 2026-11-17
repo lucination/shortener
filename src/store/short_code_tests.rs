@@ -300,3 +300,40 @@ fn independent_sqlite_writers_serialize_creation_and_collision_retry() {
     assert_eq!(codes, ["Aa111", "Bb222"]);
     assert_eq!(counts(&db), (2, 2));
 }
+
+#[test]
+fn existing_short_address_is_immutable_with_zero_writes_on_rename() {
+    let (db, owner) = fixture();
+    let link = db.create_link(owner, input(Some("Keep-A")), NOW).unwrap();
+    let before = serde_json::to_value(db.link(link.id).unwrap()).unwrap();
+    for alias in [
+        serde_json::json!("Change-A"),
+        serde_json::json!("keep-a"),
+        serde_json::Value::Null,
+    ] {
+        let patch: LinkPatch = serde_json::from_value(
+            serde_json::json!({"alias": alias, "title": "Must not write", "enabled": false}),
+        )
+        .unwrap();
+        let changes = db.with(|c| Ok(c.total_changes())).unwrap();
+        let error = db.patch_link(owner, link.id, patch, NOW).unwrap_err();
+        assert!(error.contains("Short address cannot be changed"), "{error}");
+        assert_eq!(db.with(|c| Ok(c.total_changes())).unwrap(), changes);
+        assert_eq!(
+            serde_json::to_value(db.link(link.id).unwrap()).unwrap(),
+            before
+        );
+    }
+    let patch =
+        serde_json::from_value(serde_json::json!({"alias": "Keep-A", "title": "Ordinary edit"}))
+            .unwrap();
+    let edited = db.patch_link(owner, link.id, patch, NOW).unwrap();
+    assert_eq!(edited.title.as_deref(), Some("Ordinary edit"));
+    assert_eq!(edited.addresses[0].id, link.addresses[0].id);
+    assert_eq!(edited.addresses[0].short_code, "Keep-A");
+    let patch =
+        serde_json::from_value(serde_json::json!({"description": "No alias field"})).unwrap();
+    db.patch_link(owner, link.id, patch, NOW).unwrap();
+    assert!(db.claim_redirect("Keep-A", false, NOW).is_ok());
+    assert!(db.claim_redirect("Change-A", false, NOW).is_err());
+}

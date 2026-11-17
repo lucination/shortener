@@ -29,3 +29,18 @@ it("rejects nonpositive or malformed count/expiry fields", () => {
       }).kind,
     ).toBe("invalid");
 });
+
+it("never includes a short alias in an existing-link patch even if a caller replaces the draft alias", () => {
+  const parsed = parseDraft({
+    ...emptyDraft,
+    destination: "https://example.org",
+    alias: "Must-not-change",
+  });
+  expect(parsed.kind).toBe("valid");
+  if (parsed.kind === "valid") {
+    expect(parsed.input.alias).toBe("Must-not-change");
+    expect(parsed.patch).not.toHaveProperty("alias");
+    expect(parsed.patch).not.toHaveProperty("short_code");
+    expect(parsed.patch).not.toHaveProperty("addresses");
+  }
+});

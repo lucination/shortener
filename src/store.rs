@@ -475,6 +475,10 @@ impl Store {
         self.with(|db|{
    let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(sql)?;
    self.authorize(&tx,Some(owner),now)?;assert_owned(&tx,owner,id)?;
+   if let Some(alias) = &p.alias {
+       let current: String = tx.query_row("SELECT short_code FROM addresses WHERE link_id=? AND domain_id=1", [id], |r| r.get(0)).map_err(sql)?;
+       crate::domain::unchanged_short_address(&current, alias.as_deref())?;
+   }
    macro_rules! set {($col:literal,$v:expr)=>{if let Some(v)=$v {tx.execute(concat!("UPDATE links SET ",$col,"=? WHERE id=?"),params![v,id]).map_err(sql)?;}};}
    set!("destination",dest);set!("enabled",p.enabled);set!("interstitial",p.interstitial);set!("query_mode",p.query_mode.map(|m|serde_json::to_value(m).unwrap().as_str().unwrap().to_string()));
    set!("title",p.title);set!("description",p.description);set!("expires_at",expiry);set!("click_limit",limit);set!("retention_days",retention);

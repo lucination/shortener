@@ -25,7 +25,7 @@ try {
   });
   const open = async (story = "sign-in") => {
     await page.goto(
-      `${base}/iframe.html?id=precision-sign-in--${story}&viewMode=story`,
+      `${base}/iframe.html?id=access-sign-in--${story}&viewMode=story`,
     );
     await page.locator(".si-page").waitFor();
   };
@@ -147,7 +147,7 @@ try {
     }
   }
   const index = await (await fetch(`${base}/index.json`)).json();
-  assert.ok(index.entries["precision-sign-in--sign-in"]);
+  assert.ok(index.entries["access-sign-in--sign-in"]);
   const iframe = await (await fetch(`${base}/iframe.html`)).arrayBuffer();
   const disk = await readFile(
     new URL("../storybook-static/iframe.html", import.meta.url),
@@ -158,7 +158,7 @@ try {
   assert.deepEqual(errors, []);
   const result = {
     status: "PASS",
-    story: "precision-sign-in--sign-in",
+    story: "access-sign-in--sign-in",
     apiRequests: api,
     pageErrors: errors,
     servedIframeSha256: hash(disk),

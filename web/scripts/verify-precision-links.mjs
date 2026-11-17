@@ -147,7 +147,7 @@ try {
   await page.getByText("Browser edited proof", { exact: true }).waitFor();
   const edited = page.locator("tr").filter({ hasText: "Browser edited proof" });
   await edited.getByTitle("View statistics", { exact: true }).click();
-  await page.getByText("Clicks per day", { exact: true }).waitFor();
+  await page.getByText("Daily activity", { exact: true }).waitFor();
   assert.equal(await page.getByRole("dialog").count(), 0);
   assert(new URL(page.url()).pathname.endsWith("/statistics"));
   await page

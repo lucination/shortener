@@ -3,7 +3,7 @@ import { render, fireEvent } from "@testing-library/svelte";
 import SignInHarness from "./SignInHarness.svelte";
 import SignInPage from "../SignInPage.svelte";
 
-describe("Precision sign-in page", () => {
+describe("Sign-in page", () => {
   it("presents one user sign-in form and delegates entered email without auth effects", async () => {
     const onchange = vi.fn();
     const onsubmit = vi.fn();

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/sveltekit";
-import SignInHarness from "./SignInHarness.svelte";
+import SignInHarness from "./story-harness/SignInHarness.svelte";
 const meta = {
-  title: "Precision/Sign in",
+  title: "Access/Sign in",
   component: SignInHarness,
   parameters: { layout: "fullscreen" },
 } satisfies Meta<typeof SignInHarness>;
