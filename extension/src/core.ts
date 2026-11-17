@@ -122,6 +122,22 @@ export function prepareCreation(
   return { settings: parsed, title, input };
 }
 
+// Origin authority is independent of whether a saved credential is still usable.
+export function storedService(value: unknown): string | null {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    !("service" in value) ||
+    typeof value.service !== "string"
+  )
+    return null;
+  try {
+    return serviceOrigin(value.service);
+  } catch {
+    return null;
+  }
+}
+
 export function storedSettings(value: unknown): Settings | null {
   if (value == null) return null;
   if (
