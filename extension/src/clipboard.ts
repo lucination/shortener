@@ -14,7 +14,7 @@ export function hyperlink(
 ): Readonly<{ html: string; text: string }> {
   return {
     html: `<a href="${escape(url)}">${escape(title)}</a>`,
-    text: `${title} (${url})`,
+    text: url,
   };
 }
 

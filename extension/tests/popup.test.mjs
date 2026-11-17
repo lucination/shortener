@@ -116,7 +116,7 @@ test("popup excludes competing copy handlers through rich rejection and fallback
     await tick();
     rejectRich(new Error("held rich write denied"));
     await tick();
-    assert.equal(clipboard, `Article (${url})`);
+    assert.equal(clipboard, url);
     assert.equal(
       feedback(),
       "Formatted link copied.",

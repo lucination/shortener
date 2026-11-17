@@ -239,9 +239,13 @@ try {
     .toContain("URL copied.");
   const short = `${origin}/abc123`;
   assertEqual(
-    execFileSync("xclip", ["-selection", "clipboard", "-o"], {
-      encoding: "utf8",
-    }),
+    execFileSync(
+      "xclip",
+      ["-selection", "clipboard", "-t", "text/plain", "-o"],
+      {
+        encoding: "utf8",
+      },
+    ),
     short,
   );
   assertEqual(await evaluate('document.querySelector(".title").href'), short);
@@ -254,14 +258,19 @@ try {
     ["-selection", "clipboard", "-t", "text/html", "-o"],
     { encoding: "utf8" },
   );
-  const text = execFileSync("xclip", ["-selection", "clipboard", "-o"], {
-    encoding: "utf8",
-  });
+  const text = execFileSync(
+    "xclip",
+    ["-selection", "clipboard", "-t", "text/plain", "-o"],
+    {
+      encoding: "utf8",
+    },
+  );
   if (
     !html.includes(`<a href="${short}">Article &amp; Notes &lt;proof&gt;</a>`)
   )
     throw new Error(`Unexpected clipboard HTML: ${html}`);
-  assertEqual(text, `Article & Notes <proof> (${short})`);
+  assertEqual(text, short);
+  console.log("READBACK rich:", JSON.stringify({ html, text }));
   assertEqual(requests.length, 1);
   assertEqual(
     await evaluate("getComputedStyle(document.body).backgroundColor"),
@@ -332,9 +341,13 @@ try {
     .poll(() => evaluate('document.querySelector("#feedback").textContent'))
     .toContain("URL copied.");
   assertEqual(
-    execFileSync("xclip", ["-selection", "clipboard", "-o"], {
-      encoding: "utf8",
-    }),
+    execFileSync(
+      "xclip",
+      ["-selection", "clipboard", "-t", "text/plain", "-o"],
+      {
+        encoding: "utf8",
+      },
+    ),
     short,
   );
   assertEqual(requests.length, 2);
@@ -367,10 +380,14 @@ try {
     .toBe("Formatted link copied.");
   assertEqual(await evaluate("window.richAttempts"), 1);
   assertEqual(
-    execFileSync("xclip", ["-selection", "clipboard", "-o"], {
-      encoding: "utf8",
-    }),
-    `Article & Notes <proof> (${short})`,
+    execFileSync(
+      "xclip",
+      ["-selection", "clipboard", "-t", "text/plain", "-o"],
+      {
+        encoding: "utf8",
+      },
+    ),
+    short,
   );
   const raceHtml = execFileSync(
     "xclip",
@@ -383,6 +400,10 @@ try {
     )
   )
     throw new Error("Held rich fallback did not write real HTML");
+  console.log(
+    "READBACK held-rejection fallback:",
+    JSON.stringify({ html: raceHtml, text: short }),
+  );
   assertEqual(await evaluate('document.querySelector(".title").href'), short);
   assertEqual(
     await evaluate('document.querySelector("#app button").disabled'),
@@ -393,9 +414,13 @@ try {
     .poll(() => evaluate('document.querySelector("#feedback").textContent'))
     .toBe("URL copied.");
   assertEqual(
-    execFileSync("xclip", ["-selection", "clipboard", "-o"], {
-      encoding: "utf8",
-    }),
+    execFileSync(
+      "xclip",
+      ["-selection", "clipboard", "-t", "text/plain", "-o"],
+      {
+        encoding: "utf8",
+      },
+    ),
     short,
   );
   await evaluate("navigator.clipboard.write = window.originalRichWrite");
@@ -409,10 +434,14 @@ try {
     .poll(() => evaluate('document.querySelector("#feedback").textContent'))
     .toContain("Formatted link copied.");
   assertEqual(
-    execFileSync("xclip", ["-selection", "clipboard", "-o"], {
-      encoding: "utf8",
-    }),
-    `Article & Notes <proof> (${short})`,
+    execFileSync(
+      "xclip",
+      ["-selection", "clipboard", "-t", "text/plain", "-o"],
+      {
+        encoding: "utf8",
+      },
+    ),
+    short,
   );
   const fallbackHtml = execFileSync(
     "xclip",
@@ -425,6 +454,11 @@ try {
     )
   )
     throw new Error("Fallback did not write HTML");
+  console.log(
+    "READBACK no-ClipboardItem fallback:",
+    JSON.stringify({ html: fallbackHtml, text: short }),
+  );
+  assertEqual(requests.length, 2);
   await evaluate("document.execCommand = () => false");
   await click(".title");
   await expect

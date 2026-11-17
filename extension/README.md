@@ -4,7 +4,9 @@ A small Manifest V3 toolbar popup, built from one TypeScript source for Chrome,
 Firefox and Safari. Opening the popup creates a link for the active HTTP(S) page
 in your account and tries to copy **only the short URL**. The page title is a link
 to that short URL; clicking it **copies, never navigates**: `text/html` contains a
-formatted title hyperlink and `text/plain` contains `Title (short URL)`.
+formatted title hyperlink and `text/plain` contains **only the short URL**,
+never the title. Both MIME types share one clipboard item; the copy-event
+fallback uses the same HTML and URL-only plaintext.
 
 If automatic clipboard access is denied, the created link stays visible. Use
 **Copy URL** to retry without another create request. A formatted-copy failure is
