@@ -132,7 +132,8 @@ AMO reads/writes and live publication have not been exercised by local tests.
 ## Actual Firefox acceptance
 
 The headed Selenium harness installs the **real packaged ZIP** in a disposable
-profile. It saves and forgets Settings, accepts the actual optional-host prompt,
+profile. It saves and forgets Settings, accepts the actual optional-host prompt using the visible inner native button
+geometry and a real X11 click (not a non-rendered custom-element host click),
 opens the real toolbar shortcut, and checks a local fixture POST. The active
 article is on `localhost`, while the service is on `127.0.0.1` at a distinct port.
 The fixture asserts the actual URL/title, a dedicated test Bearer token and no

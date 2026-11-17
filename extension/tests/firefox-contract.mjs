@@ -26,3 +26,19 @@ export function assertClipboard(plain, html, expected) {
 export function nativeEnvironment(environment) {
   return { ...environment, MOZ_REMOTE_ALLOW_SYSTEM_ACCESS: "1" };
 }
+export function screenPoint(box) {
+  for (const key of ["x", "y", "width", "height", "screenX", "screenY"])
+    assert.equal(
+      Number.isFinite(box[key]),
+      true,
+      "Native control geometry must be finite",
+    );
+  assert.ok(
+    box.width > 0 && box.height > 0,
+    "Native control must be visible, not display:contents",
+  );
+  return {
+    x: Math.round(box.screenX + box.x + box.width / 2),
+    y: Math.round(box.screenY + box.y + box.height / 2),
+  };
+}

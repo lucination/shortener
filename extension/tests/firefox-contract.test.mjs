@@ -96,3 +96,37 @@ test("pinned Firefox 160 receives its explicit RemoteAgent environment grant whi
   });
   assert.deepEqual(original, { DISPLAY: ":98", PATH: "/fixture/bin" });
 });
+test("native screen point uses a visible inner control, not a zero-box custom-element host", () => {
+  assert.equal(typeof api.screenPoint, "function");
+  assert.deepEqual(
+    api.screenPoint({
+      x: 10,
+      y: 20,
+      width: 100,
+      height: 40,
+      screenX: 7,
+      screenY: 11,
+    }),
+    { x: 67, y: 51 },
+  );
+  assert.throws(() =>
+    api.screenPoint({
+      x: 10,
+      y: 20,
+      width: 0,
+      height: 0,
+      screenX: 7,
+      screenY: 11,
+    }),
+  );
+  assert.throws(() =>
+    api.screenPoint({
+      x: NaN,
+      y: 20,
+      width: 10,
+      height: 10,
+      screenX: 7,
+      screenY: 11,
+    }),
+  );
+});

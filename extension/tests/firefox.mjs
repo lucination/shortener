@@ -16,6 +16,7 @@ import {
   assertRequest,
   assertClipboard,
   nativeEnvironment,
+  screenPoint,
 } from "./firefox-contract.mjs";
 import { nativeChecks } from "../scripts/native-policy.mjs";
 const evidence = process.env.EXTENSION_EVIDENCE;
@@ -221,11 +222,29 @@ try {
   await native();
   // Accept the actual optional-host permission notification, if Firefox needs it.
   await wait(async () => {
-    const button = await driver.executeScript(
-      "const n=PopupNotifications.panel?.querySelector('popupnotification');return n && PopupNotifications.panel.state==='open' ? n.button : null;",
-    );
-    if (button && (await button.isEnabled())) {
-      await button.click();
+    const box = await driver.executeScript(`
+      const n=PopupNotifications.panel?.querySelector('popupnotification');
+      if (!n || PopupNotifications.panel.state!=='open') return null;
+      let button=n.button;
+      while(button?.shadowRoot?.querySelector('button')) button=button.shadowRoot.querySelector('button');
+      if(!button || button.disabled) return null;
+      const r=button.getBoundingClientRect();
+      return {x:r.x,y:r.y,width:r.width,height:r.height,screenX:window.mozInnerScreenX,screenY:window.mozInnerScreenY};
+    `);
+    if (box && box.width > 0 && box.height > 0) {
+      const point = screenPoint(box);
+      receipt.hostPromptClick = {
+        ...point,
+        source: "visible native inner button geometry",
+      };
+      execFileSync("xdotool", [
+        "mousemove",
+        "--sync",
+        String(point.x),
+        String(point.y),
+        "click",
+        "1",
+      ]);
       return true;
     }
     await content();
