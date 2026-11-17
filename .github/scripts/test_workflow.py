@@ -1,6 +1,9 @@
 """Contract checks complement actionlint's workflow and expression parsing."""
 from pathlib import Path
 import re
+import shlex
+import shutil
+import tempfile
 import unittest
 
 
@@ -25,6 +28,46 @@ class WorkflowTests(unittest.TestCase):
         self.assertTrue(actions)
         for action in actions:
             self.assertRegex(action, r'^[\w-]+/[\w-]+@[0-9a-f]{40}$')
+
+    def test_backend_copy_inputs_contain_rust_compile_time_assets(self):
+        root = WORKFLOW.parents[2]
+        recipe = (root / 'Dockerfile').read_text()
+        backend = recipe.split(' AS backend\n', 1)[1].split('\nFROM ', 1)[0]
+        # Stage the real COPY inputs, including glob expansion and directory
+        # contents, rather than maintaining a second extension allowlist.
+        with tempfile.TemporaryDirectory() as directory:
+            staged = Path(directory)
+            for line in backend.splitlines():
+                if not line.startswith('COPY '):
+                    continue
+                *sources, destination = shlex.split(line)[1:]
+                self.assertFalse(any(s.startswith('--') for s in sources),
+                                 'Extend staging for new backend COPY options')
+                target = staged / destination.removeprefix('/app/').lstrip('/')
+                for source in sources:
+                    matches = list(root.glob(source))
+                    self.assertTrue(matches, f'No backend COPY inputs: {source}')
+                    for path in matches:
+                        if path.is_dir():
+                            shutil.copytree(path, target, dirs_exist_ok=True)
+                        else:
+                            target.mkdir(parents=True, exist_ok=True)
+                            shutil.copy2(path, target / path.name)
+            includes = 0
+            for source in staged.rglob('*.rs'):
+                text = source.read_text()
+                macros = re.findall(r'include_(?:str|bytes)!\s*\(', text)
+                paths = re.findall(r'include_(?:str|bytes)!\s*\(\s*"([^"\n]+)"\s*\)', text)
+                self.assertEqual(len(paths), len(macros),
+                                 f'Extend dependency discovery for nonliteral include in {source.relative_to(staged)}')
+                for asset in paths:
+                    includes += 1
+                    dependency = source.parent / asset
+                    self.assertTrue(dependency.is_file(),
+                                    f'Backend COPY omits {source.relative_to(staged)} -> {asset}')
+                    original = root / source.relative_to(staged).parent / asset
+                    self.assertEqual(dependency.read_bytes(), original.read_bytes())
+            self.assertGreater(includes, 0, 'Must discover actual Rust compile-time dependencies')
 
     def test_only_trusted_main_publication_jobs_receive_package_write(self):
         self.assertIn('permissions:\n  contents: read\n', self.source)
