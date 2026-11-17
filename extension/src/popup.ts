@@ -9,21 +9,24 @@ const feedback = document.createElement("p");
 feedback.id = "feedback";
 document.body.append(feedback);
 let state: PopupState = { kind: "loading" };
-let attempt = 0;
+let copying = false;
 const copy = async (rich: boolean) => {
-  if (state.kind !== "ready") return;
-  const current = ++attempt;
+  if (state.kind !== "ready" || copying) return;
+  copying = true;
+  const button = root.querySelector<HTMLButtonElement>("button")!;
+  button.disabled = true;
   feedback.textContent = "Copying…";
   try {
     if (rich) await copyRich(state.title, state.url);
     else await navigator.clipboard.writeText(state.url);
-    if (current === attempt)
-      feedback.textContent = rich ? "Formatted link copied." : "URL copied.";
+    feedback.textContent = rich ? "Formatted link copied." : "URL copied.";
   } catch {
-    if (current === attempt)
-      feedback.textContent = rich
-        ? "Formatted copy failed. Try again, or use Copy URL."
-        : "Copy failed. Click Copy URL to retry.";
+    feedback.textContent = rich
+      ? "Formatted copy failed. Try again, or use Copy URL."
+      : "Copy failed. Click Copy URL to retry.";
+  } finally {
+    copying = false;
+    button.disabled = false;
   }
 };
 document.querySelector("#settings")!.addEventListener("click", () => {
