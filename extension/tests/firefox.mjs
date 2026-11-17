@@ -273,9 +273,7 @@ try {
   await driver.get(destination);
   assert.equal(await driver.getTitle(), title);
   await native();
-  await driver.executeScript(
-    `const {CustomizableUI}=ChromeUtils.importESModule('resource:///modules/CustomizableUI.sys.mjs');CustomizableUI.addWidgetToArea('shortener-companion_shortener_invalid-browser-action',CustomizableUI.AREA_NAVBAR);`,
-  );
+
   receipt.stage = "native-toolbar";
   // The real action shortcut supplies the active-tab grant and native popup.
   execFileSync("xdotool", ["key", "--clearmodifiers", "ctrl+shift+y"]);

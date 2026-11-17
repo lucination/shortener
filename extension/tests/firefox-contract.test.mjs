@@ -130,3 +130,12 @@ test("native screen point uses a visible inner control, not a zero-box custom-el
     }),
   );
 });
+test("native action acceptance uses its real manifest shortcut without private toolbar customization imports", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const source = await readFile(
+    new URL("./firefox.mjs", import.meta.url),
+    "utf8",
+  );
+  assert.doesNotMatch(source, /CustomizableUI|addWidgetToArea/);
+  assert.match(source, /ctrl\+shift\+y/);
+});
