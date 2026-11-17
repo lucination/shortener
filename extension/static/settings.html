@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Shortener settings</title>
+    <link rel="stylesheet" href="extension.css" />
+  </head>
+  <body class="settings">
+    <header><h1>Shortener settings</h1></header>
+    <form id="settings-form">
+      <label
+        >Service URL<input
+          id="service"
+          type="url"
+          placeholder="https://short.example"
+          required /></label
+      ><label
+        >User session token<input
+          id="token"
+          type="password"
+          autocomplete="off"
+          spellcheck="false"
+          required
+      /></label>
+      <p>
+        Use your own user session, never an admin token. Stored locally in this
+        browser, not synced. Treat this value like a password.
+      </p>
+      <p>
+        HTTPS required; HTTP is allowed only on loopback for development. Saving
+        requests access only to this service.
+      </p>
+      <div class="actions">
+        <button type="submit">Save</button
+        ><button id="forget" type="button">Forget settings</button>
+      </div>
+      <p id="status"></p>
+    </form>
+    <script type="module" src="settings.js"></script>
+  </body>
+</html>
