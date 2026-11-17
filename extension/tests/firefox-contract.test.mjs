@@ -76,3 +76,14 @@ test("browser UI authority is explicitly granted to geckodriver, not only Firefo
     /new firefox\.ServiceBuilder\([^]*?\.addArguments\("--allow-system-access"\)/,
   );
 });
+test("explicit plain copy cannot pass using automatic-copy stale clipboard data", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const source = await readFile(
+    new URL("./firefox.mjs", import.meta.url),
+    "utf8",
+  );
+  assert.match(
+    source,
+    /input: "plain sentinel"[^]*await clickPopup\("#app button"\)/,
+  );
+});

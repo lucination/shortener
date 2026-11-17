@@ -294,6 +294,11 @@ try {
   );
   await snapshot("native-popup");
   receipt.stage = "native-plain-clipboard";
+  execFileSync("xclip", ["-selection", "clipboard"], {
+    input: "plain sentinel",
+    timeout: 2000,
+    stdio: ["pipe", "ignore", "ignore"],
+  });
   await clickPopup("#app button");
   await wait(() => {
     try {

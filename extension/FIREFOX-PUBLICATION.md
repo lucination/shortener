@@ -145,8 +145,9 @@ are clicked through real X11 coordinates. `xclip` reads the system clipboard's
 plain-text and HTML formats: plaintext must be only the short URL, HTML exactly
 one title hyperlink. A transparent native-write observer verifies one actual
 ClipboardItem with both formats. A separately labeled forced-unavailable
-ClipboardItem check exercises production's real copy-event fallback; a native
-clipboard sentinel prevents stale content from passing. No clipboard payload is
+ClipboardItem check exercises production's real copy-event fallback; native
+clipboard sentinels before explicit plain and fallback copies prevent stale
+content from passing. No clipboard payload is
 injected by the harness to manufacture a pass. The final Forget assertion checks
 both local credential removal and host-grant removal. Copy retries must leave the
 fixture create count at one.
