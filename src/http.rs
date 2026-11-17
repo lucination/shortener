@@ -863,7 +863,8 @@ fn shell(s: &AppState, status: StatusCode) -> Response {
         .unwrap_or_else(|_| {
             public_document(
                 "Application unavailable",
-                "<h1>Application unavailable</h1><p>Static application files are missing.</p>".into(),
+                "<h1>Application unavailable</h1><p>Static application files are missing.</p>"
+                    .into(),
             )
         });
     html(status, body)
