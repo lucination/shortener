@@ -8,7 +8,7 @@ import { Builder, By, until } from "selenium-webdriver";
 import firefox from "selenium-webdriver/firefox.js";
 import { createServer } from "node:http";
 import { once } from "node:events";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -275,6 +275,41 @@ try {
   await native();
 
   receipt.stage = "native-toolbar";
+  // Bind real X11 input to the owned article window, including on an Xvfb
+  // server without a window manager after the permission panel relinquishes focus.
+  const pid = (await driver.getCapabilities()).get("moz:processID");
+  assert.ok(Number.isInteger(pid) && pid > 0);
+  const windowId = execFileSync(
+    "xdotool",
+    [
+      "search",
+      "--sync",
+      "--onlyvisible",
+      "--pid",
+      String(pid),
+      "--name",
+      "Article & Notes",
+    ],
+    { encoding: "utf8", timeout: 5000 },
+  )
+    .trim()
+    .split(/\s+/)[0];
+  assert.match(windowId, /^\d+$/);
+  const previousFocus = spawnSync("xdotool", ["getwindowfocus"], {
+    encoding: "utf8",
+    timeout: 2000,
+  });
+  receipt.x11FocusBefore =
+    previousFocus.status === 0 ? previousFocus.stdout.trim() : "unfocused";
+  receipt.x11TargetWindow = windowId;
+  execFileSync("xdotool", ["windowfocus", "--sync", windowId], {
+    timeout: 5000,
+  });
+  receipt.x11FocusAfter = execFileSync("xdotool", ["getwindowfocus"], {
+    encoding: "utf8",
+    timeout: 2000,
+  }).trim();
+  assert.equal(receipt.x11FocusAfter, windowId);
   // The real action shortcut supplies the active-tab grant and native popup.
   execFileSync("xdotool", ["key", "--clearmodifiers", "ctrl+shift+y"]);
   await wait(
@@ -420,6 +455,18 @@ try {
     try {
       await native();
       await snapshot("failure");
+      receipt.chromeState = await driver.executeScript(`return {
+        focused:document.hasFocus(),
+        browsers:[...document.querySelectorAll('browser')].map(b=>({id:b.id,viewType:b.getAttribute('webextension-view-type'),src:b.getAttribute('src'),width:b.getBoundingClientRect().width,height:b.getBoundingClientRect().height,panel:b.closest('panel')?.state})),
+        panels:[...document.querySelectorAll('panel')].filter(p=>p.state!=='closed').map(p=>({id:p.id,state:p.state}))
+      };`);
+      try {
+        receipt.extensionViews = await inSettings(
+          "browser.extension.getViews().map(w=>({url:w.location.href,visible:w.document.visibilityState}))",
+        );
+      } catch (observationError) {
+        receipt.observationError = observationError.message;
+      }
     } catch {}
   }
   console.error(
@@ -427,6 +474,7 @@ try {
   );
   throw error;
 } finally {
+  receipt.fixtureCreateCount = requests.length;
   if (driver) {
     try {
       await driver.quit();

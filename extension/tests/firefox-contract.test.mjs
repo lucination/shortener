@@ -139,3 +139,12 @@ test("native action acceptance uses its real manifest shortcut without private t
   assert.doesNotMatch(source, /CustomizableUI|addWidgetToArea/);
   assert.match(source, /ctrl\+shift\+y/);
 });
+test("physical shortcut explicitly focuses the owned Firefox article window before sending keys", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const source = await readFile(
+    new URL("./firefox.mjs", import.meta.url),
+    "utf8",
+  );
+  assert.match(source, /"windowfocus"[^]*"ctrl\+shift\+y"/);
+  assert.match(source, /moz:processID/);
+});
