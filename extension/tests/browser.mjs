@@ -298,6 +298,70 @@ try {
     short,
   );
   assertEqual(requests.length, 2);
+  // Hold the rich write until a competing URL/title click has been delivered.
+  // Rejecting it must finish the real copy-event fallback before either action
+  // can write again: a feedback-only attempt counter cannot protect clipboard IO.
+  await evaluate(`(() => {
+    window.originalRichWrite = navigator.clipboard.write.bind(navigator.clipboard);
+    window.richAttempts = 0;
+    navigator.clipboard.write = () => {
+      window.richAttempts++;
+      return new Promise((_, reject) => { window.rejectRichWrite = reject; });
+    };
+  })()`);
+  await click(".title");
+  assertEqual(
+    await evaluate('document.querySelector("#app button").disabled'),
+    true,
+  );
+  await click("#app button");
+  await evaluate(`(() => {
+    document.querySelector('#app button').dispatchEvent(new MouseEvent('click', {cancelable:true}));
+    const event = new MouseEvent('click', {cancelable:true});
+    document.querySelector('.title').dispatchEvent(event);
+    if (!event.defaultPrevented) throw new Error('title navigated');
+    window.rejectRichWrite(new Error('held rich write denial'));
+  })()`);
+  await expect
+    .poll(() => evaluate('document.querySelector("#feedback").textContent'))
+    .toBe("Formatted link copied.");
+  assertEqual(await evaluate("window.richAttempts"), 1);
+  assertEqual(
+    execFileSync("xclip", ["-selection", "clipboard", "-o"], {
+      encoding: "utf8",
+    }),
+    `Article & Notes <proof> (${short})`,
+  );
+  const raceHtml = execFileSync(
+    "xclip",
+    ["-selection", "clipboard", "-t", "text/html", "-o"],
+    { encoding: "utf8" },
+  );
+  if (
+    !raceHtml.includes(
+      `<a href="${short}">Article &amp; Notes &lt;proof&gt;</a>`,
+    )
+  )
+    throw new Error("Held rich fallback did not write real HTML");
+  assertEqual(await evaluate('document.querySelector(".title").href'), short);
+  assertEqual(
+    await evaluate('document.querySelector("#app button").disabled'),
+    false,
+  );
+  await click("#app button");
+  await expect
+    .poll(() => evaluate('document.querySelector("#feedback").textContent'))
+    .toBe("URL copied.");
+  assertEqual(
+    execFileSync("xclip", ["-selection", "clipboard", "-o"], {
+      encoding: "utf8",
+    }),
+    short,
+  );
+  await evaluate("navigator.clipboard.write = window.originalRichWrite");
+  console.log(
+    "PASS: held rich rejection serializes both real and programmatic copy actions through actual fallback; clipboard and feedback agree; URL action recovers",
+  );
   // Exercise the actual synchronous copy-event fallback without ClipboardItem.
   await evaluate("window.ClipboardItem = undefined");
   await click(".title");
