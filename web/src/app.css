@@ -135,12 +135,39 @@ code {
   margin: auto;
   padding: 0 14px 24px;
 }
-.app-shell > header {
-  min-height: 49px;
-  background: var(--dl-panel);
+.app-shell > header,
+.si-page > header {
+  position: relative;
+  isolation: isolate;
+  min-height: 48px;
   margin: 0 -14px;
   padding: 10px 14px;
-  border-bottom: 1px solid var(--dl-line);
+}
+/* The bar spans the viewport while the shell content stays capped. Shadows add no scrollable overflow. */
+.app-shell > header::before,
+.app-shell > header::after,
+.si-page > header::before,
+.si-page > header::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  clip-path: inset(0 -100vmax);
+}
+.app-shell > header::before,
+.si-page > header::before {
+  inset: 0;
+  background: var(--dl-panel);
+  box-shadow: 0 0 0 100vmax var(--dl-panel);
+}
+.app-shell > header::after,
+.si-page > header::after {
+  inset: auto 0 -1px;
+  height: 1px;
+  background: var(--dl-line);
+  box-shadow: 0 0 0 100vmax var(--dl-line);
+}
+.app-shell > .rule + .box-frame {
+  margin-top: 16px;
 }
 .app-shell > nav {
   padding: 8px 0;
@@ -358,8 +385,11 @@ code {
   padding-top: min(12vh, 80px);
 }
 .public-page {
-  width: min(480px, 100%);
+  width: min(452px, 100%);
   margin: min(12vh, 80px) auto 0;
+}
+.management-page > .public-page {
+  margin-top: calc(min(12vh, 80px) - 20px);
 }
 .admin-sign-in {
   width: min(360px, 100%);
