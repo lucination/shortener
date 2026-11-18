@@ -233,8 +233,10 @@ creation -> source/policy/media attachment/readback -> enabling PATCH.
 response reached the identity check, before validation polling or add-on
 creation. **The upload POST is already an external write.** It is not equivalent
 to a zero-step environment rejection; a public GUID 404 cannot prove that no
-unsubmitted upload exists. Do not rerun, create another upload, bump versions to
-escape uncertainty, or delete/move the failed tag.
+unsubmitted upload exists. Do not rerun, blindly create another upload or bump
+versions to escape uncertainty, or delete/move the failed tag. An explicitly
+authorized fresh transaction after reconciliation is distinct from orphan reuse;
+see below.
 
 After independent review and main integration, the separate **Firefox AMO
 read-only reconciliation** workflow can be manually dispatched on canonical
@@ -277,8 +279,24 @@ Recovery choices after those reads:
    request the stored hash/file from Mozilla support. The v5 list alone cannot
    supply that proof. The API can consume an existing upload via `version.upload`
    without another upload POST, but no resume/write path is implemented here.
-3. If exact byte identity cannot be established, stop for provider/operator
-   reconciliation. Do not manufacture a hash or automatically upload again.
+3. If exact byte identity cannot be established, do not reuse that upload or
+   manufacture a hash. Stop automatic recovery for provider/operator reconciliation.
+
+An explicitly authorized fresh release may leave an old unsubmitted upload intact
+without reusing it. When the failed attempt is known to have stopped before
+add-on/version creation and read-only observations have been reconciled, a newly
+reviewed version/tag and attempt 1 can use the normal new-listing transaction.
+This does not prove GUID/version absence: the authenticated publisher and exact
+GUID/version preflights run again and stop on existing records, with no takeover
+or automatic resume. Every write remains single-attempt and uncertainty still
+stops the transaction. No old-upload byte/hash proof is required for this path
+because the old upload ID and bytes are never consumed. Existing-upload reuse
+still requires the independent proof described above.
+
+The current fresh candidate is **0.1.2**, for a parent-reviewed
+`extension-v0.1.2` tag and new attempt 1. Previous release tags remain immutable;
+the old upload is neither reused nor deleted. Source-bound native Firefox and
+self-hosted reviewer acceptance must be refreshed before release admission.
 
 ### Recovery after an environment rejection before execution
 
@@ -292,9 +310,9 @@ or delete/move its immutable tag.
 After confirming no submission code executed, use the normal reviewed patch
 release path instead: advance package/lock/generated-manifest versions together,
 update the reviewer-note version, and obtain fresh source/hash-bound native and
-self-hosted acceptance. The current candidate is **0.1.1** for a future reviewed
-`extension-v0.1.1` tag and a fresh attempt 1; the old `extension-v0.1.0` tag remains
-historical. This does not prove the GUID/version is available or authorize a
+self-hosted acceptance. The earlier **0.1.1** recovery from the zero-step
+environment rejection is historical; the current candidate is described above.
+This does not prove the GUID/version is available or authorize a
 duplicate AMO write: all authenticated publisher, existing-add-on/version,
 uncertain-outcome and no-retry checks remain unchanged. Actual main integration,
 new tag creation and submission are separate release-authority steps.

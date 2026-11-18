@@ -12,21 +12,22 @@ test("extension builds independently of web application dependencies", () => {
   assert.equal(result.status, 0, result.stderr);
 });
 
-test("0.1.1 recovery uses matching package, lock and generated versions without weakening the retry guard", () => {
+test("0.1.2 fresh release uses matching package, lock and generated versions without weakening the retry guard", () => {
   const read = path => JSON.parse(readFileSync(new URL(path, root)));
   const pkg = read("package.json");
   const lock = read("package-lock.json");
   const versions = [pkg.version, lock.version, lock.packages[""].version];
   for (const platform of ["chrome", "firefox", "safari"])
     versions.push(read(`dist/${platform}/manifest.json`).version);
-  assert.deepEqual(versions, Array(6).fill("0.1.1"));
-  assert.ok(read("amo-metadata.json").version.approval_notes.startsWith("Shortener Companion 0.1.1 "));
+  assert.deepEqual(versions, Array(6).fill("0.1.2"));
+  assert.ok(read("amo-metadata.json").version.approval_notes.startsWith("Shortener Companion 0.1.2 "));
   const input = {
-    event: "push", ref: "refs/tags/extension-v0.1.1", repository: "lucination/shortener",
+    event: "push", ref: "refs/tags/extension-v0.1.2", repository: "lucination/shortener",
     ancestor: true, credentials: true, runtimeAccepted: true, attempt: "1",
     versions: [pkg.version, lock.version, lock.packages[""].version, read("dist/firefox/manifest.json").version],
   };
-  assert.deepEqual(admit(input), { ok: true, version: "0.1.1" });
+  assert.deepEqual(admit(input), { ok: true, version: "0.1.2" });
   assert.equal(admit({ ...input, attempt: "2" }).ok, false);
   assert.equal(admit({ ...input, ref: "refs/tags/extension-v0.1.0" }).ok, false);
+  assert.equal(admit({ ...input, ref: "refs/tags/extension-v0.1.1" }).ok, false);
 });
