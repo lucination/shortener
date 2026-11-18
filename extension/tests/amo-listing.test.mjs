@@ -9,6 +9,13 @@ test("AMO listing adapter is implemented", () => {
   assert.equal(typeof implementation.submitListed, "function");
 });
 
+test("upload identity accepts only the literal lowercase 32-hex provider representation", () => {
+  const id = "0123456789abcdef0123456789abcdef";
+  assert.equal(implementation.parseUploadIdentity(id), id);
+  for (const bad of [undefined, null, 42, {}, new String(id), id.toUpperCase(), id + "\n", " " + id, id.slice(1), id + "0", "00000000-0000-4000-8000-000000000000", "-".repeat(36), "z".repeat(32)])
+    assert.throws(() => implementation.parseUploadIdentity(bad), /Invalid AMO upload identity; reconcile, do not retry/);
+});
+
 function fixture(fault) {
   const calls = [];
   const metadata = { name: { "en-US": "Shortener Companion" }, summary: { "en-US": "summary" }, description: { "en-US": "description" }, categories: { firefox: ["other"] }, privacy_policy: { "en-US": approvedDisclosure }, version: { license: "all-rights-reserved", approval_notes: "review setup" } };
@@ -20,7 +27,8 @@ function fixture(fault) {
     if (fault === path && method !== "GET") throw new Error("uncertain");
     if (path === "accounts/profile/") return { id: 12, display_name: fault === "publisher" ? "Other" : "Aditya", email: "must-not-be-logged@example.invalid" };
     if (path === "addons/addon/test/versions/0.1.0/") return calls.some(c => c[1] === "addons/addon/" && c[0] === "POST") ? version : fault === "existing" ? version : null;
-    if (path === "addons/upload/" && method === "POST") return { uuid: "00000000-0000-4000-8000-000000000000" };
+    // Mozilla FileUploadSerializer UUIDField(format='hex'), not a live capture.
+    if (path === "addons/upload/" && method === "POST") return { uuid: "00000000000040008000000000000000" };
     if (path.startsWith("addons/upload/")) return { processed: true, valid: true };
     if (path === "addons/addon/" && method === "POST") return { guid: "test", is_disabled: true };
     if (path.startsWith("addons/addon/test/eula_policy/")) return { privacy_policy: fault === "policy" ? { "en-US": "different" } : metadata.privacy_policy };
@@ -41,7 +49,8 @@ test("create atomically disabled; policy, source and screenshot readbacks preced
   const create = calls.find(c => c[0] === "POST" && c[1] === "addons/addon/");
   assert.equal(create[2].is_disabled, true);
   assert.equal(create[2].privacy_policy, undefined);
-  assert.equal(create[2].version.upload, "00000000-0000-4000-8000-000000000000");
+  assert.equal(create[2].version.upload, "00000000000040008000000000000000");
+  assert.ok(calls.some(c => c[0] === "GET" && c[1] === "addons/upload/00000000000040008000000000000000/"), "literal provider hex identity must reach validation polling unchanged");
   const policy = calls.find(c => c[0] === "PATCH" && c[1].endsWith("eula_policy/"));
   assert.deepEqual(policy[2], { privacy_policy: input.metadata.privacy_policy });
   const upload = calls.find(c => c[0] === "POST" && c[1].endsWith("previews/"));
@@ -51,6 +60,20 @@ test("create atomically disabled; policy, source and screenshot readbacks preced
   const enable = calls.findIndex(c => c[0] === "PATCH" && c[2]?.is_disabled === false);
   assert.equal(enable, calls.length - 2);
   assert.ok(calls.slice(0, enable).some(c => c[0] === "GET" && c[1].includes("eula_policy/")));
+});
+
+test("HTTP codec preserves compact upload identity from the pinned serializer-shaped contract fixture", async () => {
+  const { calls, input } = fixture();
+  const model = input.api;
+  input.api = implementation.createAmoApi({ token: () => "test-auth", fetcher: async (url, init) => {
+    const path = url.slice("https://addons.mozilla.org/api/v5/".length);
+    const body = typeof init.body === "string" ? JSON.parse(init.body) : init.body;
+    let value = await model(init.method, path, body);
+    if (path === "addons/upload/" && init.method === "POST") value = { ...value, channel:"listed", processed:false, submitted:false, valid:false, validation:null, version:null, url:`https://addons.mozilla.org/api/v5/addons/upload/${value.uuid}/` };
+    return new Response(JSON.stringify(value ?? {}), { status: value === null ? 404 : init.method === "POST" ? 201 : 200 });
+  } });
+  await implementation.submitListed(input);
+  assert.equal(calls.find(c=>c[0]==="POST"&&c[1]==="addons/addon/")[2].version.upload,"00000000000040008000000000000000");
 });
 
 for (const fault of ["publisher", "existing", "policy", "previews", "addons/addon/test/eula_policy/", "addons/addon/test/previews/"]) {

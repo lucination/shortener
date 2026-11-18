@@ -213,6 +213,73 @@ private operator records, reconcile review state, and repair via the Developer
 Hub if necessary. The workflow offers no manual signing bypass. Credentials,
 AMO reads/writes and live publication have not been exercised by local tests.
 
+### Upload identity contract and read-only reconciliation
+
+AMO v5 returns upload UUIDs as **32 lowercase hexadecimal characters**, not
+hyphenated 36-character UUID text. This is explicit in Mozilla's
+[`FileUploadSerializer`](https://github.com/mozilla/addons-server/blob/6e31cf033455eeaf68c5e6b689f5f917f9faf69f/src/olympia/files/serializers.py)
+(`UUIDField(format='hex')`) and its
+[serializer tests](https://github.com/mozilla/addons-server/blob/6e31cf033455eeaf68c5e6b689f5f917f9faf69f/src/olympia/files/tests/test_serializers.py).
+Pinned `web-ext` 10.8.0 also passes the returned `uuid` unchanged into validation
+polling and version creation. The adapter accepts that exact representation;
+it never strips hyphens, lowercases or repairs malformed provider identifiers.
+Contract fixtures are synthetic examples of that schema, not captured live
+responses.
+
+The phase order is: authenticated publisher/GUID/version preflight -> upload
+POST -> upload identity admission -> validation polling -> disabled add-on
+creation -> source/policy/media attachment/readback -> enabling PATCH.
+`Invalid AMO upload identity` therefore means a successful parseable upload POST
+response reached the identity check, before validation polling or add-on
+creation. **The upload POST is already an external write.** It is not equivalent
+to a zero-step environment rejection; a public GUID 404 cannot prove that no
+unsubmitted upload exists. Do not rerun, create another upload, bump versions to
+escape uncertainty, or delete/move the failed tag.
+
+After independent review and main integration, the separate **Firefox AMO
+read-only reconciliation** workflow can be manually dispatched on canonical
+`main`, using the existing protected `firefox-addons` environment. Select the
+exact failed version (default `0.1.1`) and optionally an already known compact
+upload ID. No secrets need to be retrieved locally. The script has a GET-only
+transport with no method/body input, does not import the submit entrypoint and
+cannot perform a store write or bypass the submission-attempt guard.
+
+It verifies the approved publisher, reads the exact GUID/listed-version and
+at most four upload-list pages of 25 records each, optionally reading one exact
+upload detail. It reports allowlisted IDs/status/target-version matches and
+explicit scanned/total/truncated coverage, never filenames, raw validation,
+personal account fields, response URLs or download tokens. The API does not
+document a recency ordering or expose creation times here: the report labels
+provider-default order rather than claiming these are necessarily the latest
+uploads. Pagination links are validated but never fetched as arbitrary URLs.
+All JSON reads retain the 1 MiB/30-second bounds. The workflow is manual,
+canonical-main-only and has read-only GitHub permissions; it has not been
+dispatched by local tests.
+
+**Provider limitation:** the upload serializer exposes UUID/channel/processed/
+submitted/valid/validation/version/detail-URL, but not the model's stored hash,
+GUID association or private raw-download access token. The
+[model](https://github.com/mozilla/addons-server/blob/6e31cf033455eeaf68c5e6b689f5f917f9faf69f/src/olympia/files/models.py)
+and [download view](https://github.com/mozilla/addons-server/blob/6e31cf033455eeaf68c5e6b689f5f917f9faf69f/src/olympia/files/views.py)
+show that raw upload downloads use a separate private access token, not the v5
+detail URL. Do not invent a JWT download route, follow arbitrary response URLs
+with credentials or expose that token. Diagnostic output always says upload
+GUID binding and artifact bytes are unverified and `resumeAuthorized: false`.
+
+Recovery choices after those reads:
+
+1. If the exact owned version exists, inspect its real state and reconcile that
+   version; do not create it again.
+2. If only an unsubmitted upload exists, preserve its literal ID. Before any
+   separately reviewed one-shot reuse, obtain independent proof of the uploaded
+   ZIP's exact SHA-256/GUID/version and the accepted reproducible source/artifact
+   receipts. Use an owner-approved Developer Hub download **if offered**, or
+   request the stored hash/file from Mozilla support. The v5 list alone cannot
+   supply that proof. The API can consume an existing upload via `version.upload`
+   without another upload POST, but no resume/write path is implemented here.
+3. If exact byte identity cannot be established, stop for provider/operator
+   reconciliation. Do not manufacture a hash or automatically upload again.
+
 ### Recovery after an environment rejection before execution
 
 If GitHub rejects a protected environment before **any** submit-job step runs,

@@ -5,6 +5,13 @@ const requireValue = (value, message) => { if (!value) throw new Error(message);
 const same = (actual, expected, label) => requireValue(equal(actual, expected), `AMO ${label} readback mismatch; reconcile, do not retry`);
 const pause = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+// AMO v5 FileUploadSerializer uses UUIDField(format='hex'): exactly 32
+// lowercase hex characters. Preserve the provider token; never repair it.
+export function parseUploadIdentity(value) {
+  requireValue(typeof value === "string" && /^[0-9a-f]{32}$/u.test(value), "Invalid AMO upload identity; reconcile, do not retry");
+  return value;
+}
+
 export function validateAsset(bytes, descriptor) {
   requireValue(/^[a-z-]+\.png$/u.test(descriptor.file), "Invalid public screenshot filename");
   requireValue(bytes.length >= 33 && bytes.length < 5 * 1024 * 1024 && bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10])), "Screenshot must be a bounded PNG");
@@ -29,7 +36,7 @@ export async function submitListed({ api, metadata, assets, artifact, source, gu
   uploadForm.set("channel", "listed");
   uploadForm.set("upload", artifact, "firefox.zip");
   const upload = await api("POST", "addons/upload/", uploadForm);
-  requireValue(/^[0-9a-f-]{36}$/u.test(upload.uuid), "Invalid AMO upload identity; reconcile, do not retry");
+  parseUploadIdentity(upload.uuid);
   let valid = false;
   for (let i = 0; i < 60; i++) {
     const observed = await api("GET", `addons/upload/${upload.uuid}/`);
@@ -155,7 +162,7 @@ export async function readAmoJson(response, { signal, method = "GET" } = {}) {
 
 export function createAmoApi({ token, fetcher = fetch }) {
   return async (method, path, data, allow404 = false) => {
-    requireValue(/^(?:addons|accounts)\/[A-Za-z0-9@%._/?=\-]+$/u.test(path) && !path.includes(".."), "Invalid AMO API path");
+    requireValue(/^(?:addons|accounts)\/[A-Za-z0-9@%._/?=&\-]+$/u.test(path) && !path.includes(".."), "Invalid AMO API path");
     const multipart = data instanceof FormData;
     const signal = AbortSignal.timeout(30000);
     let response;
