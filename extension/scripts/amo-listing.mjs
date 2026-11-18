@@ -98,23 +98,81 @@ export async function submitListed({ api, metadata, assets, artifact, source, gu
   return { version, channel: "listed", policyVerified: true, screenshotIds: ids, sourceAttached: true, outcome: "submitted-not-publicly-verified" };
 }
 
+// Single-target metadata only (profile, listing, version, upload status, policy
+// and previews), not uploaded ZIP/PNG bodies. This is a client admission budget,
+// not an asserted provider maximum. Fetch exposes decompressed response bytes;
+// count those independently of a possibly compressed/missing Content-Length.
+export const amoResponseLimit = 1024 * 1024;
+
+function cancelBody(body) {
+  try { void Promise.resolve(body?.cancel()).catch(() => {}); }
+  catch { /* Cancellation must not expose provider errors or stall rejection. */ }
+}
+
+export async function readAmoJson(response, { signal, method = "GET" } = {}) {
+  let reader;
+  let onAbort;
+  let rejectRead;
+  try {
+    const length = response.headers.get("content-length");
+    if (length !== null && (!/^\d+$/u.test(length) || BigInt(length) > BigInt(amoResponseLimit)))
+      throw new Error("declared response exceeds admission");
+    signal?.throwIfAborted();
+    if (!response.body) throw new Error("missing response body");
+    reader = response.body.getReader();
+    onAbort = () => { rejectRead?.(new Error("response deadline")); cancelBody(reader); };
+    signal?.addEventListener("abort", onAbort, { once: true });
+    const bytes = new Uint8Array(amoResponseLimit);
+    let size = 0;
+    while (true) {
+      signal?.throwIfAborted();
+      // One pending read/rejection owner, not repeated races against a single
+      // pending abort promise that would retain reactions for every tiny chunk.
+      const { value, done } = await new Promise((resolve, reject) => {
+        rejectRead = reject;
+        reader.read().then(resolve, reject);
+      });
+      rejectRead = undefined;
+      signal?.throwIfAborted();
+      if (done) break;
+      if (!(value instanceof Uint8Array) || value.byteLength > amoResponseLimit - size)
+        throw new Error("decoded response exceeds admission");
+      bytes.set(value, size);
+      size += value.byteLength;
+    }
+    const value = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(0, size)));
+    signal?.throwIfAborted();
+    return value;
+  } catch {
+    cancelBody(reader || response.body);
+    throw new Error(`AMO ${method} response unreadable or exceeds 1 MiB; reconcile, do not retry`);
+  } finally {
+    rejectRead = undefined;
+    if (onAbort) signal?.removeEventListener("abort", onAbort);
+    try { reader?.releaseLock(); } catch { /* Pending/cancelled reader: no provider error exposure. */ }
+  }
+}
+
 export function createAmoApi({ token, fetcher = fetch }) {
   return async (method, path, data, allow404 = false) => {
     requireValue(/^(?:addons|accounts)\/[A-Za-z0-9@%._/?=\-]+$/u.test(path) && !path.includes(".."), "Invalid AMO API path");
     const multipart = data instanceof FormData;
+    const signal = AbortSignal.timeout(30000);
     let response;
     try {
       response = await fetcher(`https://addons.mozilla.org/api/v5/${path}`, {
-        method, redirect: "error", signal: AbortSignal.timeout(30000),
+        method, redirect: "error", signal,
         headers: { Authorization: `JWT ${token()}`, ...(data && !multipart ? { "Content-Type": "application/json" } : {}) },
         body: data ? multipart ? data : JSON.stringify(data) : undefined,
       });
     } catch {
       throw new Error(`AMO ${method} transport outcome unknown; reconcile, do not retry`);
     }
-    if (allow404 && method === "GET" && response.status === 404) return null;
-    requireValue(response.ok, `AMO ${method} HTTP ${response.status}; stop and reconcile, do not retry`);
-    try { return await response.json(); }
-    catch { throw new Error(`AMO ${method} response unreadable; reconcile, do not retry`); }
+    if (allow404 && method === "GET" && response.status === 404) { cancelBody(response.body); return null; }
+    if (!response.ok) {
+      cancelBody(response.body);
+      throw new Error(`AMO ${method} HTTP ${response.status}; stop and reconcile, do not retry`);
+    }
+    return readAmoJson(response, { signal, method });
   };
 }
