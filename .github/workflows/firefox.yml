@@ -9,7 +9,7 @@ on:
         ".github/workflows/firefox.yml",
       ]
   push:
-    branches: [main, feat/firefox-publication]
+    branches: [main, feat/firefox-publication, docs/firefox-reviewer-setup]
     tags: ["extension-v*"]
   workflow_dispatch: # build/native acceptance only, never manual publication
 permissions:

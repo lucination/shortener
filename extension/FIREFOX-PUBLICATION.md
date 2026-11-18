@@ -65,11 +65,42 @@ policy and metadata. The extension never collects background browsing history.
    the conservative AMO choice is `all-rights-reserved`, not an invented open-source
    grant. Bundled Lucide paths retain their ISC/Feather notices. Change licensing only with owner
    approval. Prepare actual listing screenshots and accurate support details.
-5. Provide reviewers a reachable compatible service/test account through AMO's
-   private reviewer notes if requested. Do not commit a live service, token,
-   account identity or deployment path. Sources/build are reproducible without
-   one; interactive shortening requires the service. Listing assets and reviewer
-   access are human submission readiness gates, not fabricated automation output.
+5. `amo-metadata.json` -> `version.approval_notes` contains the private AMO
+   reviewer instructions: clone the public server at a pinned revision, run the
+   local Compose POC with explicit internal plaintext SMTP, add an account using
+   administration, read its sign-in link in Mailpit, issue a create-only token
+   in Account and configure the extension. No hosted demo or shared credentials
+   are supplied. The extension source ZIP is not a server distribution. Compose
+   configuration validation is not proof that its image build/server startup ran;
+   the notes disclose that unexecuted boundary and the local short-address port
+   limitation. If Mozilla requires supplied reviewer access instead, arrange it
+   privately before proceeding; never commit a live service, token or account.
+   Approved screenshots still need uploading through Developer Hub: the metadata
+   file does not upload screenshots or set the publisher's profile name. Verify
+   the approved publisher display name there without changing another account.
+   Preserve the approved listing description, privacy policy and license.
+
+### Listing payload and remaining manual listing work
+
+The v5 create API requires an explicit localized `name`, `summary`, per-application
+`categories` object and version `license`; these are in `amo-metadata.json`.
+`version.approval_notes` is private to Mozilla and add-on authors, not listing copy.
+The manifest name alone is not the API listing name. The publisher display name
+comes from the authenticated Mozilla account, not this JSON or GitHub.
+
+The top-level `privacy_policy` in this file preserves the owner-approved text;
+it is **not** a supported field of the v5 add-on create serializer. `web-ext`
+passes metadata through and does not upload it to the separate
+`/api/v5/addons/addon/{guid}/eula_policy/` endpoint. The current submission
+adapter does not implement that separate write or screenshot uploads. After
+creation, set the approved policy in Developer Hub (or a separately reviewed
+privacy-policy API update) and read it back; upload the approved real screenshots
+there too. Do not claim these are attached merely because signing/upload succeeds.
+Those operations and authenticated publisher/GUID ownership remain release
+readiness checks, not work performed by the secret-free preparation branch.
+
+References: [v5 add-on create](https://mozilla.github.io/addons-server/topics/api/addons.html#addon-create),
+[policy API](https://mozilla.github.io/addons-server/topics/api/addons.html#addon-eula-policy).
 
 ## Publisher authorization boundary
 
