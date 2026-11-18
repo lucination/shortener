@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@playwright/test": "1.65.1",
+    "commonmark": "0.31.2",
     "jsdom": "26.1.0",
     "selenium-webdriver": "4.38.0",
     "typescript": "5.9.3",

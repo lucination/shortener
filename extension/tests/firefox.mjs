@@ -457,7 +457,7 @@ try {
     types.filter((t) => t !== "text/markdown"),
     ["text/html", "text/plain"],
   );
-  const markdownText = String.raw`[Article & Notes \<proof\>](${url})`;
+  const markdownText = String.raw`[Article &amp; Notes \<proof\>](${url})`;
   receipt.nativeMarkdown = {
     advertised: receipt.markdownCapabilities.native,
     customWebAdvertised: receipt.markdownCapabilities.customWeb,

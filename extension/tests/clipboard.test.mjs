@@ -79,7 +79,7 @@ test("Markdown formatter escapes hostile labels and parentheses and refuses cont
         "<em>*x*",
       "https://short.example/a(b)?x=1&y=2",
     ),
-    String.raw`[A \[b\] \\ c \<em\>\*x\*](https://short.example/a%28b%29?x=1&y=2)`,
+    String.raw`[A \[b\] \\ c \<em\>\*x\*](https://short.example/a%28b%29?x=1&amp;y=2)`,
   );
   assert.equal(
     markdownLink("IPv6", "http://[::1]/a(b)"),

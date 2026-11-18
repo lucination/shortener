@@ -352,7 +352,7 @@ try {
   const resolvedWrites = nativeWrites.filter((w) => w.resolved);
   assertEqual(resolvedWrites.length, 1);
   for (const w of nativeWrites) assertEqual(w.count, 1);
-  const markdownText = String.raw`[Article & Notes \<proof\>](${short})`;
+  const markdownText = String.raw`[Article &amp; Notes \<proof\>](${short})`;
   const mimeReceipt = {
     capabilities: markdownCapabilities,
     nativeWrites,

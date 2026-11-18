@@ -29,12 +29,15 @@ export function markdownLink(title: string, url: string): string {
   new URL(url); // Reject malformed destinations, without silently normalizing their bytes.
   const label = title
     .replace(/[\u0000-\u001f\u007f\u2028\u2029]+/gu, " ")
-    .replace(/[\\[\]`*_{}<>!|]/gu, "\\$&");
-  const destination = url.replace(/[()\\<>`{}"]/gu, (c) =>
-    [...new TextEncoder().encode(c)]
-      .map((byte) => "%" + byte.toString(16).toUpperCase().padStart(2, "0"))
-      .join(""),
-  );
+    .replace(/[\\[\]`*_{}<>!|]/gu, "\\$&")
+    .replace(/&/gu, "&amp;");
+  const destination = url
+    .replace(/[()\\<>`{}"]/gu, (c) =>
+      [...new TextEncoder().encode(c)]
+        .map((byte) => "%" + byte.toString(16).toUpperCase().padStart(2, "0"))
+        .join(""),
+    )
+    .replace(/&/gu, "&amp;");
   return `[${label}](${destination})`;
 }
 
