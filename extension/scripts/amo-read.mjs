@@ -62,10 +62,13 @@ export function createAmoReadOnlyGet({ token, fetcher = fetch }) {
   return async (path, allow404 = false) => {
     requireValue(/^(?:addons|accounts)\/[A-Za-z0-9@%._/?=&\-]+$/u.test(path) && !path.includes(".."), "Invalid AMO API path");
     const signal = AbortSignal.timeout(30000);
+    let jwt;
+    try { jwt = await token(); }
+    catch { throw new Error("AMO GET token generation failed; stop and inspect access"); }
     let response;
     try { response = await fetcher(`https://addons.mozilla.org/api/v5/${path}`, {
       method: "GET", redirect: "error", signal,
-      headers: { Authorization: `JWT ${await token()}` },
+      headers: { Authorization: `JWT ${jwt}` },
     }); } catch { throw new Error("AMO GET transport outcome unknown; stop and inspect access"); }
     if (allow404 && response.status === 404) { cancelBody(response.body); return null; }
     if (!response.ok) { cancelBody(response.body); throw new Error(`AMO GET HTTP ${response.status}; stop and reconcile, do not retry`); }

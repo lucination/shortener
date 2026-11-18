@@ -1,3 +1,4 @@
+import { admitPublisher } from "./amo-diagnostics.mjs";
 import { parseUploadIdentity } from "./amo-read.mjs";
 export { createAmoReadOnlyGet } from "./amo-read.mjs";
 
@@ -32,12 +33,14 @@ export async function reconcileAmoUploads({ get, version, uploadId = "", onPhase
   if (uploadId !== "") parseUploadIdentity(uploadId);
   onPhase("publisher-profile");
   const profile = await get("accounts/profile/");
-  ensure(profile?.display_name === "Aditya" && Number.isSafeInteger(profile.id) && profile.id > 0, "Publisher identity mismatch; no writes performed");
+  const publisherChecks = admitPublisher(profile);
   const base = `addons/addon/${encodeURIComponent(reconciliationGuid)}/`;
   onPhase("exact-guid-and-version");
   const addon = await get(base, true);
   if (addon) {
-    ensure(addon.guid === reconciliationGuid && addon.authors?.some(a => a.id === profile.id && a.name === "Aditya"), "GUID ownership mismatch; no writes performed");
+    ensure(addon.guid === reconciliationGuid, "GUID identity mismatch; no writes performed");
+    ensure(Array.isArray(addon.authors), "Unexpected add-on schema; no writes performed");
+    ensure(addon.authors.some(a => a?.id === profile.id && a.name === "Aditya"), "GUID ownership mismatch; no writes performed");
     ensure(typeof addon.is_disabled === "boolean", "Unexpected add-on state; no writes performed");
   }
   const existing = await get(`${base}versions/${encodeURIComponent(version)}/`, true);
@@ -70,7 +73,7 @@ export async function reconcileAmoUploads({ get, version, uploadId = "", onPhase
   }
   const fileStates = ["public", "unreviewed", "disabled", "awaiting_review", "beta"];
   return {
-    guid: reconciliationGuid, version, publisherVerified: true,
+    guid: reconciliationGuid, version, publisherVerified: true, publisherChecks,
     guidLookup: addon ? "owned-record-found" : "not-found-or-not-visible",
     versionLookup: existing ? "exact-listed-version-found" : "not-found-or-not-visible",
     addonDisabled: addon ? addon.is_disabled : null,

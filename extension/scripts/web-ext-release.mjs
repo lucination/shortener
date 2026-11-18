@@ -1,3 +1,4 @@
+import { admitPublisher } from "./amo-diagnostics.mjs";
 import { execFileSync, spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -10,12 +11,13 @@ export function cliEnvironment(env) {
   return Object.fromEntries(["PATH", "HOME", "TMPDIR", "WEB_EXT_API_KEY", "WEB_EXT_API_SECRET"].filter(key => env[key] !== undefined).map(key => [key,env[key]]));
 }
 
-export async function assertFreshListing(get, { guid, version }) {
+export async function assertFreshListing(get, { guid, version }, onPhase = () => {}) {
   if (guid !== "shortener-companion-v2@shortener.invalid")
     throw new Error("New-listing transaction requires the current stable GUID; no authenticated IO");
+  onPhase("publisher-profile");
   const profile = await get("accounts/profile/");
-  if (profile?.display_name !== "Aditya" || !Number.isSafeInteger(profile.id) || profile.id <= 0)
-    throw new Error("Publisher mismatch; no CLI invocation");
+  admitPublisher(profile);
+  onPhase("exact-guid-and-version");
   const base = `addons/addon/${encodeURIComponent(guid)}/`;
   if (await get(`${base}versions/${encodeURIComponent(version)}/`,true)) throw new Error("Version exists; stop without CLI invocation");
   if (await get(base,true)) throw new Error("GUID exists; new-listing transaction cannot update or take over a listing");

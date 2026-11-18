@@ -312,6 +312,31 @@ fields, response URLs or download tokens. Every read retains its 1 MiB/30-second
 bound. The v5 upload serializer uses UUIDField(format=hex); the diagnostic parser
 preserves exactly 32 lowercase hex characters without repair.
 
+### Run the read-only diagnostic after a stopped preflight
+
+A prior `stage: preflight`, `httpStatus: null` record does **not** identify the
+remote cause. It can represent a publisher guard, token generation, transport or
+unreadable response. Do not infer which one occurred or rerun the failed release.
+The diagnostic now reports an allowlisted `failureCode` and local `phase`;
+publisher admission exposes only `expectedNameMatches` and `publisherIdValid`
+booleans, never the observed profile name, email or numeric account ID. Unknown
+errors remain `unknown`; arbitrary provider messages are never copied into logs.
+The same safe classification is used by future submission failures, not applied
+retroactively to an immutable failed tag.
+
+After this diagnostic change is reviewed and present on main, the repository
+operator can open **Actions → Firefox AMO read-only reconciliation → Run workflow**
+(https://github.com/lucination/shortener/actions/workflows/firefox-reconcile.yml).
+Choose **main**, explicitly set **version** to `0.1.5`, leave **upload_id** blank
+unless an exact existing compact ID is already known, and click **Run workflow**.
+Approve the normal `firefox-addons` environment review if requested. Inspect
+**Read only exact GUID/version and bounded upload inventory** for `phase`,
+`failureCode`, `httpStatus` and publisher-check booleans. No credential values
+need to be retrieved or shared. A missing Run workflow control requires a
+repository operator with the necessary permission; do not replace this with a
+submission rerun or weaken environment protection. This workflow performs only
+bounded GETs and never authorizes a retry, upload or enable operation.
+
 Upload inventory does not establish byte identity: v5 omits the stored hash, GUID
 binding and private raw-download access token. Existing-upload reuse would need
 separate independent proof and authorization; no reuse path is implemented here.
