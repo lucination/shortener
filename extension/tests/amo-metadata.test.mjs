@@ -5,12 +5,14 @@ import { readFile } from "node:fs/promises";
 const metadata = JSON.parse(await readFile(new URL("../amo-metadata.json", import.meta.url), "utf8"));
 const pkg = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 
-test("first listed submission explicitly supplies AMO v5 localized name and per-application categories", () => {
+test("first listed submission explicitly supplies AMO v5 localized name and per-application categories", async () => {
   assert.deepEqual(metadata.name, { "en-US": "Shortener Companion" });
   assert.deepEqual(metadata.categories, { firefox: ["other"], android: ["other"] });
   assert.ok(metadata.summary["en-US"]);
   assert.ok(metadata.description["en-US"]);
-  assert.ok(metadata.privacy_policy["en-US"]);
+  assert.equal(metadata.privacy_policy, undefined);
+  assert.equal(metadata.is_disabled, true);
+  assert.match(await readFile(new URL("../listing/privacy-policy.txt", import.meta.url), "utf8"), /The extension developer receives no data or telemetry/);
   assert.equal(metadata.version.license, "all-rights-reserved");
 });
 
