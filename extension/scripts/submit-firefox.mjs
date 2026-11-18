@@ -17,7 +17,7 @@ try {
   const metadata=JSON.parse(readFileSync("amo-metadata.json"));
   stage="metadata-admission";
   validateAmoMetadata(metadata);
-  if(tree.guid!=="shortener-companion@shortener.invalid" || tree.version!==context.version || metadata.is_disabled!==true || "privacy_policy" in metadata)
+  if(tree.guid!=="shortener-companion-v2@shortener.invalid" || tree.version!==context.version || metadata.is_disabled!==true || "privacy_policy" in metadata)
     throw new Error("Official CLI listing inputs require the stable GUID, admitted version and developer hold");
   stage="preflight";
   const auth=new JwtApiAuth({apiKey:process.env.WEB_EXT_API_KEY,apiSecret:process.env.WEB_EXT_API_SECRET});

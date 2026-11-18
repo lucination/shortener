@@ -49,7 +49,7 @@ const pass = (name) => {
   receipt.checks[name] = "passed";
   console.log(`PASS ${name}`);
 };
-const id = "shortener-companion@shortener.invalid";
+const id = "shortener-companion-v2@shortener.invalid";
 const uuid = "11111111-2222-4333-8444-555555555555";
 const title = "Article & Notes <proof>";
 const token = "short_at_" + "a".repeat(64); // test fixture only; cannot authenticate to a live service

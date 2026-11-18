@@ -56,7 +56,7 @@ for (const platform of ["chrome", "firefox", "safari"]) {
           browser_specific_settings: {
             gecko_android: { strict_min_version: "142.0" },
             gecko: {
-              id: "shortener-companion@shortener.invalid",
+              id: "shortener-companion-v2@shortener.invalid",
               strict_min_version: "140.0",
               data_collection_permissions: {
                 required: [

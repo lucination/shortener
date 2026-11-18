@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 const module = await import("../scripts/amo-reconcile.mjs").catch(() => ({}));
-const guid = "shortener-companion@shortener.invalid";
+const guid = "shortener-companion-v2@shortener.invalid";
 const id = "0123456789abcdef0123456789abcdef";
 const upload = { uuid: id, channel: "listed", processed: true, valid: true, submitted: false, version: "0.1.1", validation: { private: "do-not-log" }, url: "https://example.invalid/private?access_token=do-not-log" };
 

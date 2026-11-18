@@ -5,6 +5,17 @@ published by a local build. Mozilla validation, review and listing approval are
 separate from upload; a successful workflow is not proof of public availability.
 Chrome and Safari publication are deliberately not implemented here.
 
+The current candidate is **0.1.5**, with new stable GUID
+`shortener-companion-v2@shortener.invalid`, for the explicitly approved replacement
+Mozilla publisher account. The public display name remains **Aditya**. The owner
+has replaced the protected environment credentials; no credential values are
+retrieved or changed by this release preparation. The old listing was deleted,
+but Mozilla permanently reserves its GUID `shortener-companion@shortener.invalid`.
+This is a **new listing**, not an account transfer or an update path for existing
+installations. Do not reuse the deleted GUID or recreate/move any old release tag.
+The new transaction still requires authenticated publisher/GUID/version preflight,
+same-run native and reviewer acceptance, attempt 1, and the developer-disabled hold.
+
 ## Reproduce from source
 
 Build environment: Ubuntu 24.04, Node **22.23.4**, npm **10.9.9**, Python 3.12.
@@ -59,7 +70,7 @@ policy and metadata. The extension never collects background browsing history.
    with repository rules. Store those two names as **environment secrets**, not
    general repository secrets. This environment is intentionally not configured
    by this change; missing credentials fail closed, never silently skip signing.
-4. Confirm the stable manifest ID `shortener-companion@shortener.invalid` belongs
+4. Confirm the stable manifest ID `shortener-companion-v2@shortener.invalid` belongs
    to the intended publisher / is available. Review `amo-metadata.json`, consent,
    privacy policy, license and listing copy. No repository license was present;
    the conservative AMO choice is `all-rights-reserved`, not an invented open-source
@@ -122,7 +133,7 @@ on an existing exact version or add-on. Because the official route is an upsert,
 this observation is not an atomic reservation: the owner must not run competing
 publisher/Developer Hub mutations during the transaction. No takeover or update
 is deliberately authorized by the preflight. The stable ID remains
-`shortener-companion@shortener.invalid`.
+`shortener-companion-v2@shortener.invalid`.
 
 **Native artifact binding:** the CLI always rebuilds a ZIP from its directory.
 The source directory is first checked for exact file inventory and byte equality
@@ -280,9 +291,13 @@ Before another live
 attempt, inspect current authenticated GUID/version/upload state and existing
 Developer Hub validation details. Do not infer absence from anonymous or
 not-found-or-not-visible results, and do not bump a version to hide an unknown
-outcome. After correcting that proven field defect, the current candidate is
-**0.1.4**, for a parent-reviewed
-`extension-v0.1.4` tag and new attempt 1. These observations are not global absence
+outcome. After correcting that proven field defect, the prior candidate was
+**0.1.4**, with `extension-v0.1.4` and attempt 1. That historical candidate is
+not the current release: the owner subsequently approved a different Mozilla
+account and deleted the old listing. Candidate **0.1.5** uses the new GUID above
+and requires a parent-reviewed `extension-v0.1.5` tag and its own attempt 1.
+The deleted GUID is permanently reserved; there is no old-install update path.
+These observations are not global absence
 proof: the normal authenticated publisher/GUID/version preflight remains mandatory.
 Previous uploads are neither reused nor deleted, and prior release tags remain immutable.
 Never rerun, move or delete an existing failed tag.

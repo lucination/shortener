@@ -9,7 +9,7 @@ import { execFileSync } from "node:child_process";
 import { createServer } from "node:http";
 const implementation = await import("../scripts/web-ext-release.mjs").catch(() => ({}));
 const root = fileURLToPath(new URL("../", import.meta.url));
-const guid = "shortener-companion@shortener.invalid";
+const guid = "shortener-companion-v2@shortener.invalid";
 
 test("release delegates writes to the pinned official CLI with explicit listed/source/metadata arguments", () => {
   assert.equal(typeof implementation.webExtSignArgs, "function");
@@ -148,4 +148,14 @@ for(const fail of ["none","submission","validation","source","approval-max-minus
     }
     assert.equal(JSON.parse(readFileSync(join(root,"node_modules/web-ext/package.json"))).version,"10.8.0");
   }finally{server.closeAllConnections();await new Promise(resolve=>server.close(resolve));await rm(dir,{recursive:true,force:true});}
+});
+
+
+test("deleted legacy GUID is rejected before authenticated publisher IO", async () => {
+  const calls = [];
+  await assert.rejects(() => implementation.assertFreshListing(async path => {
+    calls.push(path);
+    return path === "accounts/profile/" ? { id: 7, display_name: "Aditya" } : null;
+  }, { guid: "shortener-companion@shortener.invalid", version: "0.1.5" }), /stable GUID/);
+  assert.deepEqual(calls, [], "reserved legacy identity must never reach the authenticated client");
 });

@@ -11,6 +11,8 @@ export function cliEnvironment(env) {
 }
 
 export async function assertFreshListing(get, { guid, version }) {
+  if (guid !== "shortener-companion-v2@shortener.invalid")
+    throw new Error("New-listing transaction requires the current stable GUID; no authenticated IO");
   const profile = await get("accounts/profile/");
   if (profile?.display_name !== "Aditya" || !Number.isSafeInteger(profile.id) || profile.id <= 0)
     throw new Error("Publisher mismatch; no CLI invocation");
