@@ -17,7 +17,7 @@ before retrying after a timeout, disconnect, redirect or malformed response.
 
 ## Build and install
 
-From the repository root, with Node 22 and Python 3:
+From the repository root, with Node 26.13.1, npm 11.20.0 and Python 3:
 
 ```sh
 npm ci --prefix extension --ignore-scripts --no-audit --no-fund

@@ -5,7 +5,7 @@ published by a local build. Mozilla validation, review and listing approval are
 separate from upload; a successful workflow is not proof of public availability.
 Chrome and Safari publication are deliberately not implemented here.
 
-The current candidate is **0.1.6**, with new stable GUID
+The current candidate is **0.1.7**, with new stable GUID
 `shortener-companion-v2@shortener.invalid`, for the explicitly approved replacement
 Mozilla publisher account. The public display name remains **Aditya**. The owner
 has replaced the protected environment credentials; no credential values are
@@ -18,7 +18,7 @@ same-run native and reviewer acceptance, attempt 1, and the developer-disabled h
 
 ## Reproduce from source
 
-Build environment: Ubuntu 24.04, Node **22.23.4**, npm **10.9.9**, Python 3.12.
+Build environment: Ubuntu 24.04, Node **26.13.1**, npm **11.20.0**, Python 3.12.
 Install Node from https://nodejs.org/en/download and Python using the OS package
 manager. No Rust, server build, private packages, secrets or service credentials
 are needed. From the source archive root:
@@ -41,7 +41,8 @@ timestamps. Rebuild the extracted source in a fresh directory and compare
 `dist/firefox.zip` hashes or all extracted files. AMO signing adds metadata, so a
 signed XPI is not expected to have the unsigned ZIP hash. `web-ext` is exactly
 10.8.0 (registry integrity in the lock); its registry engine permits Node >=20,
-while current Mozilla v10 documentation requires Node >=22. We use Node 22.
+while current Mozilla v10 documentation requires Node >=22. Firefox CI and source reproduction pin Node 26.13.1.
+The package engine minimum remains Node >=22; this release does not change it.
 
 Only Firefox changes its consent declaration: URLs, page titles and the access token leave the browser for the
 configured service, so `browsingActivity`, `websiteContent` (the title) and `authenticationInfo` (the
@@ -298,9 +299,16 @@ account and deleted the old listing. Version **0.1.5** stopped at publisher-name
 preflight before invoking the upload CLI. After the publisher corrected the
 public display name, read-only reconciliation verified both publisher checks,
 found no visible GUID/version record, and enumerated zero account uploads.
-These observations are not a global GUID-availability guarantee. Candidate
-**0.1.6** uses the same new GUID and requires a parent-reviewed
-`extension-v0.1.6` tag and its own attempt 1. The failed 0.1.5 tag is immutable.
+These observations are not a global GUID-availability guarantee. The
+`extension-v0.1.6` run failed verification; native acceptance, release admission
+and submission were skipped, so that run made no AMO write. Its Node 22
+reproduction log reported 168 passed and zero failed tests, while the command
+session returned exit 1. The actual failure cause remains unproven; selecting a
+new runtime is not a diagnosis of that discrepancy. The owner explicitly chose
+Node 26.13.1 for all Firefox CI jobs, matching the successful local runtime.
+Candidate **0.1.7** uses the same new GUID and requires a parent-reviewed
+`extension-v0.1.7` tag, fresh same-run native/reviewer receipts and its own attempt
+1. The failed 0.1.5 and 0.1.6 tags remain immutable; do not rerun or move them.
 The deleted GUID is permanently reserved; there is no old-install update path.
 These observations are not global absence
 proof: the normal authenticated publisher/GUID/version preflight remains mandatory.

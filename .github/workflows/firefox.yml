@@ -28,7 +28,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "22.23.4"
+          node-version: "26.13.1"
       - run: npm ci --ignore-scripts
         working-directory: extension
       - run: node scripts/check-amo-metadata.mjs && npm run check && npm test && npm run lint:firefox && npm run source:check
@@ -51,7 +51,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "22.23.4"
+          node-version: "26.13.1"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: firefox-build-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -101,7 +101,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "22.23.4"
+          node-version: "26.13.1"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: firefox-native-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -123,7 +123,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "22.23.4"
+          node-version: "26.13.1"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: firefox-native-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}

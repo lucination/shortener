@@ -35,7 +35,6 @@ test("actions immutable and GitHub credentials not persisted", () => {
   assert.equal(uses.length, 13);
   for (const match of uses) assert.match(match[1], /@[a-f0-9]{40}(?: #|$)/);
   assert.equal((workflow.match(/persist-credentials: false/g) || []).length, 4);
-  assert.match(workflow, /node-version: ["']22\.23\.4["']/);
 });
 
 test("native execution precedes and is independent of tag admission; no static manual seal", () => {
@@ -60,4 +59,32 @@ test("build artifacts cannot collide across reruns of the same source SHA", () =
     ).length,
     2,
   );
+});
+
+
+function assertPinnedJobs(text, expectedJobs) {
+  const jobs = text.split("\njobs:\n")[1].split(/(?=^  [a-z][\w-]*:\n)/m).filter(job => /^  [a-z][\w-]*:\n/u.test(job));
+  assert.deepEqual(jobs.map(job => /^  ([\w-]+):/u.exec(job)[1]), expectedJobs);
+  for (const job of jobs) {
+    const name = /^  ([\w-]+):/u.exec(job)[1];
+    assert.equal([...job.matchAll(/uses: actions\/setup-node@/gu)].length, 1, `${name} must have one explicit Node setup`);
+    const pins = [...job.matchAll(/^\s+node-version: ["']([^"']+)["']\s*$/gmu)].map(match => match[1]);
+    assert.deepEqual(pins, ["26.13.1"], `${name} must use the exact approved Firefox Node runtime`);
+  }
+}
+
+test("every Firefox publication job pins the approved Node 26.13.1 runtime", () => {
+  assertPinnedJobs(workflow, ["verify", "native", "release-admission", "submit"]);
+});
+
+test("read-only reconciliation pins the same approved Node 26.13.1 runtime", async () => {
+  const reconcile = await readFile(new URL("../../.github/workflows/firefox-reconcile.yml", import.meta.url), "utf8");
+  assertPinnedJobs(reconcile, ["reconcile"]);
+});
+
+test("source reproduction docs declare the matching Node and npm versions", async () => {
+  const publication = await readFile(new URL("../FIREFOX-PUBLICATION.md", import.meta.url), "utf8");
+  assert.ok(publication.includes("Node **26.13.1**, npm **11.20.0**"));
+  const readme = await readFile(new URL("../README.md", import.meta.url), "utf8");
+  assert.ok(readme.includes("Node 26.13.1, npm 11.20.0"));
 });
