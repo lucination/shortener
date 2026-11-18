@@ -65,6 +65,13 @@ jobs:
           sudo apt-get install -y --no-install-recommends xvfb xauth xdotool xclip imagemagick libgtk-3-0t64 libdbus-glib-1-2 libasound2t64
           npm ci --ignore-scripts
           python3 scripts/install-native-tools.py
+      - name: Real self-hosted reviewer setup with pinned native image (no secrets)
+        working-directory: extension
+        env:
+          EXTENSION_EVIDENCE: dist/native
+        run: |
+          node node_modules/typescript/bin/tsc -p tsconfig.json
+          node scripts/reviewer-smoke.mjs
       - name: Actual headed Firefox toolbar and X11 clipboard acceptance
         working-directory: extension
         env:
