@@ -79,7 +79,7 @@ fn err(e: rusqlite::Error) -> String {
 }
 impl Store {
     pub fn links(&self, owner: Option<i32>) -> DbResult<LinkList> {
-        self.with(|db|{
+        self.read(|db|{
   let ids=db.prepare("SELECT id FROM links WHERE (? IS NULL OR owner_id=?) AND (? IS NULL OR deleted_at IS NULL) ORDER BY id DESC").map_err(err)?.query_map(params![owner,owner,owner],|r|r.get::<_,i32>(0)).map_err(err)?.collect::<Result<Vec<_>,_>>().map_err(err)?;
   let items=ids.into_iter().map(|id|crate::store::get_link(db,id)).collect::<Result<Vec<_>,_>>()?;Ok(LinkList{total:items.len() as i32,items})
  })
@@ -138,7 +138,7 @@ impl Store {
         if first > last {
             return Err("invalid date range".into());
         }
-        self.with(|db|{
+        self.read(|db|{
   let total=db.query_row("SELECT count(*) FROM events WHERE (? IS NULL OR link_id=?) AND substr(occurred_at,1,10)>=? AND substr(occurred_at,1,10)<=?",params![link,link,from,to],|r|r.get(0)).map_err(err)?;
   let items=db.prepare("SELECT id,link_id,address_id,occurred_at,kind,ip,user_agent,referrer,country,city,browser,os,device FROM events WHERE (? IS NULL OR link_id=?) AND substr(occurred_at,1,10)>=? AND substr(occurred_at,1,10)<=? ORDER BY id DESC LIMIT 1000").map_err(err)?.query_map(params![link,link,from,to],|r|{
    let kind:String=r.get(4)?;Ok(ClickEvent{id:r.get(0)?,link_id:r.get(1)?,address_id:r.get(2)?,occurred_at:r.get(3)?,kind:serde_json::from_value(serde_json::Value::String(kind)).map_err(|e|rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?,ip:r.get(5)?,user_agent:r.get(6)?,referrer:r.get(7)?,country:r.get(8)?,city:r.get(9)?,browser:r.get(10)?,os:r.get(11)?,device:r.get(12)?})
@@ -152,14 +152,14 @@ impl Store {
         if f > t || (t - f).num_days() > 3660 {
             return Err("invalid date range".into());
         }
-        self.with(|db|{
+        self.read(|db|{
    let daily:Vec<DailyStat>=db.prepare("SELECT day,redirects,humans,bots,previews,daily_unique FROM daily WHERE link_id=? AND day>=? AND day<=? ORDER BY day").map_err(err)?.query_map(params![id,from,to],|r|Ok(DailyStat{date:r.get(0)?,redirects:r.get(1)?,humans:r.get(2)?,bots:r.get(3)?,previews:r.get(4)?,daily_unique:r.get(5)?})).map_err(err)?.collect::<Result<Vec<_>,_>>().map_err(err)?;
    let mut stats=LinkStats{link_id:id,from:from.into(),to:to.into(),redirects:daily.iter().map(|d|d.redirects).sum(),humans:daily.iter().map(|d|d.humans).sum(),bots:daily.iter().map(|d|d.bots).sum(),previews:daily.iter().map(|d|d.previews).sum(),daily,referrers:vec![],countries:vec![],devices:vec![]};
    stats.referrers=breakdown(db,id,from,to,"referrer")?;stats.countries=breakdown(db,id,from,to,"country")?;stats.devices=breakdown(db,id,from,to,"device")?;Ok(stats)
   })
     }
     pub fn usage(&self) -> DbResult<Usage> {
-        self.with(|db| {
+        self.read(|db| {
             let count = |q: &str| db.query_row(q, [], |r| r.get::<_, i32>(0)).map_err(err);
             Ok(Usage {
                 users: count("SELECT count(*)FROM users")?,

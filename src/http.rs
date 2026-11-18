@@ -366,480 +366,324 @@ fn api_sync(s: &AppState, method: &Method, path: &str, h: &HeaderMap, body: &[u8
     }
     response
 }
-fn api_result(
-    s: &AppState,
-    method: &Method,
-    path: &str,
-    h: &HeaderMap,
-    body: &[u8],
-) -> Result<Response, Response> {
+type ApiResult = Result<Response, Response>;
+/// One decoded API request. `path` excludes the query string.
+struct ApiRequest<'a> {
+    s: &'a AppState,
+    method: &'a Method,
+    path: &'a str,
+    query: &'a str,
+    h: &'a HeaderMap,
+    body: &'a [u8],
+    now: String,
+}
+fn unauthorized(message: &str) -> Response {
+    error(StatusCode::UNAUTHORIZED, "unauthorized", message)
+}
+fn not_found() -> Response {
+    error(StatusCode::NOT_FOUND, "not_found", "not found")
+}
+/// Authority precedence: any Authorization header ⇒ Bearer create only (never a
+/// cookie fallback); then the unauthenticated admin login; then the admin cookie
+/// namespace; then unauthenticated user auth ceremonies; then the user cookie.
+fn api_result(s: &AppState, method: &Method, path: &str, h: &HeaderMap, body: &[u8]) -> ApiResult {
     let (path, query) = path.split_once('?').unwrap_or((path, ""));
-    let now = crate::domain::instant(chrono::Utc::now());
-    let db = &s.store;
+    let r = ApiRequest {
+        s,
+        method,
+        path,
+        query,
+        h,
+        body,
+        now: crate::domain::instant(chrono::Utc::now()),
+    };
     if h.contains_key(header::AUTHORIZATION) {
-        if !creation_authorization(method, path, h) {
-            return Err(error(
-                StatusCode::UNAUTHORIZED,
-                "unauthorized",
-                "create-only access token required",
-            ));
-        }
-        let bearer = access_bearer(h).ok_or_else(|| {
-            error(
-                StatusCode::UNAUTHORIZED,
-                "unauthorized",
-                "invalid access token",
-            )
-        })?;
-        // Parse before decoding the request; no session-cookie fallback.
-        crate::store::access_token_format(bearer).map_err(db_error)?;
-        let input: LinkInput = decode(body)?;
-        check_static_alias(s, &input).map_err(db_error)?;
-        return Ok((
-            StatusCode::CREATED,
-            Json(db.create_access_link(bearer, input).map_err(db_error)?),
-        )
-            .into_response());
+        return bearer_create(&r);
     }
     if path == "/_/api/login" && *method == Method::POST {
-        let input: TokenInput = decode(body)?;
-        // HMAC verifier avoids content-dependent comparison of the configured secret.
-        use hmac::{Hmac, Mac};
-        use sha2::Sha256;
-        let mut mac = Hmac::<Sha256>::new_from_slice(s.admin_token.as_bytes()).unwrap();
-        mac.update(b"admin-login");
-        let expected = mac.finalize().into_bytes();
-        let mut attempt = Hmac::<Sha256>::new_from_slice(input.token.as_bytes()).unwrap();
-        attempt.update(b"admin-login");
-        if s.admin_token.len() < 16 || attempt.verify_slice(&expected).is_err() {
-            return Err(error(
-                StatusCode::UNAUTHORIZED,
-                "unauthorized",
-                "invalid administrator token",
-            ));
-        }
-        let token = db.admin_session(&now).map_err(db_error)?;
-        return Ok(set_cookie(
-            message("signed in"),
-            s,
-            "short_admin",
-            &token,
-            3600,
-        ));
+        return admin_login(&r);
     }
     if path.starts_with("/_/api/") {
-        let token = cookie(h, "short_admin").ok_or_else(|| authority_error(db, h, &now, true))?;
-        db.authenticate_admin(&token, &now).map_err(|_| {
-            error(
-                StatusCode::UNAUTHORIZED,
-                "unauthorized",
-                "administrator authentication required",
-            )
-        })?;
-        let scoped = db.admin_scope(&token, &now).map_err(|_| {
-            error(
-                StatusCode::UNAUTHORIZED,
-                "unauthorized",
-                "administrator authentication required",
-            )
-        })?;
-        let db = &scoped;
-        match (method.as_str(), path) {
-            ("POST", "/_/api/logout") => {
-                db.logout(&token).map_err(db_error)?;
-                return Ok(set_cookie(message("signed out"), s, "short_admin", "", 0));
-            }
-            ("GET", "/_/api/users") => {
-                return Ok(Json(db.users().map_err(db_error)?).into_response());
-            }
-            ("GET", "/_/api/links") => {
-                return Ok(Json(db.links(None).map_err(db_error)?).into_response());
-            }
-            ("GET", "/_/api/events") => {
-                return Ok(Json(event_response(db, None, query)?).into_response());
-            }
-            ("GET", "/_/api/usage") => {
-                return Ok(Json(db.usage().map_err(db_error)?).into_response());
-            }
-            ("POST", "/_/api/users") => {
-                let i: UserInput = decode(body)?;
-                if i.link_quota.is_some_and(|q| q < 0)
-                    || i.retention_days
-                        .is_some_and(|d| crate::domain::RetentionDays::parse(d).is_err())
-                {
-                    return Err(error(
-                        StatusCode::UNPROCESSABLE_ENTITY,
-                        "validation",
-                        "invalid quota or retention",
-                    ));
-                }
-                let u = db.create_user(&i.email, &now).map_err(db_error)?;
-                let u = db
-                    .patch_user(
-                        u.id,
-                        UserPatch {
-                            suspended: None,
-                            deleted: None,
-                            retention_days: Some(i.retention_days),
-                            link_quota: Some(i.link_quota),
-                        },
-                        &now,
-                    )
-                    .map_err(db_error)?;
-                return Ok((StatusCode::CREATED, Json(u)).into_response());
-            }
-            _ => {}
-        }
-        let seg: Vec<_> = path.trim_matches('/').split('/').collect();
-        if seg.len() >= 4 && seg[..3] == ["_", "api", "users"] {
-            let id: i32 = seg[3]
-                .parse()
-                .map_err(|_| error(StatusCode::NOT_FOUND, "not_found", "not found"))?;
-            match (method.as_str(), seg.get(4).copied()) {
-                ("PATCH", None) => {
-                    return Ok(
-                        Json(db.patch_user(id, decode(body)?, &now).map_err(db_error)?)
-                            .into_response(),
-                    );
-                }
-                ("DELETE", None) => {
-                    db.patch_user(
-                        id,
-                        UserPatch {
-                            deleted: Some(true),
-                            ..UserPatch::default()
-                        },
-                        &now,
-                    )
-                    .map_err(db_error)?;
-                    return Ok(message("account soft deleted"));
-                }
-                ("POST", Some("sign-out-everywhere")) => {
-                    db.revoke_user(id).map_err(db_error)?;
-                    return Ok(message("all sessions revoked; passkeys preserved"));
-                }
-                _ => {}
-            }
-        }
-        return Err(error(
-            StatusCode::NOT_FOUND,
-            "not_found",
-            "unknown administrator route",
-        ));
+        let (token, db) = admin_authority(&r)?;
+        return admin_api(&r, &db, &token);
     }
-    if path == "/api/auth/magic-link" && *method == Method::POST {
-        let i: EmailInput = decode(body)?;
-        if let Some(token) = db.issue_magic(&i.email, &now).map_err(db_error)? {
-            use lettre::Transport;
-            let mail=lettre::Message::builder().from(s.smtp_from.parse().map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"smtp","mail unavailable"))?).to(i.email.parse().map_err(|_|error(StatusCode::UNPROCESSABLE_ENTITY,"validation","invalid email"))?).subject("Your sign-in link").body(format!("Sign in: {}/auth/verify?token={}\nExpires in 15 minutes. This link works once.",s.origin,token)).map_err(|_|error(StatusCode::INTERNAL_SERVER_ERROR,"smtp","mail unavailable"))?;
-            let transport = s.smtp.transport().map_err(|_| {
-                error(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "smtp",
-                    "mail unavailable",
-                )
-            })?;
-            if transport.send(&mail).is_err() {
-                // Relay responses can echo credentials; do not log provider error text.
-                tracing::warn!("SMTP delivery failed");
-            }
-        }
-        return Ok(message(
-            "If this account is eligible, a sign-in link has been sent.",
-        ));
+    if let Some(response) = public_auth(&r) {
+        return response;
     }
-    if *method == Method::POST
-        && matches!(
-            path,
-            "/api/auth/passkeys/authenticate/options" | "/api/auth/passkeys/authenticate/verify"
-        )
-    {
-        let w = crate::passkeys::webauthn(&s.origin).map_err(db_error)?;
-        if path == "/api/auth/passkeys/authenticate/options" {
-            let _: serde_json::Map<String, serde_json::Value> = decode(body)?;
-            // No account lookup or credential IDs before the authenticator identifies itself.
-            let options = db.passkey_auth_options(&w, "", &now).map_err(|_| {
-                error(
-                    StatusCode::UNAUTHORIZED,
-                    "unauthorized",
-                    "passkey authentication unavailable",
-                )
-            })?;
-            let challenge = options.challenge_id.clone();
-            return Ok(set_cookie(
-                Json(options).into_response(),
-                s,
-                "short_passkey",
-                &challenge,
-                300,
-            ));
-        }
+    let user = user_authority(&r)?;
+    user_api(&r, &user)
+}
 
-        if path == "/api/auth/passkeys/authenticate/verify" {
-            let i: PasskeyVerify = decode(body)?;
-            if cookie(h, "short_passkey").as_deref() != Some(i.challenge_id.as_str()) {
-                return Err(error(
-                    StatusCode::UNAUTHORIZED,
-                    "unauthorized",
-                    "passkey verification failed",
-                ));
-            }
-            let (user, session) = db.passkey_auth_verify(&w, i, &now).map_err(|_| {
-                error(
-                    StatusCode::UNAUTHORIZED,
-                    "unauthorized",
-                    "passkey verification failed",
-                )
-            })?;
-            return Ok(set_cookie(
-                set_cookie(
-                    Json(user).into_response(),
-                    s,
-                    "short_session",
-                    &session,
-                    30 * 86400,
-                ),
-                s,
-                "short_passkey",
-                "",
-                0,
-            ));
-        }
+// ---- Bearer access token: exact POST /api/links only ----
+
+fn bearer_create(r: &ApiRequest) -> ApiResult {
+    if !creation_authorization(r.method, r.path, r.h) {
+        return Err(unauthorized("create-only access token required"));
     }
-    let token = cookie(h, "short_session").ok_or_else(|| authority_error(db, h, &now, false))?;
-    let user = db.authenticate_user(&token, &now).map_err(|_| {
-        error(
-            StatusCode::UNAUTHORIZED,
-            "unauthorized",
-            "authentication required",
-        )
-    })?;
-    let scoped = db.user_scope(&token, &now).map_err(|_| {
-        error(
-            StatusCode::UNAUTHORIZED,
-            "unauthorized",
-            "authentication required",
-        )
-    })?;
-    let db = &scoped;
-    let segments: Vec<_> = path.trim_matches('/').split('/').collect();
-    match (method.as_str(), path) {
-        ("GET", "/api/account/tokens") => {
-            return Ok(Json(db.access_tokens(user.id, &now).map_err(db_error)?).into_response());
-        }
-        ("POST", "/api/account/tokens") => {
-            return Ok((
-                StatusCode::CREATED,
-                Json(
-                    db.issue_access_token(user.id, decode(body)?, &now)
-                        .map_err(db_error)?,
-                ),
-            )
-                .into_response());
-        }
-        ("DELETE", _) if path.starts_with("/api/account/tokens/") => {
-            let id = path
-                .strip_prefix("/api/account/tokens/")
-                .unwrap()
-                .parse::<i32>()
-                .map_err(|_| db_error("not found".into()))?;
-            db.revoke_access_token(user.id, id, &now)
-                .map_err(db_error)?;
-            return Ok(message("access token revoked"));
-        }
-        ("GET", "/api/me") => return Ok(Json(user).into_response()),
-        ("GET", "/api/account/passkeys") => {
-            return Ok((
-                [(header::CACHE_CONTROL, "no-store")],
-                Json(db.passkey_list(user.id, &now).map_err(db_error)?),
-            )
-                .into_response());
-        }
-        ("POST", "/api/auth/passkeys/register/options") => {
-            let w = crate::passkeys::webauthn(&s.origin).map_err(db_error)?;
-            return Ok(Json(
-                db.passkey_register_options(&w, user.id, &now)
-                    .map_err(db_error)?,
-            )
-            .into_response());
-        }
-        ("POST", "/api/auth/passkeys/register/verify") => {
-            let w = crate::passkeys::webauthn(&s.origin).map_err(db_error)?;
-            let input: PasskeyEnrollment = decode(body)?;
-            crate::domain::PasskeyName::parse(&input.name).map_err(db_error)?;
-            db.passkey_register_named(&w, user.id, input, &now)
-                .map_err(|_| {
-                    error(
-                        StatusCode::UNPROCESSABLE_ENTITY,
-                        "verification",
-                        "passkey verification failed",
-                    )
-                })?;
-            return Ok(message("passkey registered"));
-        }
-        ("POST", "/api/auth/logout") => {
-            db.logout(&token).map_err(db_error)?;
-            return Ok(set_cookie(message("signed out"), s, "short_session", "", 0));
-        }
-        ("POST", "/api/account/sign-out-everywhere") => {
-            db.revoke_user(user.id).map_err(db_error)?;
-            return Ok(set_cookie(
-                message("all sessions revoked; passkeys preserved"),
-                s,
-                "short_session",
-                "",
-                0,
-            ));
-        }
-        ("PATCH", "/api/account") => {
-            let p: AccountPatch = decode(body)?;
-            return Ok(Json(
-                db.patch_user(
-                    user.id,
-                    UserPatch {
-                        retention_days: p.retention_days,
-                        ..UserPatch::default()
-                    },
-                    &now,
-                )
+    let bearer = access_bearer(r.h).ok_or_else(|| unauthorized("invalid access token"))?;
+    // Parse before decoding the request; no session-cookie fallback.
+    crate::store::access_token_format(bearer).map_err(db_error)?;
+    let input: LinkInput = decode(r.body)?;
+    check_static_alias(r.s, &input).map_err(db_error)?;
+    Ok((
+        StatusCode::CREATED,
+        Json(
+            r.s.store
+                .create_access_link(bearer, input)
                 .map_err(db_error)?,
-            )
-            .into_response());
+        ),
+    )
+        .into_response())
+}
+
+// ---- Administrator namespace /_/api ----
+
+fn admin_login(r: &ApiRequest) -> ApiResult {
+    let input: TokenInput = decode(r.body)?;
+    // HMAC verifier avoids content-dependent comparison of the configured secret.
+    use hmac::{Hmac, Mac};
+    use sha2::Sha256;
+    let s = r.s;
+    let mut mac = Hmac::<Sha256>::new_from_slice(s.admin_token.as_bytes()).unwrap();
+    mac.update(b"admin-login");
+    let expected = mac.finalize().into_bytes();
+    let mut attempt = Hmac::<Sha256>::new_from_slice(input.token.as_bytes()).unwrap();
+    attempt.update(b"admin-login");
+    if s.admin_token.len() < 16 || attempt.verify_slice(&expected).is_err() {
+        return Err(unauthorized("invalid administrator token"));
+    }
+    let token = s.store.admin_session(&r.now).map_err(db_error)?;
+    Ok(set_cookie(
+        message("signed in"),
+        s,
+        "short_admin",
+        &token,
+        3600,
+    ))
+}
+/// The `short_admin` cookie is the only authority for `/_/api`.
+fn admin_authority(r: &ApiRequest) -> Result<(String, Store), Response> {
+    let store = &r.s.store;
+    let token =
+        cookie(r.h, "short_admin").ok_or_else(|| authority_error(store, r.h, &r.now, true))?;
+    let db = store
+        .admin_scope(&token, &r.now)
+        .map_err(|_| unauthorized("administrator authentication required"))?;
+    Ok((token, db))
+}
+fn admin_api(r: &ApiRequest, db: &Store, token: &str) -> ApiResult {
+    let now = r.now.as_str();
+    match (r.method.as_str(), r.path) {
+        ("POST", "/_/api/logout") => {
+            db.logout(token).map_err(db_error)?;
+            return Ok(set_cookie(message("signed out"), r.s, "short_admin", "", 0));
         }
-        ("GET", "/api/links") => {
-            return Ok(Json(db.links(Some(user.id)).map_err(db_error)?).into_response());
+        ("GET", "/_/api/users") => return Ok(Json(db.users().map_err(db_error)?).into_response()),
+        ("GET", "/_/api/links") => {
+            return Ok(Json(db.links(None).map_err(db_error)?).into_response());
         }
-        ("POST", "/api/links") => {
-            let i: LinkInput = decode(body)?;
-            check_static_alias(s, &i).map_err(db_error)?;
-            return Ok((
-                StatusCode::CREATED,
-                Json(db.create_link(user.id, i, &now).map_err(db_error)?),
-            )
-                .into_response());
+        ("GET", "/_/api/events") => {
+            return Ok(Json(event_response(db, None, r.query)?).into_response());
         }
-        ("POST", "/api/links/bulk") => {
-            let i: BulkInput = decode(body)?;
-            if i.items.is_empty() || i.items.len() > 500 {
-                return Err(error(
-                    StatusCode::UNPROCESSABLE_ENTITY,
-                    "validation",
-                    "bulk creation requires 1..500 rows",
-                ));
-            }
-            let items = i
-                .items
-                .into_iter()
-                .enumerate()
-                .map(|(index, row)| {
-                    let result = match row {
-                        BulkRow::Link(input) => check_static_alias(s, &input)
-                            .and_then(|_| db.create_link(user.id, input, &now)),
-                        BulkRow::Invalid(_) => Err("invalid link input row".into()),
-                    };
-                    match result {
-                        Ok(link) => BulkResult::Created {
-                            index: index as i32,
-                            link,
-                        },
-                        Err(e) => BulkResult::Failed {
-                            index: index as i32,
-                            error: ErrorBody {
-                                code: "validation".into(),
-                                message: if e.contains("UNIQUE") {
-                                    "alias already exists".into()
-                                } else {
-                                    e
-                                },
-                            },
-                        },
-                    }
-                })
-                .collect();
-            return Ok(Json(BulkResponse { items }).into_response());
-        }
-        ("POST", "/api/links/bulk-update") => {
-            // An optional alias assertion can accompany an otherwise valid
-            // bulk action. Check every assertion before any per-link write; do
-            // not silently discard a rename alongside a metadata update.
-            let raw: serde_json::Value = decode(body)?;
-            let input: BulkUpdate = decode(body)?;
-            // Bound all preflight target reads before looking up any ID.
-            if input.ids.is_empty() || input.ids.len() > 1000 {
-                return Err(db_error("bulk update requires 1..1000 IDs".into()));
-            }
-            for alias in [raw.get("alias"), raw.pointer("/action/alias")]
-                .into_iter()
-                .flatten()
-            {
-                for id in &input.ids {
-                    let link = db.link(*id).map_err(db_error)?;
-                    if link.owner_id != user.id || link.deleted_at.is_some() {
-                        return Err(error(StatusCode::NOT_FOUND, "not_found", "not found"));
-                    }
-                    let current = link
-                        .addresses
-                        .iter()
-                        .find(|address| address.domain_id == 1)
-                        .ok_or_else(|| error(StatusCode::NOT_FOUND, "not_found", "not found"))?;
-                    crate::domain::unchanged_short_address(&current.short_code, alias.as_str())
-                        .map_err(db_error)?;
-                }
-            }
-            return Ok(
-                Json(db.bulk_update(user.id, input, &now).map_err(db_error)?).into_response(),
-            );
-        }
+        ("GET", "/_/api/usage") => return Ok(Json(db.usage().map_err(db_error)?).into_response()),
+        ("POST", "/_/api/users") => return admin_create_user(r, db),
         _ => {}
     }
-    if segments.len() >= 3 && segments[..2] == ["api", "links"] {
-        let id: i32 = segments[2]
-            .parse()
-            .map_err(|_| error(StatusCode::NOT_FOUND, "not_found", "not found"))?;
-        let link = db.link(id).map_err(db_error)?;
-        if link.owner_id != user.id || link.deleted_at.is_some() {
-            return Err(error(StatusCode::NOT_FOUND, "not_found", "not found"));
-        }
-        match (method.as_str(), segments.get(3).copied()) {
-            ("GET", None) => return Ok(Json(link).into_response()),
+    let seg: Vec<_> = r.path.trim_matches('/').split('/').collect();
+    if seg.len() >= 4 && seg[..3] == ["_", "api", "users"] {
+        let id: i32 = seg[3].parse().map_err(|_| not_found())?;
+        match (r.method.as_str(), seg.get(4).copied()) {
             ("PATCH", None) => {
-                return Ok(Json(
-                    db.patch_link(user.id, id, decode(body)?, &now)
-                        .map_err(db_error)?,
-                )
-                .into_response());
+                return Ok(
+                    Json(db.patch_user(id, decode(r.body)?, now).map_err(db_error)?)
+                        .into_response(),
+                );
             }
             ("DELETE", None) => {
-                db.delete_link(user.id, id, &now).map_err(db_error)?;
-                return Ok(message("link deleted"));
+                db.patch_user(
+                    id,
+                    UserPatch {
+                        deleted: Some(true),
+                        ..UserPatch::default()
+                    },
+                    now,
+                )
+                .map_err(db_error)?;
+                return Ok(message("account soft deleted"));
             }
-            ("GET", Some("events")) => {
-                return Ok(Json(event_response(db, Some(id), query)?).into_response());
-            }
-            ("GET", Some("stats")) => {
-                let q: std::collections::HashMap<String, String> =
-                    url::form_urlencoded::parse(query.as_bytes())
-                        .into_owned()
-                        .collect();
-                let to = q.get("to").map(String::as_str).unwrap_or(&now[..10]);
-                let default_from =
-                    (chrono::Utc::now().date_naive() - chrono::Duration::days(29)).to_string();
-                let from = q.get("from").map(String::as_str).unwrap_or(&default_from);
-                return Ok(Json(db.stats(id, from, to).map_err(db_error)?).into_response());
+            ("POST", Some("sign-out-everywhere")) => {
+                db.revoke_user(id).map_err(db_error)?;
+                return Ok(message("all sessions revoked; passkeys preserved"));
             }
             _ => {}
         }
     }
-    if *method == Method::PATCH
+    Err(error(
+        StatusCode::NOT_FOUND,
+        "not_found",
+        "unknown administrator route",
+    ))
+}
+fn admin_create_user(r: &ApiRequest, db: &Store) -> ApiResult {
+    let i: UserInput = decode(r.body)?;
+    if i.link_quota.is_some_and(|q| q < 0)
+        || i.retention_days
+            .is_some_and(|d| crate::domain::RetentionDays::parse(d).is_err())
+    {
+        return Err(error(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "validation",
+            "invalid quota or retention",
+        ));
+    }
+    let u = db.create_user(&i.email, &r.now).map_err(db_error)?;
+    let u = db
+        .patch_user(
+            u.id,
+            UserPatch {
+                suspended: None,
+                deleted: None,
+                retention_days: Some(i.retention_days),
+                link_quota: Some(i.link_quota),
+            },
+            &r.now,
+        )
+        .map_err(db_error)?;
+    Ok((StatusCode::CREATED, Json(u)).into_response())
+}
+
+// ---- Unauthenticated user ceremonies ----
+
+/// Sign-in routes that precede user cookie authority; `None` for every other route.
+fn public_auth(r: &ApiRequest) -> Option<ApiResult> {
+    if *r.method != Method::POST {
+        return None;
+    }
+    match r.path {
+        "/api/auth/magic-link" => Some(magic_link(r)),
+        "/api/auth/passkeys/authenticate/options" => Some(
+            crate::passkeys::webauthn(&r.s.origin)
+                .map_err(db_error)
+                .and_then(|w| passkey_authenticate_options(r, &w)),
+        ),
+        "/api/auth/passkeys/authenticate/verify" => Some(
+            crate::passkeys::webauthn(&r.s.origin)
+                .map_err(db_error)
+                .and_then(|w| passkey_authenticate_verify(r, &w)),
+        ),
+        _ => None,
+    }
+}
+fn magic_link(r: &ApiRequest) -> ApiResult {
+    let s = r.s;
+    let i: EmailInput = decode(r.body)?;
+    if let Some(token) = s.store.issue_magic(&i.email, &r.now).map_err(db_error)? {
+        use lettre::Transport;
+        let unavailable = || {
+            error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "smtp",
+                "mail unavailable",
+            )
+        };
+        let mail = lettre::Message::builder()
+            .from(s.smtp_from.parse().map_err(|_| unavailable())?)
+            .to(i.email.parse().map_err(|_| {
+                error(
+                    StatusCode::UNPROCESSABLE_ENTITY,
+                    "validation",
+                    "invalid email",
+                )
+            })?)
+            .subject("Your sign-in link")
+            .body(format!(
+                "Sign in: {}/auth/verify?token={}\nExpires in 15 minutes. This link works once.",
+                s.origin, token
+            ))
+            .map_err(|_| unavailable())?;
+        let transport = s.smtp.transport().map_err(|_| unavailable())?;
+        if transport.send(&mail).is_err() {
+            // Relay responses can echo credentials; do not log provider error text.
+            tracing::warn!("SMTP delivery failed");
+        }
+    }
+    Ok(message(
+        "If this account is eligible, a sign-in link has been sent.",
+    ))
+}
+fn passkey_authenticate_options(r: &ApiRequest, w: &webauthn_rs::Webauthn) -> ApiResult {
+    let _: serde_json::Map<String, serde_json::Value> = decode(r.body)?;
+    // No account lookup or credential IDs before the authenticator identifies itself.
+    let options =
+        r.s.store
+            .passkey_auth_options(w, "", &r.now)
+            .map_err(|_| unauthorized("passkey authentication unavailable"))?;
+    let challenge = options.challenge_id.clone();
+    Ok(set_cookie(
+        Json(options).into_response(),
+        r.s,
+        "short_passkey",
+        &challenge,
+        300,
+    ))
+}
+fn passkey_authenticate_verify(r: &ApiRequest, w: &webauthn_rs::Webauthn) -> ApiResult {
+    let i: PasskeyVerify = decode(r.body)?;
+    if cookie(r.h, "short_passkey").as_deref() != Some(i.challenge_id.as_str()) {
+        return Err(unauthorized("passkey verification failed"));
+    }
+    let (user, session) =
+        r.s.store
+            .passkey_auth_verify(w, i, &r.now)
+            .map_err(|_| unauthorized("passkey verification failed"))?;
+    Ok(set_cookie(
+        set_cookie(
+            Json(user).into_response(),
+            r.s,
+            "short_session",
+            &session,
+            30 * 86400,
+        ),
+        r.s,
+        "short_passkey",
+        "",
+        0,
+    ))
+}
+
+// ---- User namespace /api (short_session cookie) ----
+
+struct UserAuthority {
+    token: String,
+    user: User,
+    db: Store,
+}
+/// The `short_session` cookie is the only authority for the rest of `/api`.
+fn user_authority(r: &ApiRequest) -> Result<UserAuthority, Response> {
+    let store = &r.s.store;
+    let token =
+        cookie(r.h, "short_session").ok_or_else(|| authority_error(store, r.h, &r.now, false))?;
+    let (user, db) = store
+        .user_session(&token, &r.now)
+        .map_err(|_| unauthorized("authentication required"))?;
+    Ok(UserAuthority { token, user, db })
+}
+fn user_api(r: &ApiRequest, u: &UserAuthority) -> ApiResult {
+    if let Some(response) = account_api(r, u) {
+        return response;
+    }
+    if let Some(response) = link_api(r, u) {
+        return response;
+    }
+    let segments: Vec<_> = r.path.trim_matches('/').split('/').collect();
+    if *r.method == Method::PATCH
         && segments.len() == 4
         && segments[..3] == ["api", "account", "passkeys"]
     {
-        let id: i32 = segments[3]
-            .parse()
-            .map_err(|_| error(StatusCode::NOT_FOUND, "not_found", "not found"))?;
-        let input: PasskeyRename = decode(body)?;
+        let id: i32 = segments[3].parse().map_err(|_| not_found())?;
+        let input: PasskeyRename = decode(r.body)?;
         return Ok(Json(
-            db.rename_passkey(user.id, id, &input.name, &now)
+            u.db.rename_passkey(u.user.id, id, &input.name, &r.now)
                 .map_err(db_error)?,
         )
         .into_response());
@@ -849,6 +693,230 @@ fn api_result(
         "not_found",
         "unknown API route",
     ))
+}
+/// Exact user routes (plus token revocation); `None` when no route matches.
+fn account_api(r: &ApiRequest, u: &UserAuthority) -> Option<ApiResult> {
+    let (s, db, user, now) = (r.s, &u.db, &u.user, r.now.as_str());
+    let result = match (r.method.as_str(), r.path) {
+        ("GET", "/api/account/tokens") => db
+            .access_tokens(user.id, now)
+            .map_err(db_error)
+            .map(|v| Json(v).into_response()),
+        ("POST", "/api/account/tokens") => decode(r.body).and_then(|input| {
+            Ok((
+                StatusCode::CREATED,
+                Json(
+                    db.issue_access_token(user.id, input, now)
+                        .map_err(db_error)?,
+                ),
+            )
+                .into_response())
+        }),
+        ("DELETE", path) if path.starts_with("/api/account/tokens/") => {
+            revoke_access_token(u, path, now)
+        }
+        ("GET", "/api/me") => Ok(Json(user).into_response()),
+        ("GET", "/api/account/passkeys") => db
+            .passkey_list(user.id, now)
+            .map_err(db_error)
+            .map(|v| ([(header::CACHE_CONTROL, "no-store")], Json(v)).into_response()),
+        ("POST", "/api/auth/passkeys/register/options") => crate::passkeys::webauthn(&s.origin)
+            .and_then(|w| db.passkey_register_options(&w, user.id, now))
+            .map_err(db_error)
+            .map(|v| Json(v).into_response()),
+        ("POST", "/api/auth/passkeys/register/verify") => passkey_register_verify(r, u),
+        ("POST", "/api/auth/logout") => db
+            .logout(&u.token)
+            .map_err(db_error)
+            .map(|()| set_cookie(message("signed out"), s, "short_session", "", 0)),
+        ("POST", "/api/account/sign-out-everywhere") => {
+            db.revoke_user(user.id).map_err(db_error).map(|()| {
+                set_cookie(
+                    message("all sessions revoked; passkeys preserved"),
+                    s,
+                    "short_session",
+                    "",
+                    0,
+                )
+            })
+        }
+        ("PATCH", "/api/account") => decode::<AccountPatch>(r.body).and_then(|p| {
+            Ok(Json(
+                db.patch_user(
+                    user.id,
+                    UserPatch {
+                        retention_days: p.retention_days,
+                        ..UserPatch::default()
+                    },
+                    now,
+                )
+                .map_err(db_error)?,
+            )
+            .into_response())
+        }),
+        ("GET", "/api/links") => db
+            .links(Some(user.id))
+            .map_err(db_error)
+            .map(|v| Json(v).into_response()),
+        ("POST", "/api/links") => decode::<LinkInput>(r.body).and_then(|i| {
+            check_static_alias(s, &i).map_err(db_error)?;
+            Ok((
+                StatusCode::CREATED,
+                Json(db.create_link(user.id, i, now).map_err(db_error)?),
+            )
+                .into_response())
+        }),
+        ("POST", "/api/links/bulk") => bulk_create(r, u),
+        ("POST", "/api/links/bulk-update") => bulk_update(r, u),
+        _ => return None,
+    };
+    Some(result)
+}
+fn revoke_access_token(u: &UserAuthority, path: &str, now: &str) -> ApiResult {
+    let id = path
+        .strip_prefix("/api/account/tokens/")
+        .unwrap()
+        .parse::<i32>()
+        .map_err(|_| db_error("not found".into()))?;
+    u.db.revoke_access_token(u.user.id, id, now)
+        .map_err(db_error)?;
+    Ok(message("access token revoked"))
+}
+fn passkey_register_verify(r: &ApiRequest, u: &UserAuthority) -> ApiResult {
+    let w = crate::passkeys::webauthn(&r.s.origin).map_err(db_error)?;
+    let input: PasskeyEnrollment = decode(r.body)?;
+    crate::domain::PasskeyName::parse(&input.name).map_err(db_error)?;
+    u.db.passkey_register_named(&w, u.user.id, input, &r.now)
+        .map_err(|_| {
+            error(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "verification",
+                "passkey verification failed",
+            )
+        })?;
+    Ok(message("passkey registered"))
+}
+fn bulk_create(r: &ApiRequest, u: &UserAuthority) -> ApiResult {
+    let i: BulkInput = decode(r.body)?;
+    if i.items.is_empty() || i.items.len() > 500 {
+        return Err(error(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "validation",
+            "bulk creation requires 1..500 rows",
+        ));
+    }
+    let items = i
+        .items
+        .into_iter()
+        .enumerate()
+        .map(|(index, row)| {
+            let result = match row {
+                BulkRow::Link(input) => check_static_alias(r.s, &input)
+                    .and_then(|_| u.db.create_link(u.user.id, input, &r.now)),
+                BulkRow::Invalid(_) => Err("invalid link input row".into()),
+            };
+            match result {
+                Ok(link) => BulkResult::Created {
+                    index: index as i32,
+                    link,
+                },
+                Err(e) => BulkResult::Failed {
+                    index: index as i32,
+                    error: ErrorBody {
+                        code: "validation".into(),
+                        message: if e.contains("UNIQUE") {
+                            "alias already exists".into()
+                        } else {
+                            e
+                        },
+                    },
+                },
+            }
+        })
+        .collect();
+    Ok(Json(BulkResponse { items }).into_response())
+}
+fn bulk_update(r: &ApiRequest, u: &UserAuthority) -> ApiResult {
+    // An optional alias assertion can accompany an otherwise valid
+    // bulk action. Check every assertion before any per-link write; do
+    // not silently discard a rename alongside a metadata update.
+    let raw: serde_json::Value = decode(r.body)?;
+    let input: BulkUpdate = decode(r.body)?;
+    // Bound all preflight target reads before looking up any ID.
+    if input.ids.is_empty() || input.ids.len() > 1000 {
+        return Err(db_error("bulk update requires 1..1000 IDs".into()));
+    }
+    for alias in [raw.get("alias"), raw.pointer("/action/alias")]
+        .into_iter()
+        .flatten()
+    {
+        for id in &input.ids {
+            let link = owned_link(u, *id)?;
+            let current = link
+                .addresses
+                .iter()
+                .find(|address| address.domain_id == 1)
+                .ok_or_else(not_found)?;
+            crate::domain::unchanged_short_address(&current.short_code, alias.as_str())
+                .map_err(db_error)?;
+        }
+    }
+    Ok(Json(
+        u.db.bulk_update(u.user.id, input, &r.now)
+            .map_err(db_error)?,
+    )
+    .into_response())
+}
+/// An undeleted link owned by the session user; every other ID is a generic 404.
+fn owned_link(u: &UserAuthority, id: i32) -> Result<Link, Response> {
+    let link = u.db.link(id).map_err(db_error)?;
+    if link.owner_id != u.user.id || link.deleted_at.is_some() {
+        return Err(not_found());
+    }
+    Ok(link)
+}
+/// `/api/links/{id}[/…]`; ownership is checked before the method/child route.
+/// `None` falls through to the generic unknown-route response.
+fn link_api(r: &ApiRequest, u: &UserAuthority) -> Option<ApiResult> {
+    let segments: Vec<_> = r.path.trim_matches('/').split('/').collect();
+    if segments.len() < 3 || segments[..2] != ["api", "links"] {
+        return None;
+    }
+    let link = match segments[2]
+        .parse::<i32>()
+        .map_err(|_| not_found())
+        .and_then(|id| owned_link(u, id))
+    {
+        Ok(link) => link,
+        Err(e) => return Some(Err(e)),
+    };
+    let (db, id, now) = (&u.db, link.id, r.now.as_str());
+    let result = match (r.method.as_str(), segments.get(3).copied()) {
+        ("GET", None) => Ok(Json(link).into_response()),
+        ("PATCH", None) => decode(r.body).and_then(|p| {
+            Ok(Json(db.patch_link(u.user.id, id, p, now).map_err(db_error)?).into_response())
+        }),
+        ("DELETE", None) => db
+            .delete_link(u.user.id, id, now)
+            .map_err(db_error)
+            .map(|()| message("link deleted")),
+        ("GET", Some("events")) => {
+            event_response(db, Some(id), r.query).map(|v| Json(v).into_response())
+        }
+        ("GET", Some("stats")) => link_stats(r, db, id),
+        _ => return None,
+    };
+    Some(result)
+}
+fn link_stats(r: &ApiRequest, db: &Store, id: i32) -> ApiResult {
+    let q: std::collections::HashMap<String, String> =
+        url::form_urlencoded::parse(r.query.as_bytes())
+            .into_owned()
+            .collect();
+    let to = q.get("to").map(String::as_str).unwrap_or(&r.now[..10]);
+    let default_from = (chrono::Utc::now().date_naive() - chrono::Duration::days(29)).to_string();
+    let from = q.get("from").map(String::as_str).unwrap_or(&default_from);
+    Ok(Json(db.stats(id, from, to).map_err(db_error)?).into_response())
 }
 
 async fn fallback(State(s): State<AppState>, req: Request) -> Response {

@@ -105,10 +105,7 @@ impl Store {
         // create_link_with_clock rechecks owner/status/expiry/revocation against
         // a fresh clock under its final IMMEDIATE write transaction.
         self.with(|db| owner(db, &hash, &clock()).map(|_| ()))?;
-        let scoped = Self {
-            db: self.db.clone(),
-            authority: Authority::Access { hash },
-        };
+        let scoped = self.scoped(Authority::Access { hash });
         scoped.create_link_with_clock(0, input, clock, short_code::generate)
     }
 }

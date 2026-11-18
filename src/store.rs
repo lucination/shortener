@@ -3,7 +3,9 @@ use crate::{domain::*, dto::*};
 use rusqlite::{Connection, OptionalExtension, params};
 use std::sync::{Arc, Mutex};
 mod access_tokens;
+mod read_pool;
 mod short_code;
+use read_pool::ReadPool;
 #[derive(Clone)]
 enum Authority {
     Internal,
@@ -13,7 +15,13 @@ enum Authority {
 }
 #[derive(Clone)]
 pub struct Store {
+    /// The single writer. Every write, redirect claim and authority check uses it.
     pub(crate) db: Arc<Mutex<Connection>>,
+    /// Read-only WAL snapshot connections for heavy listing/report queries, so
+    /// they never hold the writer lock. `None` for in-memory databases (a second
+    /// connection would open a different, empty database) and non-WAL journals;
+    /// reads then use the writer exactly as before.
+    readers: Option<Arc<ReadPool>>,
     authority: Authority,
 }
 pub type DbResult<T> = Result<T, String>;
@@ -71,23 +79,22 @@ impl Store {
         self.with(|db|{let count:i32=db.query_row("INSERT INTO rate_limits(key,window,count)VALUES(?,?,1) ON CONFLICT(key)DO UPDATE SET count=CASE WHEN excluded.window>rate_limits.window THEN 1 ELSE MIN(rate_limits.count+1,?) END,window=MAX(rate_limits.window,excluded.window) RETURNING count",params![token_hash(key),window,limit+1],|r|r.get(0)).map_err(sql)?;Ok(count<=limit)})
     }
     pub fn user_scope(&self, token: &str, now: &str) -> DbResult<Self> {
+        self.user_session(token, now).map(|(_, scoped)| scoped)
+    }
+    /// Authenticates once and returns both the user and its session-scoped store.
+    pub(crate) fn user_session(&self, token: &str, now: &str) -> DbResult<(User, Self)> {
         let user = self.authenticate_user(token, now)?;
-        Ok(Self {
-            db: self.db.clone(),
-            authority: Authority::User {
-                id: user.id,
-                hash: token_hash(token),
-            },
-        })
+        let scoped = self.scoped(Authority::User {
+            id: user.id,
+            hash: token_hash(token),
+        });
+        Ok((user, scoped))
     }
     pub(crate) fn admin_scope(&self, token: &str, now: &str) -> DbResult<Self> {
         self.authenticate_admin(token, now)?;
-        Ok(Self {
-            db: self.db.clone(),
-            authority: Authority::Admin {
-                hash: token_hash(token),
-            },
-        })
+        Ok(self.scoped(Authority::Admin {
+            hash: token_hash(token),
+        }))
     }
     pub(crate) fn authorize(
         &self,
@@ -160,7 +167,7 @@ impl Store {
         })
     }
     pub fn users(&self) -> DbResult<UserList> {
-        self.with(|db| {
+        self.read(|db| {
             let items = db
                 .prepare("SELECT * FROM users ORDER BY id DESC")
                 .map_err(sql)?
@@ -532,14 +539,33 @@ impl Store {
                 "configured domain cannot replace an existing immutable address domain".into(),
             );
         }
+        let readers = ReadPool::open(&db)?.map(Arc::new);
         Ok(Self {
             db: Arc::new(Mutex::new(db)),
+            readers,
             authority: Authority::Internal,
         })
+    }
+    /// Same database and connections under a different authority.
+    fn scoped(&self, authority: Authority) -> Self {
+        Self {
+            db: self.db.clone(),
+            readers: self.readers.clone(),
+            authority,
+        }
     }
     pub(crate) fn with<T>(&self, f: impl FnOnce(&mut Connection) -> DbResult<T>) -> DbResult<T> {
         let mut db = self.db.lock().map_err(|_| "database lock poisoned")?;
         f(&mut db)
+    }
+    /// Runs a read-only query against one consistent committed snapshot.
+    /// Callers must not write and must not depend on authority checks inside
+    /// `f`: authorization belongs to the writer path before the read.
+    pub(crate) fn read<T>(&self, f: impl FnOnce(&Connection) -> DbResult<T>) -> DbResult<T> {
+        match &self.readers {
+            Some(pool) => pool.read(f),
+            None => self.with(|db| f(db)),
+        }
     }
     pub fn create_user(&self, email: &str, now: &str) -> DbResult<User> {
         let email = email.trim().to_ascii_lowercase();
@@ -630,6 +656,8 @@ fn insert_address(db: &Connection, link: i32, alias: &Alias) -> DbResult<bool> {
     ).map(|changed| changed == 1).map_err(sql)
 }
 
+#[cfg(test)]
+mod read_pool_tests;
 #[cfg(test)]
 mod short_code_tests;
 
