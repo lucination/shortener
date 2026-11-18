@@ -50,12 +50,12 @@ try {
       const expected = `https://${link.addresses[0].domain}/${link.addresses[0].short_code}`;
       const before = await geometry();
       await button.click();
-      const feedback = page.locator(".copy-feedback");
+      const feedback = page.locator(".toast");
       await feedback
         .getByText("Short address copied.", { exact: true })
         .waitFor();
       assert.equal(await feedback.count(), 1);
-      assert.equal(await row.locator(".copy-feedback").count(), 1);
+      assert.equal(await row.locator(".toast").count(), 1);
       const clipboard = await page.evaluate(() =>
         navigator.clipboard.readText(),
       );
@@ -126,7 +126,7 @@ try {
   );
   assert.deepEqual(await geometry(), before);
   await page
-    .locator(".copy-feedback")
+    .locator(".toast")
     .waitFor({ state: "detached", timeout: 6500 });
   await page.evaluate(() => {
     navigator.clipboard.writeText = window.__originalCopy;

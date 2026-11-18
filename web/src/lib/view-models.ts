@@ -130,7 +130,6 @@ export type PublicView =
   | { kind: "preview"; title: string; description: string; destination: string }
   | { kind: "not-found" };
 
-export type CopyFeedback =
-  | { kind: "idle" }
-  | { kind: "pending"; id: number }
-  | { kind: "success" | "error"; id: number; message: string };
+/** One transient quick-action notice (copy, toggle, delete, bulk, save). */
+export type Notice =
+  { kind: "idle" } | { kind: "success" | "error"; message: string };

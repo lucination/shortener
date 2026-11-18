@@ -76,7 +76,7 @@ try {
       await address.scrollIntoViewIfNeeded();
       const before = await page.locator("table").boundingBox();
       await address.click();
-      const toast = page.locator(".copy-feedback");
+      const toast = page.locator(".toast");
       await toast.waitFor();
       assert.equal(await toast.textContent(), "Short address copied.");
       assert.equal(

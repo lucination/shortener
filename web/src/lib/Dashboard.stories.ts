@@ -63,18 +63,3 @@ export const Error: Story = {
     },
   },
 };
-
-export const Copied: Story = {
-  args: {
-    copyFeedback: { kind: "success", id: 1, message: "Short address copied." },
-  },
-};
-export const ClipboardUnavailable: Story = {
-  args: {
-    copyFeedback: {
-      kind: "error",
-      id: 1,
-      message: "Clipboard unavailable. Select and copy the short address.",
-    },
-  },
-};

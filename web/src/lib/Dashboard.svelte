@@ -1,7 +1,6 @@
 <script lang="ts">
   import type {
     LinkRow,
-    CopyFeedback,
     Resource,
     LinkAction,
     BulkAction,
@@ -22,7 +21,6 @@
   } from "@lucide/svelte";
   let {
     state,
-    copyFeedback = { kind: "idle" },
     mode = "manage",
     search = "",
     selected = [],
@@ -36,7 +34,6 @@
     onretry = () => {},
   }: {
     state: Resource<readonly LinkRow[]>;
-    copyFeedback?: CopyFeedback;
     mode?: "manage" | "read-only";
     search?: string;
     selected?: readonly number[];
@@ -212,17 +209,5 @@
           </tbody>
         </table>
       </div>{/if}
-    {#if copyFeedback.kind === "success" || copyFeedback.kind === "error"}
-      {@const feedback = copyFeedback}
-      {#if state.value.some((row) => row.id === feedback.id)}
-        <div
-          class="copy-feedback"
-          class:copy-error={feedback.kind === "error"}
-          data-copy-id={feedback.id}
-        >
-          {feedback.message}
-        </div>
-      {/if}
-    {/if}
   {/if}
 </section>
