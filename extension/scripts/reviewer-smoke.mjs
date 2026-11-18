@@ -20,6 +20,13 @@ const origin = "http://localhost";
 const request = (path, options = {}) => fetch(new URL(path, origin), { ...options, redirect: "manual", signal: AbortSignal.timeout(10000) });
 const post = (path, body, cookie) => request(path, { method: "POST", headers: { "Content-Type": "application/json", Origin: origin, ...(cookie ? { Cookie: cookie } : {}) }, body: JSON.stringify(body) });
 const cookie = (response, name) => { const item = response.headers.getSetCookie().find(s => s.startsWith(name + "=")); assert.ok(item, "Missing expected session cookie"); return item.split(";")[0]; };
+const assertOwnedResourcesAbsent = () => {
+  for (const args of [["ps", "-aq"], ["volume", "ls", "-q"], ["network", "ls", "-q"]])
+    assert.equal(execFileSync("docker", [...args, "--filter", `label=com.docker.compose.project=${name}`], { encoding: "utf8" }).trim(), "", "Reviewer fixture resource collision or incomplete cleanup");
+};
+// Admission precedes the cleanup-capable try/finally: never remove a preexisting
+// project even if an improbable generated-name collision or stale fixture exists.
+assertOwnedResourcesAbsent();
 try {
   compose("config", "--quiet");
   compose("up", "-d", "--wait", "--wait-timeout", "120");
@@ -74,7 +81,7 @@ try {
   process.exitCode = 1;
   console.error("Reviewer smoke failed; inspect assertion stages, no credentials or provider output retained");
 } finally {
-  try { compose("down", "--volumes", "--remove-orphans"); pass("owned-cleanup"); }
+  try { compose("down", "--volumes", "--remove-orphans"); assertOwnedResourcesAbsent(); pass("owned-cleanup"); }
   catch { receipt.stage = "failed"; process.exitCode = 1; }
   await writeFile(`${evidence}/reviewer-smoke.json`, JSON.stringify(receipt,null,2)+"\n");
 }
