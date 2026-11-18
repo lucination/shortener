@@ -1,16 +1,11 @@
-import { createAmoApi, parseUploadIdentity } from "./amo-listing.mjs";
+import { parseUploadIdentity } from "./amo-read.mjs";
+export { createAmoReadOnlyGet } from "./amo-read.mjs";
 
 export const reconciliationGuid = "shortener-companion@shortener.invalid";
 const ensure = (value, message) => { if (!value) throw new Error(message); };
 export function reconciliationVersion(value) {
   ensure(typeof value === "string" && value.length <= 32 && value === value.trim() && /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/u.test(value), "Invalid reconciliation version; no writes performed");
   return value;
-}
-
-// Deliberately no method/body argument: diagnostics can only issue GET requests.
-export function createAmoReadOnlyGet(options) {
-  const api = createAmoApi(options);
-  return (path, allow404 = false) => api("GET", path, undefined, allow404);
 }
 
 function uploadSummary(value, version) {

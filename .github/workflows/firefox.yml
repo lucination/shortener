@@ -130,7 +130,7 @@ jobs:
           path: extension/dist
       - run: npm ci --ignore-scripts && python3 -m zipfile -e dist/firefox.zip dist/firefox && npm run lint:firefox
         working-directory: extension
-      - name: Submit listed Firefox version (no automatic retries)
+      - name: Submit listed Firefox version with official web-ext (no automatic retries)
         working-directory: extension
         env:
           WEB_EXT_API_KEY: ${{ secrets.WEB_EXT_API_KEY }}

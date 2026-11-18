@@ -81,64 +81,106 @@ policy and metadata. The extension never collects background browsing history.
 
 Shortener Companion connects only to the self-hosted Shortener instance you configure. When you shorten a page, its URL and title are sent to that instance using your access token. The instance address and token are stored locally in your browser. The extension developer receives no data or telemetry. Data stored by your instance is under your control.
 
-### Complete initial-listing transaction
+### Official web-ext submission, not a custom write protocol
 
-The v5 create API requires explicit localized `name`, `summary`, categories and
-version `license`. The authenticated `accounts/profile/` read must have the exact
-owner-approved `display_name` **Aditya** before any write. No email address is
-chosen, exposed or changed. The stable GUID/version and add-on must not already
-exist: this first-listing adapter refuses automatic update/resume.
+The only writer is the existing integrity-locked **web-ext 10.8.0 CLI**. After
+release admission and authenticated read-only publisher/GUID/version preflight,
+the protected job executes the equivalent of:
 
-AMO's add-on create API requires an uploaded version; it cannot create an empty
-listing and set policy/screenshots before version creation. Its create serializer
-also does not accept `privacy_policy` (nested or top-level). The adapter therefore
-creates the add-on **atomically developer-disabled** (`is_disabled: true`), reads
-that hold and publisher ownership back, then attaches the accepted source ZIP.
-AMO can begin reviewing the version during this hold, but cannot publicly enable
-the add-on. This is a publication fence, not a claim to delay AMO's review queue.
+```sh
+node node_modules/web-ext/bin/web-ext.js sign \
+  --source-dir dist/firefox --channel listed \
+  --amo-metadata amo-metadata.json \
+  --upload-source-code dist/firefox-source.zip \
+  --approval-timeout 0 --timeout 300000 \
+  --artifacts-dir dist/amo-cli --no-config-discovery --no-input
+```
 
-The adapter PATCHes `{privacy_policy: <approved localized text>}` to
-`addons/addon/{guid}/eula_policy/` and reads its exact unsanitized value back.
-Every AMO JSON response has a **1 MiB decoded-body admission limit**. These
-requests read single-target profile/listing/version/upload-status/policy/preview
-metadata, not the uploaded ZIP/PNG bodies; 1 MiB is our conservative client
-budget, not a claimed AMO maximum. An excessive declared Content-Length rejects
-before body reads. Streaming accounting also bounds automatically decompressed
-fetch bytes when length is absent, understated or compressed. The same 30-second
-request deadline covers headers and body reads. Overflow, timeout, interrupted
-streams, invalid UTF-8 and malformed JSON cancel/release the response and stop
-with sanitized reconciliation guidance; body/parser/transport errors and token
-values are never echoed. Error/404 bodies are cancelled without parsing.
-It uploads each approved PNG to `previews/` as multipart `image`/`position`, then
-PATCHes translated caption/position separately (AMO forbids captions in that
-multipart upload). It waits only through bounded GET polling for exact preview
-IDs, captions, dimensions and HTTPS image references. No write is retried.
-The server may resize/recompress images; readback verifies the returned preview
-records, not byte-identical server encoding. Local input hashes bind the actual
-approved upload bytes. It rechecks source attachment, version/channel/license,
-reviewer notes, publisher ownership, listing copy and policy before the sole
-publication-enabling PATCH (`is_disabled: false`), whose effect is read back.
-Incomplete policy/media/source or an unknown write outcome stops with the add-on
-held disabled; no compensating enable, automatic resume, duplicate upload or
-retry is attempted. An uncertain final enable requires manual reconciliation.
+Credentials are supplied only through the existing protected step environment,
+never arguments. There is no npx download, dependency change, home/project config
+discovery, verbose log, proxy override, custom upload/create/policy/preview client
+or custom disable/enable sequence. The thin process wrapper captures at most
+64 KiB of output, emits only sanitized stage/status/known field paths and codes
+or message classifications, and stops the child after nine minutes. It never
+prints or retains raw CLI/provider output. The CLI timeout bounds validation GET
+polling; it is not an HTTP request/body limit. Only our independent read-only
+client retains the 1 MiB decoded JSON/30-second bounds. Upstream CLI networking is
+not patched or falsely described as using those bounds.
 
-`extension/listing/assets.json` binds the approved restyled **actual native
-Firefox** popup/settings captures to SHA-256 values, dimensions, captions and
-original capture hashes. PNG/JPEG (non-animated) are the API's supported formats;
-these stripped PNGs are 1280x800 and below 5 MiB each. The popup is cropped from
-the real desktop capture, its ephemeral local address visibly masked, then
-centered/enlarged; the blank Settings capture retains the shipped example
-placeholder. Originals and masking provenance remain private evidence, not
-source archive contents. The archive includes exactly the two public PNGs and
-their manifest, never personal accounts, local capture paths or credentials.
+Pinned implementation facts: sign reads the metadata JSON unchanged. With the
+stable manifest GUID, it uploads and validates, then uses the v5 **PUT**
+`addons/addon/{guid}/` create-or-update route, followed by a version source PATCH.
+The provider routes a missing-record PUT through its create serializer. Categories
+are not converted from an array to an application object; the approved object is
+passed exactly as checked in. Reviewer notes and the all-rights-reserved license
+are forwarded under version metadata. No approval wait or signed-XPI download is
+performed when approval-timeout is zero. A CLI success does not establish review
+approval or public availability.
 
-References: [v5 add-on create](https://mozilla.github.io/addons-server/topics/api/addons.html#addon-create),
-[policy API](https://mozilla.github.io/addons-server/topics/api/addons.html#addon-eula-policy),
-[preview create/edit](https://mozilla.github.io/addons-server/topics/api/addons.html#preview-create).
-The installed `web-ext` 10.8.0 `lib/util/submit-addon.js` also creates the version
-before its source PATCH and forwards metadata without special privacy/media
-handling. The scoped API adapter replaces that submission path rather than
-pretending unsupported JSON fields or screenshot filenames upload themselves.
+The read-only preflight requires the approved display name **Aditya** and stops
+on an existing exact version or add-on. Because the official route is an upsert,
+this observation is not an atomic reservation: the owner must not run competing
+publisher/Developer Hub mutations during the transaction. No takeover or update
+is deliberately authorized by the preflight. The stable ID remains
+`shortener-companion@shortener.invalid`.
+
+**Native artifact binding:** the CLI always rebuilds a ZIP from its directory.
+The source directory is first checked for exact file inventory and byte equality
+against every entry of the same-run, hash-bound native-tested `dist/firefox.zip`.
+Symlinks, changed/extra files and saved `.amo-upload-uuid`/`.web-extension-id` caches
+are rejected. The pinned CLI loopback contract test verifies that its actual
+uploaded ZIP contains those exact files and its source PATCH contains the exact
+accepted source archive. ZIP headers, entry order and compression differ: we do
+not claim the repacked upload has the deterministic native ZIP container hash.
+The reproducible native ZIP and source archive hashes remain authoritative inputs.
+
+### Required Developer Hub completion after the CLI
+
+This is **not** a manual-first-listing path: the official CLI creates the listing.
+It does not call the policy or screenshot APIs. Unsupported `privacy_policy` has
+been removed from CLI metadata, not silently treated as applied. The exact
+approved disclosure is preserved in `listing/privacy-policy.txt` above and in the
+source archive. The two approved actual Firefox screenshots, hashes, dimensions
+and captions remain in `listing/{popup.png,settings.png,assets.json}`.
+
+The supported metadata field **is_disabled: true** requests a developer-disabled
+listing through the official CLI itself. A GET-only readback must verify the
+held listing, approved owner, exact listed version and attached source before the
+script reports submitted-developer-disabled. No code enables it. Mozilla can
+begin reviewing during this hold; it is not a delayed-review promise.
+
+Before public enabling, the approved account owner must:
+
+1. Open the existing CLI-created Shortener Companion in Developer Hub, not Submit
+   a New Add-on. Verify the stable GUID, exact version, display name Aditya,
+   developer-disabled state, attached source, reviewer instructions, approved
+   listing copy and all-rights-reserved license. Do not invent a contact email.
+2. In **Manage Authors & License**, select **This add-on has a privacy
+   policy** and paste the complete `listing/privacy-policy.txt` into **Privacy
+   Policy**. Save, reopen and compare the saved text with that file, not merely a
+   policy URL. Use **Save Changes**, then reopen the policy form to verify it.
+3. On **Edit Product Page**, use **Edit** in **Add-on Media** and **Add a Screenshot...**.
+   Upload **popup.png first,
+   settings.png second**, both 1280x800 PNGs. Set the English captions to the exact
+   `caption.en-US` strings in `listing/assets.json`, retain that order and use **Save Changes**.
+   Reopen the page to verify both images, captions and order. These are approved
+   real captures; the popup address is visibly redacted. Do not substitute fixture
+   screenshots or claim server recompression preserves the uploaded PNG hashes.
+4. Only after those saved values and version/source details are verified, use the
+   existing listing enable control in **Manage Status & Versions**. Keep any
+   Mozilla-disabled or rejected record stopped for review; do not attempt to
+   override it. Verify the enabled state and review outcome, and then the exact
+   version on the anonymous public listing before announcing publication.
+
+These manual operations are required, not reported as CI-completed policy/media
+work. Metadata requests the hold; the readback establishes whether it took effect.
+See the pinned provider templates and current Developer Hub labels if navigation
+changes. No API keys or account data need to be copied into chat.
+
+Navigation and field labels are grounded in the pinned
+[owner/policy template](https://github.com/mozilla/addons-server/blob/6e31cf033455eeaf68c5e6b689f5f917f9faf69f/src/olympia/devhub/templates/devhub/addons/owner.html),
+[media form](https://github.com/mozilla/addons-server/blob/6e31cf033455eeaf68c5e6b689f5f917f9faf69f/src/olympia/devhub/templates/devhub/addons/forms_shared/media.html)
+and [edit navigation](https://github.com/mozilla/addons-server/blob/6e31cf033455eeaf68c5e6b689f5f917f9faf69f/src/olympia/devhub/templates/devhub/includes/addons_edit_nav.html).
 
 ## Publisher authorization boundary
 
@@ -192,130 +234,42 @@ rechecks the receipt and downloads the accepted artifacts from the same run.
 
 ## Upload, review, publication and uncertain outcomes
 
-Before writing, the signer authenticates an API v5 read of the exact GUID/version
-and publisher profile. An existing version/add-on is a stop, not permission to
-upload again. The API adapter uses the listed upload channel and the held
-initial-listing transaction above, attaching the exact accepted source archive.
-It does not wait for approval or claim public availability: its successful
-result is submitted-not-publicly-verified. Inspect Developer Hub → Manage Status &
-Versions for **uploaded**, **awaiting review**, **approved/public**, **rejected** or
-**disabled** state. Verify the exact version is anonymously available on its
-public AMO listing before announcing publication; an older public version does
-not prove the new one is published.
+Every write is owned by the official CLI. It has no upload/create/source write
+retry loop; validation GET polling is not a write retry. The wrapper invokes the
+CLI once. An error, output overflow, child timeout, source failure or incomplete
+held readback stops for reconciliation. Workflow attempt 2 remains forbidden;
+there is no manual signing bypass. Official upload cache files created during an
+attempt are not permission to resume and are never seeded into a fresh source
+directory. Preserve useful IDs privately, not in public source control.
 
-Network errors/timeouts can occur after AMO accepted an upload. The script does
-not retry writes. Workflow reruns (`GITHUB_RUN_ATTEMPT > 1`) are blocked from
-submission. Before any new release attempt, inspect both Developer Hub versions
-and API v5 `/addons/addon/{guid}/versions/{version}/` plus `/addons/upload/` for
-unsubmitted uploads. Never blindly rerun, delete/recreate a tag, or interpret a
-404 alone as proof that no upload occurred. Preserve AMO upload/version IDs in
-private operator records, reconcile review state, and repair via the Developer
-Hub if necessary. The workflow offers no manual signing bypass. Credentials,
-AMO reads/writes and live publication have not been exercised by local tests.
+The HTTP 400 from the former custom adapter has no retained provider body, so its
+cause is **unknown**. This migration does not retroactively diagnose it. Loopback
+fixtures prove real CLI PUT/source behavior and safe field/code diagnostics; they
+are synthetic contract tests, not captured live responses. Before another live
+attempt, inspect current authenticated GUID/version/upload state and existing
+Developer Hub validation details. Do not infer absence from anonymous or
+not-found-or-not-visible results, and do not bump a version to hide an unknown
+outcome. This preparation deliberately keeps **0.1.2**; the parent decides the
+next unused tag/version only after state reconciliation and independent review.
+Never rerun, move or delete an existing failed tag.
 
-### Upload identity contract and read-only reconciliation
+The separate manual **Firefox AMO read-only reconciliation** workflow is retained.
+It is canonical-main-only, credential-isolated and GET-only, and cannot invoke the
+submit entrypoint. It checks the approved publisher and exact GUID/version, reads
+at most four pages of 25 owned uploads and optionally one exact compact upload ID,
+and reports explicit scanned/total/truncated coverage. Provider-default ordering
+is not a recency guarantee. It emits no filenames, validation bodies, personal
+fields, response URLs or download tokens. Every read retains its 1 MiB/30-second
+bound. The v5 upload serializer uses UUIDField(format=hex); the diagnostic parser
+preserves exactly 32 lowercase hex characters without repair.
 
-AMO v5 returns upload UUIDs as **32 lowercase hexadecimal characters**, not
-hyphenated 36-character UUID text. This is explicit in Mozilla's
-[`FileUploadSerializer`](https://github.com/mozilla/addons-server/blob/6e31cf033455eeaf68c5e6b689f5f917f9faf69f/src/olympia/files/serializers.py)
-(`UUIDField(format='hex')`) and its
-[serializer tests](https://github.com/mozilla/addons-server/blob/6e31cf033455eeaf68c5e6b689f5f917f9faf69f/src/olympia/files/tests/test_serializers.py).
-Pinned `web-ext` 10.8.0 also passes the returned `uuid` unchanged into validation
-polling and version creation. The adapter accepts that exact representation;
-it never strips hyphens, lowercases or repairs malformed provider identifiers.
-Contract fixtures are synthetic examples of that schema, not captured live
-responses.
-
-The phase order is: authenticated publisher/GUID/version preflight -> upload
-POST -> upload identity admission -> validation polling -> disabled add-on
-creation -> source/policy/media attachment/readback -> enabling PATCH.
-`Invalid AMO upload identity` therefore means a successful parseable upload POST
-response reached the identity check, before validation polling or add-on
-creation. **The upload POST is already an external write.** It is not equivalent
-to a zero-step environment rejection; a public GUID 404 cannot prove that no
-unsubmitted upload exists. Do not rerun, blindly create another upload or bump
-versions to escape uncertainty, or delete/move the failed tag. An explicitly
-authorized fresh transaction after reconciliation is distinct from orphan reuse;
-see below.
-
-After independent review and main integration, the separate **Firefox AMO
-read-only reconciliation** workflow can be manually dispatched on canonical
-`main`, using the existing protected `firefox-addons` environment. Select the
-exact failed version (default `0.1.1`) and optionally an already known compact
-upload ID. No secrets need to be retrieved locally. The script has a GET-only
-transport with no method/body input, does not import the submit entrypoint and
-cannot perform a store write or bypass the submission-attempt guard.
-
-It verifies the approved publisher, reads the exact GUID/listed-version and
-at most four upload-list pages of 25 records each, optionally reading one exact
-upload detail. It reports allowlisted IDs/status/target-version matches and
-explicit scanned/total/truncated coverage, never filenames, raw validation,
-personal account fields, response URLs or download tokens. The API does not
-document a recency ordering or expose creation times here: the report labels
-provider-default order rather than claiming these are necessarily the latest
-uploads. Pagination links are validated but never fetched as arbitrary URLs.
-All JSON reads retain the 1 MiB/30-second bounds. The workflow is manual,
-canonical-main-only and has read-only GitHub permissions; it has not been
-dispatched by local tests.
-
-**Provider limitation:** the upload serializer exposes UUID/channel/processed/
-submitted/valid/validation/version/detail-URL, but not the model's stored hash,
-GUID association or private raw-download access token. The
-[model](https://github.com/mozilla/addons-server/blob/6e31cf033455eeaf68c5e6b689f5f917f9faf69f/src/olympia/files/models.py)
-and [download view](https://github.com/mozilla/addons-server/blob/6e31cf033455eeaf68c5e6b689f5f917f9faf69f/src/olympia/files/views.py)
-show that raw upload downloads use a separate private access token, not the v5
-detail URL. Do not invent a JWT download route, follow arbitrary response URLs
-with credentials or expose that token. Diagnostic output always says upload
-GUID binding and artifact bytes are unverified and `resumeAuthorized: false`.
-
-Recovery choices after those reads:
-
-1. If the exact owned version exists, inspect its real state and reconcile that
-   version; do not create it again.
-2. If only an unsubmitted upload exists, preserve its literal ID. Before any
-   separately reviewed one-shot reuse, obtain independent proof of the uploaded
-   ZIP's exact SHA-256/GUID/version and the accepted reproducible source/artifact
-   receipts. Use an owner-approved Developer Hub download **if offered**, or
-   request the stored hash/file from Mozilla support. The v5 list alone cannot
-   supply that proof. The API can consume an existing upload via `version.upload`
-   without another upload POST, but no resume/write path is implemented here.
-3. If exact byte identity cannot be established, do not reuse that upload or
-   manufacture a hash. Stop automatic recovery for provider/operator reconciliation.
-
-An explicitly authorized fresh release may leave an old unsubmitted upload intact
-without reusing it. When the failed attempt is known to have stopped before
-add-on/version creation and read-only observations have been reconciled, a newly
-reviewed version/tag and attempt 1 can use the normal new-listing transaction.
-This does not prove GUID/version absence: the authenticated publisher and exact
-GUID/version preflights run again and stop on existing records, with no takeover
-or automatic resume. Every write remains single-attempt and uncertainty still
-stops the transaction. No old-upload byte/hash proof is required for this path
-because the old upload ID and bytes are never consumed. Existing-upload reuse
-still requires the independent proof described above.
-
-The current fresh candidate is **0.1.2**, for a parent-reviewed
-`extension-v0.1.2` tag and new attempt 1. Previous release tags remain immutable;
-the old upload is neither reused nor deleted. Source-bound native Firefox and
-self-hosted reviewer acceptance must be refreshed before release admission.
-
-### Recovery after an environment rejection before execution
-
-If GitHub rejects a protected environment before **any** submit-job step runs,
-independently retain that run's attempt, zero-step job and protection rejection
-evidence. Correct the intended environment tag rule without weakening other
-protections. A rerun still increments `GITHUB_RUN_ATTEMPT`; the submission guard
-does not make an exception for pre-execution failures. Do not rerun that workflow
-or delete/move its immutable tag.
-
-After confirming no submission code executed, use the normal reviewed patch
-release path instead: advance package/lock/generated-manifest versions together,
-update the reviewer-note version, and obtain fresh source/hash-bound native and
-self-hosted acceptance. The earlier **0.1.1** recovery from the zero-step
-environment rejection is historical; the current candidate is described above.
-This does not prove the GUID/version is available or authorize a
-duplicate AMO write: all authenticated publisher, existing-add-on/version,
-uncertain-outcome and no-retry checks remain unchanged. Actual main integration,
-new tag creation and submission are separate release-authority steps.
+Upload inventory does not establish byte identity: v5 omits the stored hash, GUID
+binding and private raw-download access token. Existing-upload reuse would need
+separate independent proof and authorization; no reuse path is implemented here.
+An explicitly authorized fresh transaction is distinct and need not prove bytes
+of an unused orphan. Prior uploads remain untouched. A zero-step environment
+rejection is also distinct from a write failure; retain that evidence without
+weakening attempt-one admission or treating any provider state as absent.
 
 ## Actual Firefox acceptance
 
