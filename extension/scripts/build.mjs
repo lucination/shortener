@@ -37,9 +37,10 @@ for (const platform of ["chrome", "firefox", "safari"]) {
       await cp(`${root}compiled/extension/src/${file}`, `${target}/${file}`);
   }
   await cp(`${root}static`, target, { recursive: true });
-  await cp(`${root}../web/static/fonts`, `${target}/fonts`, {
-    recursive: true,
-  });
+  await cp(
+    `${root}../web/src/lib/styles/presentation.css`,
+    `${target}/theme.css`,
+  );
   const manifest =
     platform === "firefox"
       ? {

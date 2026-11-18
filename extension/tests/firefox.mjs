@@ -1,3 +1,7 @@
+import {
+  measurePresentation,
+  assertPresentation,
+} from "./presentation-contract.mjs";
 /** Headed native Firefox acceptance. No live account, mocked browser API or AMO.
  * Browser chrome opens the real toolbar popup. BiDi observes that actual popup
  * through the installed extension's own getViews(), without selecting another
@@ -108,8 +112,19 @@ const content = async () => {
   if ((await driver.getContext()) !== "content")
     await driver.setContext("content");
 };
-const snapshot = async (name) =>
-  writeFile(`${evidence}/${name}.png`, await driver.takeScreenshot(), "base64");
+const snapshot = async (name) => {
+  await writeFile(
+    `${evidence}/${name}.png`,
+    await driver.takeScreenshot(),
+    "base64",
+  );
+  if (name.startsWith("native-popup"))
+    execFileSync(
+      "import",
+      ["-window", "root", `${evidence}/desktop-${name}.png`],
+      { timeout: 10000 },
+    );
+};
 const wait = async (fn, message) => driver.wait(fn, 15000, message, 200);
 // Evaluate in background Settings without selecting it: selecting it would close
 // the native popup and change activeTab. This only reads/operates the real view.
@@ -400,6 +415,10 @@ try {
       )) === url,
     "Popup did not display fixture short URL",
   );
+  receipt.presentation = await popup(
+    `p=>(${measurePresentation.toString()})(p)`,
+  );
+  assertPresentation(receipt.presentation);
   await snapshot("native-popup");
   receipt.stage = "native-plain-clipboard";
   execFileSync("xclip", ["-selection", "clipboard"], {
@@ -422,14 +441,59 @@ try {
   await popup(
     `p=>{const native=p.navigator.clipboard.write.bind(p.navigator.clipboard);p.__nativeWrites=[];p.navigator.clipboard.write=async items=>{const observation={count:items.length,types:items.map(i=>[...i.types].sort()),resolved:false};p.__nativeWrites.push(observation);const value=await native(items);observation.resolved=true;return value;};return true;}`,
   );
+  receipt.markdownCapabilities = await popup(
+    `p=>{const check=t=>{try{return typeof p.ClipboardItem?.supports==='function'?p.ClipboardItem.supports(t):null;}catch{return null;}};return {native:check('text/markdown'),customWeb:check('web text/markdown')};}`,
+  );
   await clickPopup("#app a");
   await readRich("rich-native", expected);
   const writes = await popup("p=>p.__nativeWrites");
   receipt.nativeWrites = writes;
-  assert.equal(writes.length, 1);
-  assert.equal(writes[0].count, 1);
-  assert.deepEqual(writes[0].types, [["text/html", "text/plain"]]);
-  assert.equal(writes[0].resolved, true);
+  const resolvedWrites = writes.filter((w) => w.resolved);
+  assert.equal(resolvedWrites.length, 1);
+  for (const w of writes)
+    assert.equal(w.count, 1, "each native write uses one ClipboardItem");
+  const types = resolvedWrites[0].types[0];
+  assert.deepEqual(
+    types.filter((t) => t !== "text/markdown"),
+    ["text/html", "text/plain"],
+  );
+  const markdownText = String.raw`[Article & Notes \<proof\>](${url})`;
+  receipt.nativeMarkdown = {
+    advertised: receipt.markdownCapabilities.native,
+    customWebAdvertised: receipt.markdownCapabilities.customWeb,
+    nativeReadback: false,
+    status: "unsupported-or-rejected; optional native MIME skipped",
+  };
+  if (types.includes("text/markdown")) {
+    try {
+      const observed = clipboard("text/markdown");
+      assert.equal(observed, markdownText);
+      receipt.nativeMarkdown = {
+        ...receipt.nativeMarkdown,
+        nativeReadback: true,
+        status: "native MIME readback verified",
+      };
+      await writeFile(`${evidence}/native-markdown.md`, observed);
+    } catch {
+      receipt.nativeMarkdown.status =
+        "advertised/write resolved but native MIME not observed; not claimed supported";
+    }
+  }
+  execFileSync("xclip", ["-selection", "clipboard"], {
+    input: "markdown sentinel",
+    stdio: ["pipe", "ignore", "ignore"],
+    timeout: 2000,
+  });
+  await clickPopup('[data-copy="markdown"]');
+  await wait(() => {
+    try {
+      return clipboard("text/plain") === markdownText;
+    } catch {
+      return false;
+    }
+  }, "Explicit Markdown action did not write exact native plaintext");
+  await writeFile(`${evidence}/markdown-plain.txt`, clipboard("text/plain"));
+  pass("markdown-clipboard");
   pass("rich-native-clipboard");
   receipt.stage = "native-copy-event-fallback";
   receipt.fallbackFeatureControl = "ClipboardItem unavailable (forced)";
@@ -447,7 +511,7 @@ try {
   await clickPopup("#app a");
   await readRich("rich-fallback", expected);
   assert.equal(await popup("p=>p.__fallbackObserved"), true);
-  assert.equal((await popup("p=>p.__nativeWrites")).length, 1);
+  assert.equal((await popup("p=>p.__nativeWrites")).length, writes.length);
   pass("rich-fallback-clipboard");
   assert.equal(
     requests.length,

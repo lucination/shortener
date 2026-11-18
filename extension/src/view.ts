@@ -4,7 +4,11 @@ export type PopupState =
   | { kind: "error"; message: string }
   | { kind: "setup" }
   | Ready;
-export type Actions = { copyText: () => void; copyRich: () => void };
+export type Actions = {
+  copyText: () => void;
+  copyRich: () => void;
+  copyMarkdown: () => void;
+};
 export function render(
   root: HTMLElement,
   state: PopupState,
@@ -43,12 +47,47 @@ export function render(
       });
       const copy = doc.createElement("button");
       copy.type = "button";
-      copy.textContent = "Copy URL";
+      // Lucide Copy icon, @lucide/svelte 1.73.0 (ISC; bundled notice).
+      const icon = doc.createElementNS("http://www.w3.org/2000/svg", "svg");
+      for (const [key, value] of Object.entries({
+        viewBox: "0 0 24 24",
+        fill: "none",
+        stroke: "currentColor",
+        "stroke-width": "2",
+        "stroke-linecap": "round",
+        "stroke-linejoin": "round",
+        "aria-hidden": "true",
+      }))
+        icon.setAttribute(key, value);
+      const nodes = [
+        [
+          "rect",
+          { width: "14", height: "14", x: "8", y: "8", rx: "2", ry: "2" },
+        ],
+        [
+          "path",
+          { d: "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" },
+        ],
+      ] as const;
+      for (const [tag, attributes] of nodes) {
+        const node = doc.createElementNS("http://www.w3.org/2000/svg", tag);
+        for (const [key, value] of Object.entries(attributes))
+          node.setAttribute(key, value);
+        icon.append(node);
+      }
+      copy.append(icon, doc.createTextNode("Copy URL"));
       copy.addEventListener("click", actions.copyText);
+      const markdown = copy.cloneNode(true) as HTMLButtonElement;
+      markdown.lastChild!.textContent = "Copy Markdown";
+      markdown.dataset.copy = "markdown";
+      markdown.addEventListener("click", actions.copyMarkdown);
+      const controls = doc.createElement("div");
+      controls.className = "actions";
+      controls.append(copy, markdown);
       root.append(
         title,
         paragraph(state.url, "address"),
-        copy,
+        controls,
         paragraph(
           state.copied
             ? "URL copied. Click the title to copy a formatted link."

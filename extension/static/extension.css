@@ -1,43 +1,20 @@
-@font-face {
-  font-family: "JetBrains Mono";
-  font-style: normal;
-  font-weight: 100 800;
-  font-display: swap;
-  src: url("fonts/jetbrains-mono.woff2") format("woff2");
-}
-@font-face {
-  font-family: "JetBrains Mono";
-  font-style: italic;
-  font-weight: 100 800;
-  font-display: swap;
-  src: url("fonts/jetbrains-mono-italic.woff2") format("woff2");
-}
+@import url("theme.css");
+/* Geometry/typography match web/src/app.css; colors come from its shared tokens. */
 :root {
   color-scheme: light dark;
-  --paper: #f7f7f2;
-  --ink: #171717;
-  --muted: #62625e;
   font:
-    400 13px/1.6 "JetBrains Mono",
-    ui-monospace,
-    monospace;
-  font-variant-ligatures: none;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --paper: #171717;
-    --ink: #efefe8;
-    --muted: #aaa9a2;
-  }
+    400 13px/1.5 system-ui,
+    sans-serif;
+  font-variant-numeric: tabular-nums;
 }
 * {
   box-sizing: border-box;
 }
 body {
   margin: 0;
-  padding: 1lh 2ch;
-  background: var(--paper);
-  color: var(--ink);
+  padding: 0 14px 14px;
+  background: var(--dl-bg);
+  color: var(--dl-text);
   font: inherit;
 }
 body.popup {
@@ -45,75 +22,122 @@ body.popup {
   min-height: 150px;
 }
 body.settings {
-  max-width: 70ch;
-  margin: 2lh auto;
+  width: min(520px, 100%);
+  margin: 24px auto;
 }
 header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 2ch;
-  border-bottom: 3px double var(--ink);
-  padding-bottom: 0.5lh;
-  margin-bottom: 1lh;
+  gap: 12px;
+  min-height: 49px;
+  padding: 10px 14px;
+  margin: 0 -14px 12px;
+  border-bottom: 1px solid var(--dl-line);
+  background: var(--dl-panel);
 }
 h1 {
-  font-size: 1rem;
-  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font:
+    600 15px/1.5 system-ui,
+    sans-serif;
   margin: 0;
 }
 p {
-  margin: 0.5lh 0;
+  margin: 8px 0;
   overflow-wrap: anywhere;
 }
 button,
 input {
-  font: inherit;
-  color: inherit;
-  border: 1px solid var(--ink);
-  border-radius: 0;
-  background: transparent;
-  padding: 0.25lh 1ch;
+  font:
+    400 12px/20px system-ui,
+    sans-serif;
+  color: var(--dl-text);
+  background: var(--dl-input);
+  border: 1px solid var(--dl-line);
+  border-radius: 4px;
+  padding: 2px 9px;
+  height: 28px;
+  min-width: 0;
+  max-width: 100%;
 }
 button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--dl-two);
   cursor: pointer;
-  font-weight: 600;
+  white-space: nowrap;
+}
+button:hover:not(:disabled) {
+  border-color: var(--dl-primary);
 }
 button:disabled {
-  opacity: 0.55;
-  cursor: wait;
+  opacity: 0.5;
+  cursor: default;
+}
+button.primary {
+  background: var(--dl-primary);
+  border-color: var(--dl-primary);
+  color: var(--dl-on-primary);
+}
+svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+h1 > svg {
+  width: 16px;
+  height: 16px;
 }
 a {
   color: inherit;
-  text-underline-offset: 0.2em;
+  text-underline-offset: 2px;
   overflow-wrap: anywhere;
 }
 .title {
   display: block;
-  font-weight: 700;
-  margin-bottom: 0.5lh;
+  font-weight: 600;
+  margin-bottom: 4px;
 }
 .address {
-  color: var(--muted);
+  color: var(--dl-muted);
   font-size: 12px;
 }
 .actions {
   display: flex;
-  gap: 1ch;
+  gap: 8px;
   flex-wrap: wrap;
-  margin: 1lh 0;
+  margin: 12px 0;
 }
 label {
   display: grid;
-  gap: 0.25lh;
-  margin: 1lh 0;
-  font-weight: 600;
+  gap: 4px;
+  margin: 12px 0;
+  font-size: 12px;
 }
 input {
   width: 100%;
-  font-weight: 400;
 }
 .error {
-  border-left: 2px solid var(--ink);
-  padding-left: 1ch;
+  color: var(--dl-danger);
+}
+#feedback,
+#status {
+  overflow-wrap: anywhere;
+}
+#feedback:empty,
+#status:empty {
+  display: none;
+}
+@media (max-width: 359px) {
+  body.popup {
+    width: 320px;
+  }
+  body.settings {
+    margin: 12px auto;
+  }
 }

@@ -19,6 +19,7 @@ test("popup excludes competing copy handlers through rich rejection and fallback
     richWrites = 0,
     fallbackWrites = 0;
   let fallbackWorks = true;
+  let supportsMarkdown = false;
   const url = "https://short.example/abc";
   try {
     install("document", window.document);
@@ -54,6 +55,9 @@ test("popup excludes competing copy handlers through rich rejection and fallback
     install(
       "ClipboardItem",
       class {
+        static supports() {
+          return supportsMarkdown;
+        }
         constructor(data) {
           this.data = data;
         }
@@ -103,6 +107,8 @@ test("popup excludes competing copy handlers through rich rejection and fallback
     await tick();
     const title = window.document.querySelector(".title");
     const button = window.document.querySelector("#app button");
+    const markdown = window.document.querySelector('[data-copy="markdown"]');
+    assert.ok(markdown, "explicit Markdown action exists");
     const feedback = () =>
       window.document.querySelector("#feedback").textContent;
     const click = (element) => {
@@ -112,6 +118,7 @@ test("popup excludes competing copy handlers through rich rejection and fallback
     };
     assert.equal(title.href, url);
     assert.equal(click(title).defaultPrevented, true);
+    click(markdown); // Markdown shares the same serialization guard.
     click(button); // dispatchEvent deliberately bypasses native disabled-click suppression.
     await tick();
     rejectRich(new Error("held rich write denied"));
@@ -160,6 +167,7 @@ test("popup excludes competing copy handlers through rich rejection and fallback
     assert.equal(button.disabled, true);
     click(title);
     click(button);
+    click(markdown);
     rejectPlain(new Error("plain copy denied"));
     await tick();
     assert.equal(richWrites, 2, "pending plain copy excludes rich writes too");
@@ -170,6 +178,49 @@ test("popup excludes competing copy handlers through rich rejection and fallback
     await tick();
     assert.equal(clipboard, url);
     assert.equal(feedback(), "URL copied.");
+    click(markdown);
+    await tick();
+    assert.equal(clipboard, `[Article](${url})`);
+    assert.equal(feedback(), "Markdown copied.");
+    supportsMarkdown = true;
+    let rejectThree, finishTwo;
+    const attempts = [];
+    navigator.clipboard.write = (items) => {
+      assert.equal(items.length, 1);
+      attempts.push(Object.keys(items[0].data).sort());
+      if (items[0].data["text/markdown"])
+        return new Promise((_, reject) => (rejectThree = reject));
+      return new Promise(
+        (resolve) =>
+          (finishTwo = async () => {
+            clipboard = await items[0].data["text/plain"].text();
+            resolve();
+          }),
+      );
+    };
+    click(title);
+    const before = plainWrites;
+    click(markdown);
+    assert.equal(markdown.disabled, true);
+    rejectThree(new Error("advertised third MIME rejected"));
+    await tick();
+    click(markdown);
+    click(button);
+    click(title);
+    assert.equal(
+      plainWrites,
+      before,
+      "no concurrent plaintext writes between third-MIME rejection and two-MIME retry",
+    );
+    assert.deepEqual(attempts, [
+      ["text/html", "text/markdown", "text/plain"],
+      ["text/html", "text/plain"],
+    ]);
+    await finishTwo();
+    await tick();
+    assert.equal(clipboard, url);
+    assert.equal(feedback(), "Formatted link copied.");
+    assert.equal(markdown.disabled, false);
   } finally {
     for (const [name, descriptor] of saved) {
       if (descriptor) Object.defineProperty(globalThis, name, descriptor);

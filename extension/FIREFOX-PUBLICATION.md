@@ -23,7 +23,7 @@ sha256sum dist/firefox.zip
 ```
 
 `dist/firefox.zip` is the unsigned add-on. `dist/firefox-source.zip` contains the
-human-readable TypeScript, generated API types, static assets, font license,
+human-readable TypeScript, generated API types, static assets, shared theme, icon notices,
 exact dependency lock, build/test scripts and these instructions. No minifier or
 remote code is used. The build emits deterministic sorted ZIP entries with fixed
 timestamps. Rebuild the extracted source in a fresh directory and compare
@@ -63,7 +63,7 @@ policy and metadata. The extension never collects background browsing history.
    to the intended publisher / is available. Review `amo-metadata.json`, consent,
    privacy policy, license and listing copy. No repository license was present;
    the conservative AMO choice is `all-rights-reserved`, not an invented open-source
-   grant. Bundled fonts keep their OFL terms. Change licensing only with owner
+   grant. Bundled Lucide paths retain their ISC/Feather notices. Change licensing only with owner
    approval. Prepare actual listing screenshots and accurate support details.
 5. Provide reviewers a reachable compatible service/test account through AMO's
    private reviewer notes if requested. Do not commit a live service, token,
@@ -159,7 +159,14 @@ activating that Settings tab or replacing the extension's adapters. Popup contro
 are clicked through real X11 coordinates. `xclip` reads the system clipboard's
 plain-text and HTML formats: plaintext must be only the short URL, HTML exactly
 one title hyperlink. A transparent native-write observer verifies one actual
-ClipboardItem with both formats. A separately labeled forced-unavailable
+ClipboardItem per write with both formats. Native `text/markdown` is an optional
+third representation only on explicit capability support; rejected third types
+retry the original two formats. Missing capability support skips the optional
+MIME, not rich copying. Native OS Markdown readback is recorded separately from
+custom `web text/markdown` capability, which is never substituted. The separate
+Copy Markdown action must produce exact escaped Markdown in the real plaintext
+clipboard and is a required same-run receipt check. All copy actions remain
+serialized and must leave the fixture POST count unchanged. A separately labeled forced-unavailable
 ClipboardItem check exercises production's real copy-event fallback; native
 clipboard sentinels before explicit plain and fallback copies prevent stale
 content from passing. No clipboard payload is
@@ -177,6 +184,13 @@ FIREFOX_BIN=/path/to/owned-tools/firefox/firefox \
 
 The harness emits actual screenshots, native clipboard readbacks and
 `firefox-runtime.json`; failed starts emit a failed/incomplete receipt instead.
+WebDriver's chrome-window screenshots omit separate native popup panels.
+`desktop-native-popup*.png` uses an actual full X11 root-window capture while the
+panel is open, so it includes the visible popup. ImageMagick is a test-only
+system dependency; neither it nor browser drivers are packaged in the add-on.
+The native job also asserts the popup's computed app typography/theme/control
+geometry. Chromium rendering acceptance separately captures light/dark and narrow
+states of the actual native popup target, not an ordinary browser tab.
 No live account, live service token, AMO API call or external service fixture is
 used. Fixture values are deliberately non-secret test data. The test-only
 geckodriver `--allow-system-access` flag allows browser-chrome control, not a normal
@@ -190,8 +204,11 @@ aborts official Firefox 160.0.1 and 140.0 ESR before extension installation with
 `wasm_rt_syscall_set_segue_base error: Invalid argument`, consistent with missing
 `arch_prctl(ARCH_SET_GS)` support (https://github.com/google/gvisor/issues/11567).
 Disabling the OS content sandbox does not fix RLBox/Segue. This is not an extension
-compatibility verdict. The newly committed GitHub-hosted native job must execute;
-its result is pending until an actual run is observed. Source/unit/syntax checks
+compatibility verdict. GitHub-hosted native acceptance was executed successfully at revision
+`78ffd6a4125e665989a543a33f474c255de0d4b7`:
+https://github.com/lucination/shortener/actions/runs/44202391024 . That historical
+pass does not accept later source or package changes. Every revision, including
+UI restyles, must produce its own successful same-run, hash-bound native receipt. Source/unit/syntax checks
 are not reported as native toolbar or clipboard acceptance. Do not weaken the
 manifest minimum or label a failed startup as a pass.
 

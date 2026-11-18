@@ -134,9 +134,18 @@ create and one automatic plain copy through typed ports. `api.ts`, `platform.ts`
 are the thin HTTP/browser/DOM shells. The create DTO imports the existing generated
 Rust contract rather than maintaining a competing wire type. No content script,
 background worker, history access, remote script or broad required host access is
-needed. The popup follows a compact, square Monospace Web grid with system light
-and dark colors, reusing the application's self-hosted JetBrains Mono variable
-fonts and their OFL license.
+needed. The actual popup and settings reuse the current application's system-ui sans
+typography, shared neutral light/dark theme tokens, subtle solid borders,
+4px radii, 28px controls and Lucide icons. Unused JetBrains Mono fonts are not
+packaged. Icon attribution stays in THIRD-PARTY-NOTICES.txt, not product chrome.
+
+Visual regression acceptance runs `npm run test:browser` under Xvfb after installing
+its pinned Playwright Chromium. It captures the actual native popup target (not a
+browser-tab mock) in light/dark at 320/360px, plus actual settings at 320/900px.
+It asserts computed typography, theme paint, border/radius/control geometry and
+horizontal overflow across loading, ready/long-URL, API error, copy denial,
+setup, settings migration, validation failure, saved and forgotten states.
+These rendering controls do not replace Firefox clipboard/runtime acceptance.
 
 ## Firefox publication
 
@@ -144,3 +153,19 @@ See [FIREFOX-PUBLICATION.md](FIREFOX-PUBLICATION.md) for listed AMO automation,
 protected credential setup, source reproduction and actual Firefox acceptance.
 The extension now owns its pinned development dependencies: run `npm ci` here,
 not in the web application, for extension-only build/check/test gates.
+
+## Markdown copying
+
+Clicking the title preserves URL-only `text/plain` plus escaped title-link
+`text/html` in one ClipboardItem. If `ClipboardItem.supports('text/markdown')`
+explicitly reports support, the same item also attempts native `text/markdown`.
+Absent/false/throwing capability detection conservatively keeps the original two
+formats. A rejected third type (including constructor rejection) retries those
+two formats before the existing HTML/plain copy-event fallback, under the same
+serialized operation. The custom `web text/markdown` type is not substituted.
+An accepted write alone does not establish that the OS exposed a native Markdown
+format; browser evidence records actual native readback or a truthful skip.
+
+The separate **Copy Markdown** button intentionally writes escaped Markdown link
+syntax into plaintext for Markdown editors. It shares the title/URL copy guard,
+never creates another link, and does not change normal title-copy plaintext.

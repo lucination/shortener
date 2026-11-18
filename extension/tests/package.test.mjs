@@ -43,20 +43,13 @@ test("all platforms package shared popup with minimal permissions and no persist
       "utf8",
     );
     assert.ok(popup.includes('type="module"'));
-    for (const font of [
-      "jetbrains-mono.woff2",
-      "jetbrains-mono-italic.woff2",
-      "OFL.txt",
-    ]) {
-      assert.deepEqual(
-        await readFile(
-          new URL(`../dist/${platform}/fonts/${font}`, import.meta.url),
-        ),
-        await readFile(
-          new URL(`../../web/static/fonts/${font}`, import.meta.url),
-        ),
-      );
-    }
+    assert.ok(!files.includes("fonts"), "unused fonts are not shipped");
+    assert.deepEqual(
+      await readFile(new URL(`../dist/${platform}/theme.css`, import.meta.url)),
+      await readFile(
+        new URL("../../web/src/lib/styles/presentation.css", import.meta.url),
+      ),
+    );
   }
 });
 

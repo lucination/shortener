@@ -3,9 +3,9 @@ from pathlib import Path
 import zipfile
 root = Path(__file__).resolve().parents[2]
 files = []
-for path in ['extension/src', 'extension/static', 'extension/scripts', 'extension/tests', 'web/static/fonts', 'contracts/bindings']:
+for path in ['extension/src', 'extension/static', 'extension/scripts', 'extension/tests', 'contracts/bindings']:
     files.extend(p for p in (root / path).rglob('*') if p.is_file())
-files.extend(root / p for p in ['extension/package.json', 'extension/package-lock.json', 'extension/tsconfig.json', 'extension/README.md', 'extension/FIREFOX-PUBLICATION.md', 'extension/amo-metadata.json', '.github/workflows/firefox.yml'])
+files.extend(root / p for p in ['web/src/lib/styles/presentation.css', 'extension/package.json', 'extension/package-lock.json', 'extension/tsconfig.json', 'extension/README.md', 'extension/FIREFOX-PUBLICATION.md', 'extension/amo-metadata.json', '.github/workflows/firefox.yml'])
 output = root / 'extension/dist/firefox-source.zip'
 with zipfile.ZipFile(output, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
     for path in sorted(files):

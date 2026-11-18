@@ -11,6 +11,6 @@
   },
   "version": {
     "license": "all-rights-reserved",
-    "approval_notes": "TypeScript sources and deterministic build instructions are attached. See extension/FIREFOX-PUBLICATION.md. Requires a compatible self-hosted Shortener service and a create-only access token; credentials are not included. Desktop Firefox acceptance is separate from Android support. Fonts retain their bundled OFL license."
+    "approval_notes": "TypeScript sources and deterministic build instructions are attached. See extension/FIREFOX-PUBLICATION.md. Requires a compatible self-hosted Shortener service and a create-only access token; credentials are not included. Desktop Firefox acceptance is separate from Android support. Lucide icons retain their bundled ISC/Feather notices."
   }
 }

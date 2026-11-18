@@ -5,7 +5,7 @@ on:
       [
         "extension/**",
         "contracts/bindings/**",
-        "web/static/fonts/**",
+        "web/src/lib/styles/presentation.css",
         ".github/workflows/firefox.yml",
       ]
   push:
@@ -62,7 +62,7 @@ jobs:
           FIREFOX_TOOLS: ${{ runner.temp }}/firefox-tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends xvfb xauth xdotool xclip libgtk-3-0t64 libdbus-glib-1-2 libasound2t64
+          sudo apt-get install -y --no-install-recommends xvfb xauth xdotool xclip imagemagick libgtk-3-0t64 libdbus-glib-1-2 libasound2t64
           npm ci --ignore-scripts
           python3 scripts/install-native-tools.py
       - name: Actual headed Firefox toolbar and X11 clipboard acceptance

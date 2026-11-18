@@ -16,6 +16,7 @@ const checks = [
   "active-tab-request",
   "bearer-without-cookie",
   "plain-clipboard",
+  "markdown-clipboard",
   "rich-native-clipboard",
   "rich-fallback-clipboard",
   "forget-settings",

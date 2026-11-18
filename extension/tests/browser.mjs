@@ -1,7 +1,8 @@
 import {
-  chromium,
-  expect,
-} from "../../web/node_modules/@playwright/test/index.mjs";
+  measurePresentation,
+  assertPresentation,
+} from "./presentation-contract.mjs";
+import { chromium, expect } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { mkdtemp, rm, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -21,6 +22,9 @@ const artifacts =
   fileURLToPath(new URL("../artifacts", import.meta.url));
 await mkdir(artifacts, { recursive: true });
 const requests = [];
+const visualMeasurements = [];
+const longCode = "abc123" + "a".repeat(120);
+
 let release;
 let held = new Promise((resolve) => (release = resolve));
 let status = 201;
@@ -40,14 +44,15 @@ const server = createServer(async (req, res) => {
       cookie: req.headers.cookie,
     });
     const currentStatus = status;
+    const domainHost = `127.0.0.1:${server.address().port}`;
     await held;
     res.writeHead(currentStatus, { "Content-Type": "application/json" }).end(
       JSON.stringify({
         addresses: [
           {
             domain_id: 1,
-            domain: `127.0.0.1:${server.address().port}`,
-            short_code: "abc123",
+            domain: domainHost,
+            short_code: longCode,
           },
         ],
       }),
@@ -84,6 +89,28 @@ try {
     }),
   );
   await settings.reload();
+  const captureSettings = async (label) => {
+    for (const theme of ["light", "dark"])
+      for (const width of [320, 900]) {
+        await settings.emulateMedia({ colorScheme: theme });
+        await settings.setViewportSize({ width, height: 700 });
+        const metrics = await settings.evaluate(measurePresentation);
+        assertPresentation(metrics);
+        visualMeasurements.push({
+          view: "actual extension settings",
+          label,
+          theme,
+          width,
+          metrics,
+        });
+        await settings.screenshot({
+          path: `${artifacts}/settings-${label}-${theme}-${width}.png`,
+          fullPage: true,
+        });
+      }
+    await settings.emulateMedia({ colorScheme: "light" });
+    await settings.setViewportSize({ width: 900, height: 700 });
+  };
   await expect(settings.locator("#service")).toHaveValue("https://old.example");
   await expect(settings.locator("#token")).toHaveValue("");
   await expect(settings.locator("#status")).toContainText(
@@ -99,6 +126,7 @@ try {
     ),
     undefined,
   );
+  await captureSettings("migration");
   console.log(
     "PASS: legacy service retained for migration, credential never prefilled, Forget succeeds",
   );
@@ -112,6 +140,7 @@ try {
   await expect(settings.locator("#status")).toContainText("origin", {
     timeout: 8000,
   });
+  await captureSettings("validation-error");
   console.log("PASS: actual extension settings rejects a service path");
   await settings.locator("#service").fill(origin);
   await settings
@@ -136,6 +165,7 @@ try {
     ),
     origin,
   );
+  await captureSettings("saved");
   const target = await context.newPage();
   // The service grant is 127.0.0.1 only. Reading localhost therefore needs the
   // real action's activeTab grant, not incidental access to the service host.
@@ -212,20 +242,62 @@ try {
     };
     return { evaluate, click, sessionId };
   };
+  const capturePopup = async (label, view) => {
+    for (const theme of ["light", "dark"])
+      for (const width of [320, 360]) {
+        await wire.send(
+          "Emulation.setEmulatedMedia",
+          { features: [{ name: "prefers-color-scheme", value: theme }] },
+          view.sessionId,
+        );
+        // Native popup targets reject device-metrics overrides. Resize the actual
+        // popup's preferred body width and wait for its real viewport to follow.
+        await view.evaluate(`document.body.style.width='${width}px'`);
+        await expect.poll(() => view.evaluate("innerWidth")).toBe(width);
+        await view.evaluate(
+          "new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))",
+        );
+        const metrics = await view.evaluate(
+          `(${measurePresentation.toString()})(window)`,
+        );
+        assertPresentation(metrics);
+        visualMeasurements.push({
+          view: "actual native popup target",
+          label,
+          theme,
+          width,
+          metrics,
+        });
+        const height = await view.evaluate(
+          "Math.ceil(document.body.getBoundingClientRect().height)",
+        );
+        const shot = await wire.send(
+          "Page.captureScreenshot",
+          {
+            format: "png",
+            captureBeyondViewport: true,
+            clip: { x: 0, y: 0, width, height, scale: 1 },
+          },
+          view.sessionId,
+        );
+        await writeFile(
+          `${artifacts}/popup-${label}-${theme}-${width}.png`,
+          Buffer.from(shot.data, "base64"),
+        );
+      }
+    await view.evaluate("document.body.style.width=''");
+    await wire.send(
+      "Emulation.setEmulatedMedia",
+      { features: [{ name: "prefers-color-scheme", value: "light" }] },
+      view.sessionId,
+    );
+  };
   let { evaluate, click, sessionId } = await openPopup();
   await expect
     .poll(() => evaluate('document.querySelector("#app").textContent'))
     .toContain("Shortening…");
   await expect.poll(() => requests.length).toBe(1);
-  const loadingShot = await wire.send(
-    "Page.captureScreenshot",
-    { format: "png" },
-    sessionId,
-  );
-  await writeFile(
-    `${artifacts}/popup-loading.png`,
-    Buffer.from(loadingShot.data, "base64"),
-  );
+  await capturePopup("loading", { evaluate, sessionId });
   assertEqual(requests[0].body.destination, pageURL);
   assertEqual(requests[0].body.title, "Article & Notes <proof>");
   assertEqual(
@@ -237,7 +309,7 @@ try {
   await expect
     .poll(() => evaluate('document.querySelector("#app").textContent'))
     .toContain("URL copied.");
-  const short = `${origin}/abc123`;
+  const short = `${origin}/${longCode}`;
   assertEqual(
     execFileSync(
       "xclip",
@@ -249,6 +321,12 @@ try {
     short,
   );
   assertEqual(await evaluate('document.querySelector(".title").href'), short);
+  const markdownCapabilities = await evaluate(
+    `(()=>{const check=t=>{try{return typeof ClipboardItem.supports==='function'?ClipboardItem.supports(t):null;}catch{return null;}};return {native:check('text/markdown'),customWeb:check('web text/markdown')};})()`,
+  );
+  await evaluate(
+    `(()=>{const native=navigator.clipboard.write.bind(navigator.clipboard);window.nativeWrites=[];navigator.clipboard.write=async items=>{const record={count:items.length,types:items.map(i=>[...i.types].sort()),resolved:false};window.nativeWrites.push(record);const result=await native(items);record.resolved=true;return result;};})()`,
+  );
   await click(".title");
   await expect
     .poll(() => evaluate('document.querySelector("#feedback")?.textContent'))
@@ -270,49 +348,68 @@ try {
   )
     throw new Error(`Unexpected clipboard HTML: ${html}`);
   assertEqual(text, short);
+  const nativeWrites = await evaluate("window.nativeWrites");
+  const resolvedWrites = nativeWrites.filter((w) => w.resolved);
+  assertEqual(resolvedWrites.length, 1);
+  for (const w of nativeWrites) assertEqual(w.count, 1);
+  const markdownText = String.raw`[Article & Notes \<proof\>](${short})`;
+  const mimeReceipt = {
+    capabilities: markdownCapabilities,
+    nativeWrites,
+    nativeMarkdown: {
+      nativeReadback: false,
+      status: "unsupported-or-rejected; optional native MIME skipped",
+    },
+  };
+  if (resolvedWrites[0].types[0].includes("text/markdown")) {
+    try {
+      const observed = execFileSync(
+        "xclip",
+        ["-selection", "clipboard", "-t", "text/markdown", "-o"],
+        { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+      );
+      assertEqual(observed, markdownText);
+      mimeReceipt.nativeMarkdown = {
+        nativeReadback: true,
+        status: "native MIME readback verified",
+      };
+      await writeFile(`${artifacts}/native-markdown.md`, observed);
+    } catch {
+      mimeReceipt.nativeMarkdown.status =
+        "advertised/write resolved but native MIME not observed; not claimed supported";
+    }
+  }
+  await click('[data-copy="markdown"]');
+  await expect
+    .poll(() => evaluate('document.querySelector("#feedback").textContent'))
+    .toBe("Markdown copied.");
+  const markdownPlain = execFileSync(
+    "xclip",
+    ["-selection", "clipboard", "-t", "text/plain", "-o"],
+    { encoding: "utf8" },
+  );
+  assertEqual(markdownPlain, markdownText);
+  await writeFile(`${artifacts}/markdown-plain.txt`, markdownPlain);
+  await writeFile(
+    `${artifacts}/markdown-support.json`,
+    JSON.stringify(mimeReceipt, null, 2),
+  );
+  await click("#app button");
+  await expect
+    .poll(() => evaluate('document.querySelector("#feedback").textContent'))
+    .toBe("URL copied.");
+  assertEqual(
+    execFileSync(
+      "xclip",
+      ["-selection", "clipboard", "-t", "text/plain", "-o"],
+      { encoding: "utf8" },
+    ),
+    short,
+  );
+  assertEqual(requests.length, 1);
   console.log("READBACK rich:", JSON.stringify({ html, text }));
   assertEqual(requests.length, 1);
-  assertEqual(
-    await evaluate("getComputedStyle(document.body).backgroundColor"),
-    "rgb(247, 247, 242)",
-  );
-  const screenshot = await wire.send(
-    "Page.captureScreenshot",
-    { format: "png" },
-    sessionId,
-  );
-  await writeFile(
-    `${artifacts}/popup-light.png`,
-    Buffer.from(screenshot.data, "base64"),
-  );
-  await wire.send(
-    "Emulation.setEmulatedMedia",
-    { features: [{ name: "prefers-color-scheme", value: "dark" }] },
-    sessionId,
-  );
-  await evaluate("document.fonts.ready");
-  assertEqual(
-    await evaluate(`document.fonts.check('13px "JetBrains Mono"')`),
-    true,
-  );
-  assertEqual(
-    await evaluate("document.documentElement.scrollWidth <= innerWidth"),
-    true,
-  );
-  assertEqual(await evaluate("getComputedStyle(document.body).width"), "360px");
-  assertEqual(
-    await evaluate("getComputedStyle(document.body).backgroundColor"),
-    "rgb(23, 23, 23)",
-  );
-  const dark = await wire.send(
-    "Page.captureScreenshot",
-    { format: "png" },
-    sessionId,
-  );
-  await writeFile(
-    `${artifacts}/popup-dark.png`,
-    Buffer.from(dark.data, "base64"),
-  );
+  await capturePopup("ready-long-url", { evaluate, sessionId });
   console.log(
     "PASS: real toolbar invocation reads activeTab; held POST/loading; user bearer; plain URL clipboard; title hyperlink copies real HTML + text without navigation or another POST",
   );
@@ -327,15 +424,7 @@ try {
   await expect
     .poll(() => evaluate('document.querySelector("#app").textContent'))
     .toContain("Automatic URL copy did not complete");
-  const deniedShot = await wire.send(
-    "Page.captureScreenshot",
-    { format: "png" },
-    sessionId,
-  );
-  await writeFile(
-    `${artifacts}/popup-copy-retry.png`,
-    Buffer.from(deniedShot.data, "base64"),
-  );
+  await capturePopup("copy-denial", { evaluate, sessionId });
   await click("#app button");
   await expect
     .poll(() => evaluate('document.querySelector("#feedback").textContent'))
@@ -369,6 +458,7 @@ try {
   );
   await click("#app button");
   await evaluate(`(() => {
+    document.querySelector('[data-copy="markdown"]').dispatchEvent(new MouseEvent('click', {cancelable:true}));
     document.querySelector('#app button').dispatchEvent(new MouseEvent('click', {cancelable:true}));
     const event = new MouseEvent('click', {cancelable:true});
     document.querySelector('.title').dispatchEvent(event);
@@ -474,15 +564,7 @@ try {
   await expect
     .poll(() => evaluate('document.querySelector("#app").textContent'))
     .toContain("Access token not accepted.");
-  const failedShot = await wire.send(
-    "Page.captureScreenshot",
-    { format: "png" },
-    sessionId,
-  );
-  await writeFile(
-    `${artifacts}/popup-api-error.png`,
-    Buffer.from(failedShot.data, "base64"),
-  );
+  await capturePopup("api-error", { evaluate, sessionId });
   assertEqual(requests.length, 3);
   assertEqual(await evaluate('document.querySelector(".title")'), null);
   console.log(
@@ -539,12 +621,31 @@ try {
     ),
     true,
   );
-  await settings.screenshot({ path: `${artifacts}/settings-narrow.png` });
+  await captureSettings("forgotten");
   ({ evaluate, click, sessionId } = await openPopup());
   await expect
     .poll(() => evaluate('document.querySelector("#app").textContent'))
     .toContain("Set your service URL");
   assertEqual(requests.length, 3);
+  await capturePopup("setup", { evaluate, sessionId });
+  await writeFile(
+    `${artifacts}/visual-metrics.json`,
+    JSON.stringify(
+      {
+        sourceSha: execFileSync("git", ["rev-parse", "HEAD"], {
+          encoding: "utf8",
+        }).trim(),
+        artifactSha256: createHash("sha256")
+          .update(
+            await readFile(new URL("../dist/firefox.zip", import.meta.url)),
+          )
+          .digest("hex"),
+        observations: visualMeasurements,
+      },
+      null,
+      2,
+    ),
+  );
   console.log(
     "PASS: unsupported active tab performs no request; Settings/forget readback revokes host grant; missing settings does not create; narrow settings and light/dark popup geometry",
   );
