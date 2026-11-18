@@ -1,0 +1,24 @@
+# Local disposable reviewer instance, pinned to the public server source revision
+# 783feaa68db35792e3b4b3570f73c4ee56a67113. No developer-operated service.
+services:
+  app:
+    image: ghcr.io/lucination/shortener@sha256:77b47988296ee9dca25f3f4deba84e4fd7064922d8823ca4e6b73a5597266d6a
+    ports: ["127.0.0.1:80:3000"]
+    environment:
+      APP_ORIGIN: http://localhost
+      SHORT_DOMAIN: localhost
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?Generate a random local admin token}
+      ANALYTICS_SECRET: ${ANALYTICS_SECRET:?Generate a random local analytics secret}
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_SECURITY: plain
+      SMTP_FROM: login@shortener.test
+    volumes: ["reviewer-data:/app/data"]
+    depends_on: [mailpit]
+  mailpit:
+    image: axllent/mailpit:v1.33.1
+    ports: ["127.0.0.1:8025:8025"]
+    environment:
+      MP_CHECK_VERSION: "false"
+volumes:
+  reviewer-data:

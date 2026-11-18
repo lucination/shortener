@@ -1,118 +1,39 @@
-import { createHmac, randomUUID } from "node:crypto";
-import { execFileSync } from "node:child_process";
-import { classify } from "./publication-policy.mjs";
+import { readFileSync } from "node:fs";
+import { JwtApiAuth } from "../node_modules/web-ext/lib/util/submit-addon.js";
 import { releaseContext } from "./release-context.mjs";
-const context = releaseContext();
-if (!context.ok) throw new Error(context.reason);
-const manifest = JSON.parse(
-  execFileSync(
-    "python3",
-    [
-      "-c",
-      'import zipfile;print(zipfile.ZipFile("dist/firefox.zip").read("manifest.json").decode())',
-    ],
-    { encoding: "utf8" },
-  ),
-);
-const guid = manifest.browser_specific_settings.gecko.id;
-function token() {
-  const b64 = (obj) => Buffer.from(JSON.stringify(obj)).toString("base64url");
-  const now = Math.floor(Date.now() / 1000);
-  const payload = `${b64({ alg: "HS256", typ: "JWT" })}.${b64({ iss: process.env.WEB_EXT_API_KEY, jti: randomUUID(), iat: now, exp: now + 60 })}`;
-  return `${payload}.${createHmac("sha256", process.env.WEB_EXT_API_SECRET).update(payload).digest("base64url")}`;
-}
-async function status() {
-  const url = `https://addons.mozilla.org/api/v5/addons/addon/${encodeURIComponent(guid)}/versions/${encodeURIComponent(context.version)}/`;
-  const response = await fetch(url, {
-    headers: { Authorization: `JWT ${token()}` },
-    redirect: "error",
-    signal: AbortSignal.timeout(30000),
-  });
-  if (response.status === 404) return null;
-  if (!response.ok)
-    throw new Error(
-      `AMO status HTTP ${response.status}; no submission attempted/retried`,
-    );
-  const value = await response.json();
-  if (value.version !== context.version || value.channel !== "listed")
-    throw new Error("AMO version identity/channel mismatch");
-  let anonymous = false;
-  if (value.file?.status === "public" && !value.is_disabled) {
-    const publicRead = await fetch(url, {
-      redirect: "error",
-      signal: AbortSignal.timeout(30000),
-    });
-    if (publicRead.ok) {
-      const visible = await publicRead.json();
-      anonymous =
-        visible.version === context.version &&
-        visible.channel === "listed" &&
-        visible.file?.status === "public" &&
-        !visible.is_disabled;
-      if (anonymous) {
-        const listingRead = await fetch(
-          `https://addons.mozilla.org/api/v5/addons/addon/${encodeURIComponent(guid)}/`,
-          {
-            redirect: "error",
-            signal: AbortSignal.timeout(30000),
-          },
-        );
-        const listing = listingRead.ok ? await listingRead.json() : null;
-        anonymous =
-          listing?.status === "public" &&
-          listing.current_version?.version === context.version;
-      }
-    }
-  }
-  console.log(
-    JSON.stringify({
-      version: value.version,
-      channel: value.channel,
-      file_status: value.file?.status,
-      disabled: value.is_disabled,
-      source_attached: Boolean(value.source),
-      outcome: classify(value, anonymous),
-    }),
-  );
-  return value;
-}
-if (await status())
-  throw new Error(
-    "Version already exists. No duplicate submission. Inspect AMO before any action.",
-  );
-let failed = false;
+import { createAmoReadOnlyGet } from "./amo-read.mjs";
+import { assertFreshListing, assertHeldSubmission, verifySubmissionTree, runWebExtSign } from "./web-ext-release.mjs";
+import { validateAmoMetadata, MetadataAdmissionError } from "./amo-metadata-policy.mjs";
+
+let stage="admission";
 try {
-  // No retry: web-ext uploads a listed version and matching source. Zero approval
-  // wait means acceptance here is upload/submission, never publication.
-  execFileSync(
-    process.execPath,
-    [
-      "node_modules/web-ext/bin/web-ext.js",
-      "sign",
-      "--source-dir",
-      "dist/firefox",
-      "--channel",
-      "listed",
-      "--amo-base-url",
-      "https://addons.mozilla.org/api/v5/",
-      "--amo-metadata",
-      "amo-metadata.json",
-      "--upload-source-code",
-      "dist/firefox-source.zip",
-      "--approval-timeout",
-      "0",
-      "--no-config-discovery",
-      "--no-input",
-    ],
-    { stdio: "inherit" },
-  );
-  console.log("Uploaded/submitted to listed channel; NOT a publication claim.");
-} catch {
-  failed = true;
-  console.error(
-    "Submission outcome uncertain. Do not retry; inspect AMO uploads and versions.",
-  );
+  const context=releaseContext();
+  if(!context.ok){
+    // Admission reasons are static local policy messages, never provider data.
+    console.error(JSON.stringify({stage:"admission",reason:context.reason}));
+    throw new Error("Release admission failed");
+  }
+  const tree=verifySubmissionTree(process.cwd());
+  const metadata=JSON.parse(readFileSync("amo-metadata.json"));
+  stage="metadata-admission";
+  validateAmoMetadata(metadata);
+  if(tree.guid!=="shortener-companion@shortener.invalid" || tree.version!==context.version || metadata.is_disabled!==true || "privacy_policy" in metadata)
+    throw new Error("Official CLI listing inputs require the stable GUID, admitted version and developer hold");
+  stage="preflight";
+  const auth=new JwtApiAuth({apiKey:process.env.WEB_EXT_API_KEY,apiSecret:process.env.WEB_EXT_API_SECRET});
+  const get=createAmoReadOnlyGet({token:()=>auth.signJWT()});
+  const publisherId=await assertFreshListing(get,tree);
+  stage="official-web-ext";
+  // The pinned CLI owns ALL upload/create/source writes. No custom write adapter.
+  const result=await runWebExtSign();
+  console.log(JSON.stringify({tool:"web-ext",...result}));
+  if(result.exitCode!==0 || result.truncated)throw new Error("Official CLI failed; outcome requires reconciliation");
+  stage="held-readback";
+  await assertHeldSubmission(get,{...tree,publisherId});
+  console.log(JSON.stringify({version:context.version,channel:"listed",outcome:"submitted-developer-disabled",sourceAttached:true,privacyPolicyApplied:false,screenshotsApplied:false,manualDeveloperHubCompletionRequired:true,approvalOrPublicAvailabilityClaimed:false}));
+} catch(error) {
+  if(error instanceof MetadataAdmissionError)console.error(JSON.stringify(error.diagnostic));
+  const status=error instanceof Error?/^AMO GET HTTP ([1-5]\d{2});/u.exec(error.message)?.[1]:undefined;
+  console.error(JSON.stringify({stage,httpStatus:status?Number(status):null,outcome:"stopped",instruction:"Inspect sanitized CLI diagnostics and AMO uploads/add-on/version before any further write. No automatic resume or retry."}));
+  process.exitCode=1;
 }
-const observed = await status();
-if (!observed?.source || failed)
-  throw new Error("Reconcile AMO Developer Hub before another submission.");

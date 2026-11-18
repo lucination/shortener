@@ -5,6 +5,9 @@ const workflow = await readFile(
   new URL("../../.github/workflows/firefox.yml", import.meta.url),
   "utf8",
 );
+test("reviewer-setup feature branch runs secret-free verification and native acceptance on push", () => {
+  assert.match(workflow, /branches: \[main, feat\/firefox-publication, docs\/firefox-reviewer-setup\]/);
+});
 test("publication job requires successful verification and canonical trusted tag push", () => {
   const submit = workflow.split("\n  submit:\n")[1];
   assert.match(submit, /needs: \[release-admission, native\]/);
@@ -42,6 +45,8 @@ test("native execution precedes and is independent of tag admission; no static m
   assert.match(native, /needs: verify/);
   assert.doesNotMatch(native, /secrets\.|refs\/tags|firefox-acceptance\.json/);
   assert.match(native, /xvfb-run.*npm run test:firefox/);
+  assert.match(native, /node scripts\/reviewer-smoke.mjs/);
+  assert.match(native, /node node_modules\/typescript\/bin\/tsc -p tsconfig.json/);
   assert.match(native, /runner.temp.*firefox-tools/);
   assert.match(workflow, /release-admission:[^]*needs: \[verify, native\]/);
   assert.doesNotMatch(workflow, /GITHUB_RUN_ATTEMPT:'1'/);

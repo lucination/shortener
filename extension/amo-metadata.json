@@ -1,16 +1,24 @@
 {
+  "name": {
+    "en-US": "Shortener Companion"
+  },
   "summary": {
     "en-US": "Shorten the current page using your own service and copy its URL or title link."
   },
-  "categories": ["other"],
+  "categories": {
+    "firefox": [
+      "other"
+    ],
+    "android": [
+      "other"
+    ]
+  },
   "description": {
     "en-US": "Requires an existing Shortener service account and a dedicated create-only access token. Configure your service origin in Settings. Opening the toolbar popup sends the active page URL and title to that service to create a short link. Copy the URL or a formatted title hyperlink. No advertising, analytics, background browsing collection, or developer-operated shortening service."
   },
-  "privacy_policy": {
-    "en-US": "The active page URL and title are transmitted to the service origin you configure when you open the popup. The dedicated access token is sent only to that service for authentication. The service origin and token are stored locally, not synced. The page title is also used locally for formatted clipboard links. No telemetry is sent to the extension developer. Your chosen service controls its own link storage and retention. Forget settings removes local credentials but does not revoke the token or delete server-side links."
-  },
   "version": {
     "license": "all-rights-reserved",
-    "approval_notes": "TypeScript sources and deterministic build instructions are attached. See extension/FIREFOX-PUBLICATION.md. Requires a compatible self-hosted Shortener service and a create-only access token; credentials are not included. Desktop Firefox acceptance is separate from Android support. Lucide icons retain their bundled ISC/Feather notices."
-  }
+    "approval_notes": "Shortener Companion 0.1.4 is a client for self-hosted Shortener. No developer-hosted demo, shared account or token is supplied.\n\nFull runnable setup is in the attached source archive: extension/FIREFOX-PUBLICATION.md, section Self-hosted reviewer setup. It contains all commands and UI steps. Use included extension/reviewer-compose.yaml with Docker Compose and OpenSSL; it pulls an immutable public server image, so no Rust build is needed. Free loopback ports 80 and 8025. Server source: https://github.com/lucination/shortener/tree/783feaa68db35792e3b4b3570f73c4ee56a67113 . The extension archive does not contain the full server checkout.\n\nFrom the archive root, generate ADMIN_TOKEN and ANALYTICS_SECRET as documented. Run docker compose -f extension/reviewer-compose.yaml config --quiet, then docker compose -f extension/reviewer-compose.yaml up -d --wait.\n\nOpen http://localhost/_/ with your ADMIN_TOKEN. Users -> Add user: use any address you choose. At http://localhost/ request its sign-in link; open the captured message in Mailpit at http://localhost:8025 in the same Firefox profile. Account -> Access tokens -> Create access token, then Copy token.\n\nInstall in desktop Firefox 140+, accept declared data-transmission consent, and open Settings. Set Service URL to http://localhost and Access token to your issued token. Save and allow the host permission. Open an ordinary HTTP(S) page and invoke the toolbar action. Only your configured instance receives its URL/title/token. Test Copy URL, title-link rich copying and the separate Copy Markdown action; native Markdown MIME is optional. Reopening the popup creates another link.\n\nCleanup: Forget settings removes local credentials, not server tokens. Revoke the token in Account and stop the local Compose instance as documented. TypeScript source, exact dependency lock, reproducible build instructions and approved real screenshots are attached. Android runtime acceptance is not claimed."
+  },
+  "is_disabled": true
 }

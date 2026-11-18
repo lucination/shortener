@@ -1,0 +1,1 @@
+Shortener Companion connects only to the self-hosted Shortener instance you configure. When you shorten a page, its URL and title are sent to that instance using your access token. The instance address and token are stored locally in your browser. The extension developer receives no data or telemetry. Data stored by your instance is under your control.

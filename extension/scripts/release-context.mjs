@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
 import { admit } from "./publication-policy.mjs";
 import { verifyRuntime } from "./native-policy.mjs";
+import { verifyReviewerSmoke } from "./reviewer-policy.mjs";
 export function releaseContext(env = process.env) {
   let acceptance;
   try {
@@ -32,6 +33,15 @@ export function releaseContext(env = process.env) {
       "HEAD",
       "refs/remotes/origin/main",
     ]).status === 0;
+  let reviewer;
+  try { reviewer = JSON.parse(readFileSync("dist/native/reviewer-smoke.json")); }
+  catch { reviewer = null; }
+  if (!verifyReviewerSmoke(reviewer, {
+    artifactSha256: artifactHash,
+    sourceArchiveSha256: createHash("sha256").update(readFileSync("dist/firefox-source.zip")).digest("hex"),
+    sourceSha: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
+    runId: env.GITHUB_RUN_ID, runAttempt: env.GITHUB_RUN_ATTEMPT,
+  })) return { ok: false, reason: "Same-run self-hosted reviewer smoke receipt is required" };
   return admit({
     runtimeAccepted: verifyRuntime(acceptance, {
       artifactSha256: artifactHash,
