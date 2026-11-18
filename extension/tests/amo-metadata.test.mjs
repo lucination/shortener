@@ -20,14 +20,14 @@ test("private reviewer notes give pinned self-hosted setup, not nonexistent host
     "git checkout --detach 783feaa68db35792e3b4b3570f73c4ee56a67113",
     'export ADMIN_TOKEN="$(openssl rand -hex 32)"',
     'export ANALYTICS_SECRET="$(openssl rand -hex 32)"',
-    "docker compose config --quiet",
-    "docker compose run --build --service-ports --rm -e SMTP_SECURITY=plain app",
-    "http://localhost:3000/_/", "http://localhost:8025",
+    "docker compose -f extension/reviewer-compose.yaml config --quiet",
+    "docker compose -f extension/reviewer-compose.yaml up -d --wait",
+    "http://localhost/_/", "http://localhost:8025",
     "Add user", "Email address", "Confirm", "Send sign-in link",
     "Account", "Access tokens", "Token name", "Create access token",
-    "Copy token", "Service URL", "http://localhost:3000", "Access token",
+    "Copy token", "Service URL", "http://localhost", "Access token",
     "Save", "Copy URL", "Copy Markdown", "Forget settings", "Revoke",
-    "source archive does not contain the server", "not runtime-tested",
+    "source archive does not contain the server", "immutable image", "port 80",
   ]) assert.ok(notes.includes(text), `missing reviewer instruction: ${text}`);
   assert.doesNotMatch(notes, /short_at_[0-9a-f]{64}/u);
   const settings = await readFile(new URL("../static/settings.html", import.meta.url), "utf8");

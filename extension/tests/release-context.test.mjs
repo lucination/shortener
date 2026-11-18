@@ -20,6 +20,7 @@ test("real release context binds ancestry, package/lock/ZIP versions, credential
   try {
     process.chdir(temp);
     mkdirSync("dist/native", { recursive: true });
+    writeFileSync("dist/firefox-source.zip", "test source archive");
     execFileSync("git", ["init", "-q"]);
     execFileSync("git", [
       "-c",
@@ -57,6 +58,15 @@ test("real release context binds ancestry, package/lock/ZIP versions, credential
       checks: Object.fromEntries(nativeChecks.map((k) => [k, "passed"])),
     };
     put("dist/native/firefox-runtime.json", receipt);
+    const reviewerReceipt = {
+      schema: 1, stage: "complete", sourceSha: receipt.sourceSha,
+      artifactSha256: hash, runId: "123", runAttempt: "1",
+      sourceArchiveSha256: createHash("sha256").update("test source archive").digest("hex"),
+      image: "ghcr.io/lucination/shortener@sha256:77b47988296ee9dca25f3f4deba84e4fd7064922d8823ca4e6b73a5597266d6a",
+      serverSha: "783feaa68db35792e3b4b3570f73c4ee56a67113",
+      checks: Object.fromEntries(["immutable-server-image", "admin-create-account", "mailpit-magic-link-signin", "account-create-only-token", "production-extension-request", "emitted-short-url-redirect", "token-revocation", "owned-cleanup"].map(k => [k, "passed"])),
+    };
+    put("dist/native/reviewer-smoke.json", reviewerReceipt);
     const env = {
       GITHUB_EVENT_NAME: "push",
       GITHUB_REF: "refs/tags/extension-v0.1.0",
@@ -67,6 +77,14 @@ test("real release context binds ancestry, package/lock/ZIP versions, credential
       WEB_EXT_API_SECRET: "test-presence",
     };
     assert.equal(releaseContext(env).ok, true);
+    put("dist/native/reviewer-smoke.json", { ...reviewerReceipt, sourceArchiveSha256: "stale" });
+    assert.match(releaseContext(env).reason, /reviewer/);
+    put("dist/native/reviewer-smoke.json", reviewerReceipt);
+    put("dist/native/reviewer-smoke.json", { ...reviewerReceipt, artifactSha256: "stale" });
+    assert.match(releaseContext(env).reason, /reviewer/);
+    put("dist/native/reviewer-smoke.json", { ...reviewerReceipt, stage: "failed" });
+    assert.match(releaseContext(env).reason, /reviewer/);
+    put("dist/native/reviewer-smoke.json", reviewerReceipt);
     assert.match(
       releaseContext({ ...env, WEB_EXT_API_SECRET: "" }).reason,
       /required/,
@@ -86,10 +104,13 @@ test("real release context binds ancestry, package/lock/ZIP versions, credential
     });
     assert.match(releaseContext(env).reason, /native Firefox/);
     put("dist/native/firefox-runtime.json", receipt);
+    assert.match(releaseContext({ ...env, GITHUB_RUN_ID: "different-run" }).reason, /reviewer/);
+    put("dist/native/reviewer-smoke.json", { ...reviewerReceipt, runId: "different-run" });
     assert.match(
       releaseContext({ ...env, GITHUB_RUN_ID: "different-run" }).reason,
       /native Firefox/,
     );
+    put("dist/native/reviewer-smoke.json", reviewerReceipt);
     // Actual CLI fails without credentials before it can construct a JWT or fetch.
     const cli = spawnSync(
       process.execPath,

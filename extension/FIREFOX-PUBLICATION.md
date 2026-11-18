@@ -65,42 +65,66 @@ policy and metadata. The extension never collects background browsing history.
    the conservative AMO choice is `all-rights-reserved`, not an invented open-source
    grant. Bundled Lucide paths retain their ISC/Feather notices. Change licensing only with owner
    approval. Prepare actual listing screenshots and accurate support details.
-5. `amo-metadata.json` -> `version.approval_notes` contains the private AMO
-   reviewer instructions: clone the public server at a pinned revision, run the
-   local Compose POC with explicit internal plaintext SMTP, add an account using
-   administration, read its sign-in link in Mailpit, issue a create-only token
-   in Account and configure the extension. No hosted demo or shared credentials
-   are supplied. The extension source ZIP is not a server distribution. Compose
-   configuration validation is not proof that its image build/server startup ran;
-   the notes disclose that unexecuted boundary and the local short-address port
-   limitation. If Mozilla requires supplied reviewer access instead, arrange it
-   privately before proceeding; never commit a live service, token or account.
-   Approved screenshots still need uploading through Developer Hub: the metadata
-   file does not upload screenshots or set the publisher's profile name. Verify
-   the approved publisher display name there without changing another account.
-   Preserve the approved listing description, privacy policy and license.
+5. `amo-metadata.json` -> `version.approval_notes` contains runnable private
+   reviewer instructions. The extension source archive includes
+   `extension/reviewer-compose.yaml`, which pulls the immutable public server
+   image for revision `783feaa68db35792e3b4b3570f73c4ee56a67113`. It exposes only
+   loopback port 80 (service) and 8025 (Mailpit), explicitly admits internal
+   plaintext SMTP and generates no shared credentials. Port 80 intentionally
+   matches the hostname-only short-address contract: `HostName::parse` discards
+   ports, so setting `SHORT_DOMAIN=localhost:3000` would not repair port-3000 links.
+   The hosted reviewer smoke exercises the real admin/account/Mailpit/token flow,
+   production extension HTTP adapter, emitted redirect, revocation and cleanup.
+   It does not claim browser UI automation of the server account forms.
 
-### Listing payload and remaining manual listing work
+### Complete initial-listing transaction
 
-The v5 create API requires an explicit localized `name`, `summary`, per-application
-`categories` object and version `license`; these are in `amo-metadata.json`.
-`version.approval_notes` is private to Mozilla and add-on authors, not listing copy.
-The manifest name alone is not the API listing name. The publisher display name
-comes from the authenticated Mozilla account, not this JSON or GitHub.
+The v5 create API requires explicit localized `name`, `summary`, categories and
+version `license`. The authenticated `accounts/profile/` read must have the exact
+owner-approved `display_name` **Aditya** before any write. No email address is
+chosen, exposed or changed. The stable GUID/version and add-on must not already
+exist: this first-listing adapter refuses automatic update/resume.
 
-The top-level `privacy_policy` in this file preserves the owner-approved text;
-it is **not** a supported field of the v5 add-on create serializer. `web-ext`
-passes metadata through and does not upload it to the separate
-`/api/v5/addons/addon/{guid}/eula_policy/` endpoint. The current submission
-adapter does not implement that separate write or screenshot uploads. After
-creation, set the approved policy in Developer Hub (or a separately reviewed
-privacy-policy API update) and read it back; upload the approved real screenshots
-there too. Do not claim these are attached merely because signing/upload succeeds.
-Those operations and authenticated publisher/GUID ownership remain release
-readiness checks, not work performed by the secret-free preparation branch.
+AMO's add-on create API requires an uploaded version; it cannot create an empty
+listing and set policy/screenshots before version creation. Its create serializer
+also does not accept `privacy_policy` (nested or top-level). The adapter therefore
+creates the add-on **atomically developer-disabled** (`is_disabled: true`), reads
+that hold and publisher ownership back, then attaches the accepted source ZIP.
+AMO can begin reviewing the version during this hold, but cannot publicly enable
+the add-on. This is a publication fence, not a claim to delay AMO's review queue.
+
+The adapter PATCHes `{privacy_policy: <approved localized text>}` to
+`addons/addon/{guid}/eula_policy/` and reads its exact unsanitized value back.
+It uploads each approved PNG to `previews/` as multipart `image`/`position`, then
+PATCHes translated caption/position separately (AMO forbids captions in that
+multipart upload). It waits only through bounded GET polling for exact preview
+IDs, captions, dimensions and HTTPS image references. No write is retried.
+The server may resize/recompress images; readback verifies the returned preview
+records, not byte-identical server encoding. Local input hashes bind the actual
+approved upload bytes. It rechecks source attachment, version/channel/license,
+reviewer notes, publisher ownership, listing copy and policy before the sole
+publication-enabling PATCH (`is_disabled: false`), whose effect is read back.
+Incomplete policy/media/source or an unknown write outcome stops with the add-on
+held disabled; no compensating enable, automatic resume, duplicate upload or
+retry is attempted. An uncertain final enable requires manual reconciliation.
+
+`extension/listing/assets.json` binds the approved restyled **actual native
+Firefox** popup/settings captures to SHA-256 values, dimensions, captions and
+original capture hashes. PNG/JPEG (non-animated) are the API's supported formats;
+these stripped PNGs are 1280x800 and below 5 MiB each. The popup is cropped from
+the real desktop capture, its ephemeral local address visibly masked, then
+centered/enlarged; the blank Settings capture retains the shipped example
+placeholder. Originals and masking provenance remain private evidence, not
+source archive contents. The archive includes exactly the two public PNGs and
+their manifest, never personal accounts, local capture paths or credentials.
 
 References: [v5 add-on create](https://mozilla.github.io/addons-server/topics/api/addons.html#addon-create),
-[policy API](https://mozilla.github.io/addons-server/topics/api/addons.html#addon-eula-policy).
+[policy API](https://mozilla.github.io/addons-server/topics/api/addons.html#addon-eula-policy),
+[preview create/edit](https://mozilla.github.io/addons-server/topics/api/addons.html#preview-create).
+The installed `web-ext` 10.8.0 `lib/util/submit-addon.js` also creates the version
+before its source PATCH and forwards metadata without special privacy/media
+handling. The scoped API adapter replaces that submission path rather than
+pretending unsupported JSON fields or screenshot filenames upload themselves.
 
 ## Publisher authorization boundary
 
@@ -128,14 +152,17 @@ Native execution uses official desktop Firefox **160.0.1** and geckodriver
 **0.36.0**, with fixed URLs and SHA-256 values in
 `scripts/native-toolchain.json`. The installer bounds download sizes, checks the
 archive hashes before extraction and uses safe tar extraction. No AMO credentials
-are available to build, native or release-admission jobs. npm dependencies remain
+are available to build, native (including reviewer smoke) or release-admission jobs. npm dependencies remain
 integrity-locked; Actions remain SHA-pinned.
 
 The native receipt is generated by executed assertions, not a checked-in
 `accepted` boolean. It records each required check and the unsigned ZIP SHA-256,
 source SHA, GitHub run ID/attempt and exact browser version. Release admission
-requires the native job's success **and** a complete same-run receipt matching
-those identities. Missing, stale, partial, failed-cleanup and foreign-run receipts
+requires the native job's success **and** complete same-run native and self-hosted
+reviewer-smoke receipts matching those identities. The latter additionally pins
+the exact source-archive SHA-256 and immutable server image/revision and requires
+all account/mail/token/request/
+redirect/revocation/owned-cleanup checks. Missing, stale, partial, failed-cleanup and foreign-run receipts
 fail closed. The old static `firefox-acceptance.json` seal is removed: runtime
 execution can now produce acceptance without a manual source change.
 
@@ -151,12 +178,12 @@ rechecks the receipt and downloads the accepted artifacts from the same run.
 
 ## Upload, review, publication and uncertain outcomes
 
-Before writing, the signer authenticates an API v5 read of the exact GUID/version.
-An existing version is a stop, not permission to upload again. `web-ext sign`
-uses `--channel listed`, the listing metadata and matching source archive.
-Approval wait is zero: the upload may be awaiting review. The signer reads back
-that exact version, reporting channel, raw file status and disabled flag; no
-successful upload is labeled published. Inspect Developer Hub → Manage Status &
+Before writing, the signer authenticates an API v5 read of the exact GUID/version
+and publisher profile. An existing version/add-on is a stop, not permission to
+upload again. The API adapter uses the listed upload channel and the held
+initial-listing transaction above, attaching the exact accepted source archive.
+It does not wait for approval or claim public availability: its successful
+result is submitted-not-publicly-verified. Inspect Developer Hub → Manage Status &
 Versions for **uploaded**, **awaiting review**, **approved/public**, **rejected** or
 **disabled** state. Verify the exact version is anonymously available on its
 public AMO listing before announcing publication; an older public version does

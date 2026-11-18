@@ -1,0 +1,24 @@
+[
+  {
+    "file": "popup.png",
+    "sha256": "73f1f0759668d1e63d2a3ee8463a8773dee2da4a2837bd13cce98a1fbcc0d05a",
+    "width": 1280,
+    "height": 800,
+    "caption": {
+      "en-US": "Native Firefox popup: copy a URL, formatted title link or Markdown. Local test address redacted."
+    },
+    "originalSha256": "aa7fa750e666bf942fb43ed1530db45af1432265da4c7e04240bc23dfa32e052",
+    "processing": "Actual headed Firefox capture; metadata stripped; centered on 1280x800 canvas. Popup cropped at [788,80,1110,302], local address masked at crop-relative [12,90,270,110], then enlarged 2x."
+  },
+  {
+    "file": "settings.png",
+    "sha256": "20e0197871cae099384b94fdc43b648cd9a7c75b7a985d8935eb3c287bef957e",
+    "width": 1280,
+    "height": 800,
+    "caption": {
+      "en-US": "Native Firefox Settings after Forget settings: credentials cleared and local-only token setup explained."
+    },
+    "originalSha256": "c11f92f2be26e4f6ada77bd8f8a6e99d5e02cf3ea8f299ec0ec4cd93b83a24d4",
+    "processing": "Actual headed Firefox capture; metadata stripped; centered on 1280x800 canvas. No UI content altered; form fields are blank, the service URL is its shipped placeholder."
+  }
+]

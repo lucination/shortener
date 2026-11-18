@@ -45,6 +45,8 @@ test("native execution precedes and is independent of tag admission; no static m
   assert.match(native, /needs: verify/);
   assert.doesNotMatch(native, /secrets\.|refs\/tags|firefox-acceptance\.json/);
   assert.match(native, /xvfb-run.*npm run test:firefox/);
+  assert.match(native, /node scripts\/reviewer-smoke.mjs/);
+  assert.match(native, /node node_modules\/typescript\/bin\/tsc -p tsconfig.json/);
   assert.match(native, /runner.temp.*firefox-tools/);
   assert.match(workflow, /release-admission:[^]*needs: \[verify, native\]/);
   assert.doesNotMatch(workflow, /GITHUB_RUN_ATTEMPT:'1'/);
