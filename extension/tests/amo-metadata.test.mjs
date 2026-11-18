@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const metadata = JSON.parse(await readFile(new URL("../amo-metadata.json", import.meta.url), "utf8"));
+const pkg = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 
 test("first listed submission explicitly supplies AMO v5 localized name and per-application categories", () => {
   assert.deepEqual(metadata.name, { "en-US": "Shortener Companion" });
@@ -16,7 +17,7 @@ test("first listed submission explicitly supplies AMO v5 localized name and per-
 test("private reviewer notes give pinned self-hosted setup, not nonexistent hosted credentials", async () => {
   const notes = metadata.version.approval_notes;
   for (const text of [
-    "0.1.0", "git clone https://github.com/lucination/shortener.git",
+    pkg.version, "git clone https://github.com/lucination/shortener.git",
     "git checkout --detach 783feaa68db35792e3b4b3570f73c4ee56a67113",
     'export ADMIN_TOKEN="$(openssl rand -hex 32)"',
     'export ANALYTICS_SECRET="$(openssl rand -hex 32)"',

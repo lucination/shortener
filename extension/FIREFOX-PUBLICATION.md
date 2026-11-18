@@ -213,6 +213,25 @@ private operator records, reconcile review state, and repair via the Developer
 Hub if necessary. The workflow offers no manual signing bypass. Credentials,
 AMO reads/writes and live publication have not been exercised by local tests.
 
+### Recovery after an environment rejection before execution
+
+If GitHub rejects a protected environment before **any** submit-job step runs,
+independently retain that run's attempt, zero-step job and protection rejection
+evidence. Correct the intended environment tag rule without weakening other
+protections. A rerun still increments `GITHUB_RUN_ATTEMPT`; the submission guard
+does not make an exception for pre-execution failures. Do not rerun that workflow
+or delete/move its immutable tag.
+
+After confirming no submission code executed, use the normal reviewed patch
+release path instead: advance package/lock/generated-manifest versions together,
+update the reviewer-note version, and obtain fresh source/hash-bound native and
+self-hosted acceptance. The current candidate is **0.1.1** for a future reviewed
+`extension-v0.1.1` tag and a fresh attempt 1; the old `extension-v0.1.0` tag remains
+historical. This does not prove the GUID/version is available or authorize a
+duplicate AMO write: all authenticated publisher, existing-add-on/version,
+uncertain-outcome and no-retry checks remain unchanged. Actual main integration,
+new tag creation and submission are separate release-authority steps.
+
 ## Actual Firefox acceptance
 
 The headed Selenium harness installs the **real packaged ZIP** in a disposable
