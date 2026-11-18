@@ -86,11 +86,19 @@ test("source tree must exactly match the native-receipt ZIP and reject cached up
   }finally{await rm(dir,{recursive:true,force:true});}
 });
 
-for(const fail of ["none","submission","validation","source"]) test(`actual pinned CLI against loopback contract fixture: ${fail}`,{timeout:30000},async()=>{
+for(const fail of ["none","submission","validation","source","approval-max-minus","approval-max","approval-max-plus"]) test(`actual pinned CLI against loopback contract fixture: ${fail}`,{timeout:30000},async()=>{
   const metadata=JSON.parse(await readFile(join(root,"amo-metadata.json"),"utf8"));
   assert.equal(metadata.is_disabled,true,"official metadata must hold listing until Developer Hub privacy/media completion");
   assert.equal(metadata.privacy_policy,undefined,"unsupported policy must live in explicit manual-completion asset");
   const dir=await fixture();const calls=[];const errors=[];let uploaded;
+  const boundary={"approval-max-minus":2999,"approval-max":3000,"approval-max-plus":3001}[fail];
+  if(boundary!==undefined){
+    // Deliberately bypass the local publisher admission only in this loopback
+    // contract to exercise the real CLI at the executed provider-field boundary.
+    metadata.version.approval_notes="x".repeat(boundary);
+    await writeFile(join(dir,"amo-metadata.json"),JSON.stringify(metadata));
+  }
+  const success=["none","approval-max-minus","approval-max"].includes(fail);
   const uploadId="00000000000040008000000000000000"; // Synthetic contract fixture, not a live AMO response.
   const server=createServer(async(req,res)=>{
     try{
@@ -105,7 +113,11 @@ for(const fail of ["none","submission","validation","source"]) test(`actual pinn
       }else if(req.method==="GET"&&path===`/api/v5/addons/upload/${uploadId}/`){res.end(JSON.stringify({uuid:uploadId,processed:true,valid:fail!=="validation",validation:{errors:fail==="validation"?1:0,messages:fail==="validation"?[{code:"MANIFEST_FIELD_INVALID",message:"private@example.invalid fixture-secret"}]:[]}}));}
       else if(req.method==="PUT"&&path===`/api/v5/addons/addon/${guid}/`){
         const data=JSON.parse(bytes);assert.deepEqual(data,{...metadata,version:{upload:uploadId,...metadata.version}});
-        if(fail==="submission"){res.writeHead(400);res.end(JSON.stringify({categories:{firefox:[{code:"invalid_choice",message:"Select a valid choice. private@example.invalid fixture-secret"}]}}));}
+        // Limit and serialized error text independently observed from the
+        // pinned provider model/mixin/get_fields with Django 5.2.19 / DRF 3.18.3.
+        // This is a provider-derived fixture, never a claimed live response.
+        if(Array.from(data.version.approval_notes).length>3000){res.writeHead(400);res.end(JSON.stringify({version:{approval_notes:["Ensure this field has no more than 3000 characters."]}}));}
+        else if(fail==="submission"){res.writeHead(400);res.end(JSON.stringify({categories:{firefox:[{code:"invalid_choice",message:"Select a valid choice. private@example.invalid fixture-secret"}]}}));}
         else{res.end(JSON.stringify({guid,is_disabled:true,version:{id:17,edit_url:"https://addons.mozilla.org/developers/"}}));}
       }else if(req.method==="PATCH"&&path===`/api/v5/addons/addon/${guid}/versions/17/`){
         const form=await new Request("http://127.0.0.1",{method:"PATCH",headers:req.headers,body:bytes}).formData();
@@ -118,13 +130,17 @@ for(const fail of ["none","submission","validation","source"]) test(`actual pinn
   try{
     const args=[...implementation.webExtSignArgs(),"--amo-base-url",`http://127.0.0.1:${server.address().port}/api/v5/`];
     const report=await implementation.runWebExtSign({cwd:dir,args,timeoutMs:15000,env:{...process.env,WEB_EXT_API_KEY:"fixture-key",WEB_EXT_API_SECRET:"fixture-secret"}});
-    assert.deepEqual(errors,[]);assert.equal(report.exitCode,fail==="none"?0:1);
+    assert.deepEqual(errors,[]);assert.equal(report.exitCode,success?0:1);
     assert.deepEqual(zipFiles(uploaded),zipFiles(await readFile(join(dir,"dist/firefox.zip"))),"official repack must contain the exact native-tested file bytes (ZIP container differs)");
     assert.equal(calls.filter(([m])=>m==="POST").length,1);
     assert.equal(calls.filter(([m])=>m==="PUT").length,fail==="validation"?0:1);
-    assert.equal(calls.length,{none:4,submission:3,validation:2,source:4}[fail]);
-    if(fail!=="none"){
-      assert.equal(report.stage,fail);assert.equal(report.httpStatus,fail==="validation"?null:400);
+    assert.equal(calls.length,{none:4,submission:3,validation:2,source:4,"approval-max-minus":4,"approval-max":4,"approval-max-plus":3}[fail]);
+    if(!success){
+      assert.equal(report.stage,fail==="approval-max-plus"?"submission":fail);assert.equal(report.httpStatus,fail==="validation"?null:400);
+      if(fail==="approval-max-plus"){
+        assert.deepEqual(report.fields,["version","version.approval_notes"]);
+        assert.ok(report.messageClasses.includes("max_length"));assert.equal(report.truncated,false);
+      }
       if(fail==="submission"){assert.ok(report.fields.includes("categories.firefox"));assert.ok(report.codes.includes("invalid_choice"));}
       if(fail==="validation")assert.ok(report.codes.includes("MANIFEST_FIELD_INVALID"));
       if(fail==="source"){assert.ok(report.fields.includes("source"));assert.ok(report.messageClasses.includes("invalid_archive"));}

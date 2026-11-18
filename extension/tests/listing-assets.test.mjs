@@ -20,6 +20,11 @@ test("approved privacy and actual PNG screenshots remain exact, public and bundl
   const archived=JSON.parse(execFileSync("python3",["-c",'import zipfile,json; z=zipfile.ZipFile("dist/firefox-source.zip"); print(json.dumps({"listing":[p for p in z.namelist() if p.startswith("extension/listing/")],"policy":z.read("extension/listing/privacy-policy.txt").decode(),"metadata":json.loads(z.read("extension/amo-metadata.json"))}))'],{cwd:root,encoding:"utf8"}));
   assert.deepEqual(archived.listing.sort(),["extension/listing/assets.json","extension/listing/popup.png","extension/listing/privacy-policy.txt","extension/listing/settings.png"].sort());
   assert.equal(archived.policy,policy);assert.equal(archived.metadata.is_disabled,true);assert.equal(archived.metadata.privacy_policy,undefined);
+  const fullDoc=execFileSync("python3",["-c",'import zipfile; print(zipfile.ZipFile("dist/firefox-source.zip").read("extension/FIREFOX-PUBLICATION.md").decode(),end="")'],{cwd:root,encoding:"utf8"});
+  assert.equal(fullDoc,readFileSync(new URL("FIREFOX-PUBLICATION.md",root),"utf8"));
+  assert.match(fullDoc,/## Self-hosted reviewer setup/);
+  assert.match(fullDoc,/export ADMIN_TOKEN=/);
+  assert.match(fullDoc,/docker compose -f extension\/reviewer-compose.yaml up -d --wait/);
 });
 
 test("custom write adapter is removed; release entrypoint delegates once to official CLI",()=>{

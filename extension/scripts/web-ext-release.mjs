@@ -49,7 +49,7 @@ print(json.dumps({'files':len(names),'artifactSha256':hashlib.sha256(pathlib.Pat
 }
 
 const safeFields = new Set(["name","summary","description","categories","firefox","android","version","upload","license","custom_license","source","approval_notes","is_disabled","default_locale","compatibility","min","max","platforms","supported_platforms","file","guid","id","status","channel","addon","slug","type","detail","non_field_errors","messages","errors","warnings"]);
-const safeCodes = new Set(["required","invalid","invalid_choice","unique","MANIFEST_FIELD_INVALID","MANIFEST_FIELD_REQUIRED","MANIFEST_INVALID","DUPLICATE_ADDON_ID"]);
+const safeCodes = new Set(["required","invalid","invalid_choice","max_length","unique","MANIFEST_FIELD_INVALID","MANIFEST_FIELD_REQUIRED","MANIFEST_INVALID","DUPLICATE_ADDON_ID"]);
 export function summarizeWebExtOutput(output, exitCode, { truncated = false } = {}) {
   const text = output.replace(/\u001b\[[0-9;]*m/gu, "");
   const stage = /Uploading source failed|Upload of source failed/u.test(text) ? "source" : /Submission failed/u.test(text) ? "submission" : /Validation failed/u.test(text) ? "validation" : /Upload failed/u.test(text) ? "upload" : exitCode === 0 ? "submitted" : "cli";
@@ -69,6 +69,7 @@ export function summarizeWebExtOutput(output, exitCode, { truncated = false } = 
       }
     }else if(typeof value==="string"){
       if(/valid choice/iu.test(value))messageClasses.add("invalid_choice");
+      if(/no more than \d+ characters/iu.test(value))messageClasses.add("max_length");
       if(/required/iu.test(value))messageClasses.add("required");
       if(/already exists|already been used/iu.test(value))messageClasses.add("already_exists");
       if(/permission|authenticat|signature/iu.test(value))messageClasses.add("authorization");
