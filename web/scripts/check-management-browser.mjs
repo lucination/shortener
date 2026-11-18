@@ -249,7 +249,7 @@ try {
       await address.click();
       await page.waitForFunction(() => window.__copyWritten === true);
       const beforeCopy = await page.locator("table").boundingBox();
-      const toast = page.locator(".copy-feedback");
+      const toast = page.locator(".toast");
       assert.equal(await toast.count(), 0);
       assert.equal(
         await page.evaluate(() => navigator.clipboard.readText()),

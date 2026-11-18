@@ -2,28 +2,6 @@
 @import "./lib/styles/presentation.css";
 @source './';
 @source '../.storybook';
-.copy-feedback {
-  position: fixed;
-  left: 50%;
-  bottom: 16px;
-  transform: translateX(-50%);
-  z-index: 50;
-  width: max-content;
-  max-width: min(280px, calc(100vw - 16px));
-  padding: 6px 10px;
-  border: 1px solid var(--dl-line);
-  border-radius: 6px;
-  background: var(--dl-panel);
-  color: var(--dl-text);
-  font-size: 12px;
-  line-height: 1.5;
-  box-shadow: 0 10px 24px rgb(0 0 0 / 20%);
-  pointer-events: none;
-  white-space: normal;
-}
-.copy-feedback.copy-error {
-  color: var(--dl-danger);
-}
 :is(.app-shell, #storybook-root) .copy-address {
   height: auto;
   padding: 0;

@@ -195,10 +195,13 @@ it("shows a transient bottom toast only after clicking the address and clipboard
   await waitFor(() =>
     expect(v.getByText("Short address copied.").closest("table")).toBeNull(),
   );
+  expect(v.getByText("Short address copied.").classList.contains("toast")).toBe(
+    true,
+  );
   expect(
-    v.getByText("Short address copied.").classList.contains("copy-feedback"),
-  ).toBe(true);
-  expect(v.container.querySelectorAll(".copy-feedback").length).toBe(1);
+    v.getByText("Short address copied.").closest('[role="status"]'),
+  ).toBeTruthy();
+  expect(v.container.querySelectorAll(".toast").length).toBe(1);
   vi.useFakeTimers();
   // A replacement attempt clears old success before the next browser result.
   await fireEvent.click(v.getAllByTitle("Copy address")[1]);
@@ -236,9 +239,7 @@ it("keeps only the newest copy result and ignores stale completion after navigat
   await waitFor(() =>
     expect(v.getByText(/Clipboard unavailable/)).toBeTruthy(),
   );
-  expect(
-    v.getByText(/Clipboard unavailable/).getAttribute("data-copy-id"),
-  ).toBe(String(simulatedLinks[1].id));
+  expect(v.container.querySelectorAll(".toast").length).toBe(1);
   pending[0].resolve();
   await new Promise((resolve) => setTimeout(resolve, 10));
   expect(v.queryByText("Short address copied.")).toBeNull();
@@ -458,4 +459,34 @@ it("releases abandoned enrollment progress after cancelling a session command", 
         .disabled,
     ).toBe(false),
   );
+});
+
+it("reports quick-action successes in the toast after the list is restored", async () => {
+  const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+    const path = String(input);
+    if (path === "/api/me") return new Response(JSON.stringify(user));
+    if (init?.method === "PATCH" || init?.method === "POST")
+      return new Response(JSON.stringify(simulatedLinks[0]));
+    return new Response(
+      JSON.stringify({ items: [simulatedLinks[0]], total: 1 }),
+    );
+  });
+  const v = render(AppContainer, { api: createApi(fetcher) });
+  await waitFor(() => expect(v.getAllByTitle("Copy address").length).toBe(1));
+  const toggle = v.queryByTitle("Disable link") ?? v.getByTitle("Enable link");
+  await fireEvent.click(toggle);
+  await waitFor(() =>
+    expect(v.getByText("Link updated.").classList.contains("toast")).toBe(true),
+  );
+  expect(v.getByText("Link updated.").closest('[role="status"]')).toBeTruthy();
+  await fireEvent.click(v.getAllByText("Create link")[0]);
+  expect(v.queryByText("Link updated.")).toBeNull();
+  await fireEvent.input(v.getByLabelText("Destination URL"), {
+    target: { value: "https://example.org" },
+  });
+  await fireEvent.submit(v.getByTestId("link-editor"));
+  await waitFor(() =>
+    expect(v.getByText("Link created.").classList.contains("toast")).toBe(true),
+  );
+  expect(v.queryByTestId("link-editor")).toBeNull();
 });

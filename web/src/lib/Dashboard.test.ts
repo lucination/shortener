@@ -116,42 +116,6 @@ it("puts each icon action in its own stable column with a single grouped header"
   );
 });
 
-it("keeps controlled copy feedback on durable row identity across reordering and filters", async () => {
-  const rows = [1, 2].map((id) => ({
-    id,
-    label: `Link ${id}`,
-    destination: "https://example.org",
-    address: `example.com/${id}`,
-    clicks: 0,
-    enabled: true,
-  }));
-  const copyFeedback = {
-    kind: "success" as const,
-    id: 2,
-    message: "Short address copied.",
-  };
-  const v = render(Dashboard, {
-    state: { kind: "ready", value: rows },
-    copyFeedback,
-  });
-  expect(v.getByText(copyFeedback.message).getAttribute("data-copy-id")).toBe(
-    "2",
-  );
-  expect(v.getByText(copyFeedback.message).closest("table")).toBeNull();
-  await v.rerender({
-    state: { kind: "ready", value: [...rows].reverse() },
-    copyFeedback,
-  });
-  expect(v.getByText(copyFeedback.message).getAttribute("data-copy-id")).toBe(
-    "2",
-  );
-  await v.rerender({
-    state: { kind: "ready", value: [rows[0]] },
-    copyFeedback,
-  });
-  expect(v.queryByText(copyFeedback.message)).toBeNull();
-});
-
 it("copies when the short address itself is clicked", async () => {
   const onaction = vi.fn();
   const v = render(Dashboard, {
