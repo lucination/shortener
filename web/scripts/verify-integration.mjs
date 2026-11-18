@@ -2,6 +2,11 @@
 import { chromium } from "@playwright/test";
 import { readFile, writeFile } from "node:fs/promises";
 import assert from "node:assert/strict";
+// Secondary row actions live in the row's More actions menu.
+const rowAction = async (row, name) => {
+  await row.getByRole("button", { name: /^More actions for / }).click();
+  await row.page().getByRole("menuitem", { name, exact: true }).click();
+};
 const env = Object.fromEntries(
   (await readFile(process.env.SMOKE_ENV ?? ".integration-smoke.env", "utf8"))
     .split("\n")
@@ -216,23 +221,22 @@ try {
         .fill("Edited browser link");
       await page.getByTestId("link-editor").evaluate((f) => f.requestSubmit());
       const row = page.locator("tr").filter({ hasText: "Edited browser link" });
-      await row.getByTitle("Disable link").click();
-      await row.getByTitle("Enable link").waitFor();
+      await rowAction(row, "Disable link");
+      await row.locator(".link-status", { hasText: "Disabled" }).waitFor();
       assert.equal(
         (await context.request.get("/" + alias, { maxRedirects: 0 })).status(),
         404,
       );
-      await row.getByTitle("Enable link").click();
-      await row.getByTitle("Disable link").waitFor();
+      await rowAction(row, "Enable link");
+      await row.locator(".link-status", { hasText: "Enabled" }).waitFor();
       assert.equal(
         (await context.request.get("/" + alias, { maxRedirects: 0 })).status(),
         302,
       );
-      await page
-        .locator("tr")
-        .filter({ hasText: `${alias}-one` })
-        .getByTitle("Delete link")
-        .click();
+      await rowAction(
+        page.locator("tr").filter({ hasText: `${alias}-one` }),
+        "Delete link",
+      );
       await page.getByRole("button", { name: "Confirm", exact: true }).click();
       await page
         .locator("tr")

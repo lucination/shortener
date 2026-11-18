@@ -94,8 +94,13 @@ try {
       const after = await page.locator("table").boundingBox();
       assert.deepEqual(after, before, "Copy feedback must not move the table");
       await toast.waitFor({ state: "hidden", timeout: 6000 });
-      await page.getByTitle("Copy address").nth(1).scrollIntoViewIfNeeded();
-      await page.getByTitle("Copy address").nth(1).click();
+      // The second copy path lives in the row's More actions menu.
+      const more = page
+        .getByRole("button", { name: /^More actions for / })
+        .nth(1);
+      await more.scrollIntoViewIfNeeded();
+      await more.click();
+      await page.getByRole("menuitem", { name: "Copy address" }).click();
       await toast.waitFor();
       assert.equal(
         await page.evaluate(() => navigator.clipboard.readText()),

@@ -53,7 +53,18 @@ export const Populated: Story = {
 };
 export const Selected: Story = { args: { selected: [1, 2] } };
 export const ReadOnly: Story = { args: { mode: "read-only" } };
-export const Empty: Story = { args: { state: { kind: "ready", value: [] } } };
+// No links at all: the first-run welcome with Create link and Import / paste.
+export const Empty: Story = {
+  name: "Empty (first run)",
+  args: { state: { kind: "ready", value: [] } },
+};
+// A search without matches offers Clear search instead of the welcome.
+export const NoSearchMatches: Story = {
+  args: { search: "zebra", state: { kind: "ready", value: [] } },
+};
+export const ReadOnlyEmpty: Story = {
+  args: { mode: "read-only", state: { kind: "ready", value: [] } },
+};
 export const Pending: Story = { args: { state: { kind: "pending" } } };
 export const Error: Story = {
   args: {

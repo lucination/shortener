@@ -26,7 +26,7 @@ try {
         await page.waitForFunction(
           (manage) =>
             document.querySelector(".grid-table tbody tr")?.children.length ===
-            (manage ? 11 : 4),
+            (manage ? 6 : 4),
           mode === "manage",
         );
         // Component stories normally use a character-width specimen frame. Exercise
@@ -65,6 +65,7 @@ try {
               [...row.children].map((cell) => ({
                 ...rect(cell),
                 text: cell.textContent.trim(),
+                label: cell.querySelector("strong")?.textContent ?? null,
                 textWidth: textWidth(cell),
                 checkbox: cell.querySelector("input")
                   ? rect(cell.querySelector("input"))
@@ -75,6 +76,20 @@ try {
                 button: cell.querySelector("button")
                   ? rect(cell.querySelector("button"))
                   : null,
+                actions: [...cell.querySelectorAll(".row-actions > *")].map(
+                  (node) => {
+                    const button = node.matches("button")
+                      ? node
+                      : node.querySelector("button");
+                    return {
+                      ...rect(button),
+                      text: button.textContent.trim(),
+                      name: button.getAttribute("aria-label"),
+                      haspopup: button.getAttribute("aria-haspopup"),
+                      icon: rect(button.querySelector("svg")),
+                    };
+                  },
+                ),
               })),
             ),
             headerCheckbox: table.querySelector("th input")
@@ -88,7 +103,8 @@ try {
               icon: b.querySelector("svg")
                 ? rect(b.querySelector("svg"))
                 : null,
-              title: b.title,
+              name: b.getAttribute("aria-label"),
+              danger: b.classList.contains("btn-danger"),
             })),
             status: [...table.querySelectorAll(".link-status")].map((s) => ({
               label: s.textContent,
@@ -134,26 +150,38 @@ try {
               );
               centered(row[0], row[0].checkbox);
               centered(geometry.headers[0], geometry.headerCheckbox);
-              assert.equal(row.length, 11);
-              const actions = row.slice(5);
-              assert.equal(actions.length, 6);
-              for (const cell of actions) {
-                assert.ok(
-                  cell.width <= 38,
-                  `Action not compact: ${cell.width}`,
-                );
-                assert.equal(cell.icon.width, 16);
-                assert.equal(cell.icon.height, 16);
-                assert.equal(cell.button.width, 32);
-                assert.equal(cell.button.height, 32);
-              }
-              const group = geometry.headers[5];
-              assert.ok(Math.abs(group.x - actions[0].x) <= 1);
+              // One Actions column: Statistics, Edit, then the More actions trigger.
+              assert.equal(row.length, 6);
+              assert.equal(geometry.headers.length, 6);
+              aligned(geometry.headers[5], row[5]);
+              const cell = row[5];
               assert.ok(
-                Math.abs(
-                  group.width - actions.reduce((sum, c) => sum + c.width, 0),
-                ) <= 1,
+                cell.width <= 220,
+                `Actions not compact: ${cell.width}`,
               );
+              assert.deepEqual(
+                cell.actions.map((a) => [a.name, a.text, a.haspopup]),
+                [
+                  ["View statistics", "Statistics", null],
+                  ["Edit link", "Edit", null],
+                  [
+                    `More actions for ${row[1].label}`,
+                    "",
+                    "menu",
+                  ],
+                ],
+              );
+              for (const a of cell.actions) {
+                assert.equal(a.height, 32);
+                assert.equal(a.y, cell.actions[0].y, "actions on one line");
+                assert.ok(
+                  a.x >= cell.x && a.x + a.width <= cell.x + cell.width + 0.5,
+                  "action inside its cell",
+                );
+              }
+              assert.equal(cell.actions[0].icon.width, 14);
+              assert.equal(cell.actions[2].width, 32);
+              assert.equal(cell.actions[2].icon.width, 16);
             } else {
               assert.equal(row.length, 4);
               assert.equal(row[0].checkbox, null);
@@ -177,26 +205,80 @@ try {
               1,
             );
             assert.deepEqual(
-              geometry.bulk.map((b) => b.title),
+              geometry.bulk.map((b) => [b.name, b.text]),
               [
-                "Enable selected links",
-                "Disable selected links",
-                "Delete selected links",
-                "Set expiration",
-                "Set retention",
+                ["Enable selected links", "Enable"],
+                ["Disable selected links", "Disable"],
+                ["Set expiration", "Set expiration"],
+                ["Set retention", "Set retention"],
+                ["Delete selected links", "Delete"],
               ],
             );
+            assert.deepEqual(
+              geometry.bulk.map((b) => b.danger),
+              [false, false, false, false, true],
+            );
             for (const b of geometry.bulk) {
-              assert.equal(b.text, "");
-              assert.equal(b.width, 32);
               assert.equal(b.height, 32);
-              assert.equal(b.icon.width, 16);
-              assert.equal(b.y, geometry.bulk[0].y);
+              assert.equal(b.icon.width, 14);
               assert.ok(
                 b.x >= 0 && b.x + b.width <= width,
-                "bulk icons within viewport",
+                "bulk buttons within viewport",
               );
             }
+            if (width >= 1280)
+              for (const b of geometry.bulk)
+                assert.equal(b.y, geometry.bulk[0].y, "bulk bar on one line");
+            // The row menu opens within the viewport, focused on its first item.
+            const trigger = page
+              .getByRole("button", { name: /^More actions for / })
+              .last();
+            await trigger.focus();
+            await page.keyboard.press("Enter");
+            const menu = page.getByRole("menu");
+            await menu.waitFor();
+            const opened = await page.evaluate(() => {
+              const m = document.querySelector('[role="menu"]');
+              const { x, y, width, height } = m.getBoundingClientRect();
+              return {
+                x,
+                y,
+                width,
+                height,
+                items: [...m.querySelectorAll('[role="menuitem"]')].map((i) =>
+                  i.textContent.trim(),
+                ),
+                focused: document.activeElement?.textContent.trim(),
+                expanded: document
+                  .querySelector('[aria-expanded="true"]')
+                  ?.getAttribute("aria-label"),
+              };
+            });
+            receipt.menu = opened;
+            assert.deepEqual(opened.items, [
+              "Copy address",
+              "View events",
+              "Enable link",
+              "Delete link",
+            ]);
+            assert.equal(opened.focused, "Copy address");
+            assert.ok(
+              opened.x >= 0 &&
+                opened.x + opened.width <= width &&
+                opened.y >= 0 &&
+                opened.y + opened.height <= 844,
+              "menu within viewport",
+            );
+            await page.screenshot({
+              path: `${output}/${theme}-${width}-${mode}-menu.png`,
+            });
+            await page.keyboard.press("Escape");
+            assert.equal(await menu.count(), 0, "Escape closes the menu");
+            assert.equal(
+              await trigger.evaluate((t) => document.activeElement === t),
+              true,
+              "focus returns to the trigger",
+            );
           } else {
             assert.equal(geometry.bulk.length, 0);
             assert.equal(geometry.headerCheckbox, null);

@@ -7,6 +7,7 @@ import { render, waitFor, fireEvent } from "@testing-library/svelte";
 import AppContainer from "./AppContainer.svelte";
 import { createApi } from "../adapters/api";
 import { simulatedLinks } from "../fixtures";
+import { chooseRowAction, rowMenuTriggers } from "../row-menu-testing";
 const user = {
   id: 1,
   email: "reader@example.org",
@@ -40,7 +41,7 @@ it("uses exact same-origin short-code URLs for statistics and edit actions", asy
     `/${simulatedLinks[0].addresses[0].short_code}/edit`,
   );
   // Events is a view of the native statistics page, selected by a fragment.
-  await fireEvent.click(v.getByTitle("View events"));
+  await chooseRowAction(0, "View events");
   expect(navigateTo).toHaveBeenLastCalledWith(
     `/${simulatedLinks[0].addresses[0].short_code}/statistics#events`,
   );
@@ -103,7 +104,9 @@ it("runs session -> list -> controlled editor -> actual API adapter save lifecyc
     return new Response(JSON.stringify({ items: [], total: 0 }));
   });
   const v = render(AppContainer, { api: createApi(fetcher) });
-  await waitFor(() => expect(v.getByText("No matching links")).toBeTruthy());
+  await waitFor(() =>
+    expect(v.getByText("Create your first short link")).toBeTruthy(),
+  );
   await fireEvent.click(v.getAllByText("Create link")[0]);
   await fireEvent.input(v.getByLabelText("Destination URL"), {
     target: { value: "https://example.org" },
@@ -157,7 +160,9 @@ it("does not let an old completed save replace a newly selected screen", async (
         : new Response(JSON.stringify({ items: [], total: 0 })),
   );
   const v = render(AppContainer, { api: createApi(fetcher) });
-  await waitFor(() => expect(v.getByText("No matching links")).toBeTruthy());
+  await waitFor(() =>
+    expect(v.getByText("Create your first short link")).toBeTruthy(),
+  );
   await fireEvent.click(v.getAllByText("Create link")[0]);
   await fireEvent.input(v.getByLabelText("Destination URL"), {
     target: { value: "https://example.org" },
@@ -193,7 +198,7 @@ it("shows a transient bottom toast only after clicking the address and clipboard
       ),
   );
   const v = render(AppContainer, { api: createApi(fetcher) });
-  await waitFor(() => expect(v.getAllByTitle("Copy address").length).toBe(2));
+  await waitFor(() => expect(rowMenuTriggers().length).toBe(2));
   await fireEvent.click(v.getAllByTitle("Copy short address")[0]);
   expect(v.queryByText("Short address copied.")).toBeNull();
   const address = simulatedLinks[0].addresses[0];
@@ -213,7 +218,7 @@ it("shows a transient bottom toast only after clicking the address and clipboard
   expect(v.container.querySelectorAll(".toast").length).toBe(1);
   vi.useFakeTimers();
   // A replacement attempt clears old success before the next browser result.
-  await fireEvent.click(v.getAllByTitle("Copy address")[1]);
+  await chooseRowAction(1, "Copy address");
   expect(v.queryByText("Short address copied.")).toBeNull();
   complete();
   await Promise.resolve();
@@ -241,9 +246,9 @@ it("keeps only the newest copy result and ignores stale completion after navigat
       ),
   );
   const v = render(AppContainer, { api: createApi(fetcher), copy });
-  await waitFor(() => expect(v.getAllByTitle("Copy address").length).toBe(2));
-  await fireEvent.click(v.getAllByTitle("Copy address")[0]);
-  await fireEvent.click(v.getAllByTitle("Copy address")[1]);
+  await waitFor(() => expect(rowMenuTriggers().length).toBe(2));
+  await chooseRowAction(0, "Copy address");
+  await chooseRowAction(1, "Copy address");
   pending[1].reject();
   await waitFor(() =>
     expect(v.getByText(/Clipboard unavailable/)).toBeTruthy(),
@@ -252,7 +257,7 @@ it("keeps only the newest copy result and ignores stale completion after navigat
   pending[0].resolve();
   await new Promise((resolve) => setTimeout(resolve, 10));
   expect(v.queryByText("Short address copied.")).toBeNull();
-  await fireEvent.click(v.getAllByTitle("Copy address")[0]);
+  await chooseRowAction(0, "Copy address");
   await fireEvent.click(v.getByRole("button", { name: /^Account$/ }));
   await waitFor(() => expect(v.getByText("Raw click data")).toBeTruthy());
   pending[2].resolve();
@@ -294,7 +299,9 @@ it("retains an abandoned enrollment barrier through Account replacement and prev
     return new Response(JSON.stringify({ items: [], total: 0 }));
   });
   const v = render(AppContainer, { api: createApi(fetcher) });
-  await waitFor(() => expect(v.getByText("No matching links")).toBeTruthy());
+  await waitFor(() =>
+    expect(v.getByText("Create your first short link")).toBeTruthy(),
+  );
   const account = async () => {
     await fireEvent.click(v.getByRole("button", { name: /^Account$/ }));
     await waitFor(() =>
@@ -364,7 +371,9 @@ for (const leave of ["navigation", "logout", "unmount"] as const)
       return new Response(JSON.stringify({ items: [], total: 0 }));
     });
     const v = render(AppContainer, { api: createApi(fetcher) });
-    await waitFor(() => expect(v.getByText("No matching links")).toBeTruthy());
+    await waitFor(() =>
+      expect(v.getByText("Create your first short link")).toBeTruthy(),
+    );
     await fireEvent.click(v.getByRole("button", { name: /^Account$/ }));
     await waitFor(() =>
       expect(v.getByLabelText("New passkey name")).toBeTruthy(),
@@ -409,7 +418,9 @@ it("validates rename names with the same scalar/control policy before submitting
     );
   });
   const v = render(AppContainer, { api: createApi(fetcher) });
-  await waitFor(() => expect(v.getByText("No matching links")).toBeTruthy());
+  await waitFor(() =>
+    expect(v.getByText("Create your first short link")).toBeTruthy(),
+  );
   await fireEvent.click(v.getByRole("button", { name: /^Account$/ }));
   await waitFor(() => expect(v.getByLabelText("Passkey name")).toBeTruthy());
   for (const name of ["x".repeat(81), "🔑".repeat(81), "bad\u0080name"]) {
@@ -438,7 +449,9 @@ it("releases abandoned enrollment progress after cancelling a session command", 
     return new Response(JSON.stringify({ items: [], total: 0 }));
   });
   const v = render(AppContainer, { api: createApi(fetcher) });
-  await waitFor(() => expect(v.getByText("No matching links")).toBeTruthy());
+  await waitFor(() =>
+    expect(v.getByText("Create your first short link")).toBeTruthy(),
+  );
   await fireEvent.click(v.getByRole("button", { name: /^Account$/ }));
   await waitFor(() =>
     expect(v.getByLabelText("New passkey name")).toBeTruthy(),
@@ -481,9 +494,8 @@ it("reports quick-action successes in the toast after the list is restored", asy
     );
   });
   const v = render(AppContainer, { api: createApi(fetcher) });
-  await waitFor(() => expect(v.getAllByTitle("Copy address").length).toBe(1));
-  const toggle = v.queryByTitle("Disable link") ?? v.getByTitle("Enable link");
-  await fireEvent.click(toggle);
+  await waitFor(() => expect(rowMenuTriggers().length).toBe(1));
+  await chooseRowAction(0, /^(Disable|Enable) link$/);
   await waitFor(() =>
     expect(v.getByText("Link updated.").classList.contains("toast")).toBe(true),
   );

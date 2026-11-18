@@ -433,7 +433,11 @@ try {
       // The links-table events action opens this view by full navigation.
       await page.getByText("Back to links", { exact: false }).first().click();
       await page.waitForURL(base + "/");
-      await page.getByTitle("View events").last().click();
+      await page
+        .getByRole("button", { name: /^More actions for / })
+        .last()
+        .click();
+      await page.getByRole("menuitem", { name: "View events" }).click();
       await page.waitForURL(`${base}/Note-A/statistics#events`);
       await tab("Events").waitFor();
       await page

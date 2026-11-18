@@ -152,7 +152,7 @@ try {
                   flow === "admin"
                     ? /Server-observed usage/
                     : flow === "global"
-                      ? "No matching links"
+                      ? "Create your first short link"
                       : "Raw click data",
                 ),
               ).toBeVisible();
@@ -306,7 +306,9 @@ try {
         await expect(
           page.getByRole("button", { name: "Account", exact: true }),
         ).toBeVisible();
-        await expect(page.getByText("No matching links")).toBeVisible();
+        await expect(
+          page.getByText("Create your first short link"),
+        ).toBeVisible();
       } else if (status === 401)
         await expect(
           page.getByRole("button", { name: "Send sign-in link" }),
@@ -349,7 +351,10 @@ try {
           await expect(page.getByText("Raw click data")).toBeVisible();
         else if (target === "Sign out")
           await expect(page.getByText("Send sign-in link")).toBeVisible();
-        else await expect(page.getByText("No matching links")).toBeVisible();
+        else
+          await expect(
+            page.getByText("Create your first short link"),
+          ).toBeVisible();
         release();
         await page.waitForTimeout(100);
         await expect(

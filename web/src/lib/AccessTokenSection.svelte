@@ -102,6 +102,7 @@
         <div class="toolbar spread">
           <strong>{token.name}</strong><button
             class="with-icon"
+            aria-label={`Revoke ${token.name}`}
             title={`Revoke ${token.name}`}
             onclick={() => onrevoke(token.id)}
             disabled={feedback.kind === "pending"}

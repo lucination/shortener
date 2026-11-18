@@ -39,7 +39,9 @@ try {
     for (const width of [1440, 390]) {
       await page.emulateMedia({ colorScheme });
       await page.setViewportSize({ width, height: 844 });
-      const button = page.getByTitle("Copy address", { exact: true }).nth(1);
+      const button = page
+        .getByTitle("Copy short address", { exact: true })
+        .nth(1);
       await button.scrollIntoViewIfNeeded();
       const row = button.locator("xpath=ancestor::tr");
       const label = await row.locator("strong").textContent();
@@ -111,7 +113,7 @@ try {
     navigator.clipboard.writeText = () =>
       Promise.reject(new DOMException("Denied", "NotAllowedError"));
   });
-  const button = page.getByTitle("Copy address", { exact: true }).first();
+  const button = page.getByTitle("Copy short address", { exact: true }).first();
   await button.scrollIntoViewIfNeeded();
   const before = await geometry();
   await button.click();
@@ -125,9 +127,7 @@ try {
     0,
   );
   assert.deepEqual(await geometry(), before);
-  await page
-    .locator(".toast")
-    .waitFor({ state: "detached", timeout: 6500 });
+  await page.locator(".toast").waitFor({ state: "detached", timeout: 6500 });
   await page.evaluate(() => {
     navigator.clipboard.writeText = window.__originalCopy;
   });

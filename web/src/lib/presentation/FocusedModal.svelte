@@ -23,6 +23,7 @@
 <div class="focused-layer dl-modal-layer">
   <button
     class="focused-backdrop dl-backdrop"
+    aria-label="Close dialog"
     title="Close dialog"
     onclick={onclose}
   ></button>
