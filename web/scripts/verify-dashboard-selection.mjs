@@ -135,8 +135,8 @@ try {
             );
           assert.equal(icons.length, 5);
           for (const icon of icons) {
-            assert.equal(icon.width, 28);
-            assert.equal(icon.height, 28);
+            assert.equal(icon.width, 32);
+            assert.equal(icon.height, 32);
             assert.equal(icon.y, icons[0].y);
             assert.ok(icon.icon);
             assert.equal(icon.text, "");

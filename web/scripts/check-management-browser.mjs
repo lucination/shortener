@@ -271,7 +271,7 @@ try {
       const toastBox = await toast.boundingBox();
       assert(Math.abs(850 - toastBox.y - toastBox.height - 16) <= 1);
       const statusOffsets = await page
-        .locator(".status-dot")
+        .locator(".link-status")
         .evaluateAll((dots) =>
           dots.map((dot) => {
             const marker = dot.getBoundingClientRect(),

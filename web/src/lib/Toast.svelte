@@ -37,7 +37,7 @@
     border-radius: 6px;
     background: var(--dl-panel);
     color: var(--dl-text);
-    font-size: 12px;
+    font-size: 13px;
     line-height: 1.5;
     box-shadow: 0 10px 24px rgb(0 0 0 / 20%);
     white-space: normal;

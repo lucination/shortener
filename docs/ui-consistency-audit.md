@@ -13,7 +13,7 @@ a new navigation or visual design.
 - Creator editor/statistics: `ManagementFrame`, contextual identity and Back to
   links, without inventing account/admin navigation on these native-owned URLs.
 - User sign-in: existing focused sign-in card and brand bar. Its 20px title and
-  34px controls intentionally differ from the dense workspace's 15px/28px scale.
+  34px controls intentionally differ from the dense workspace's 16px/32px scale.
 - Public and denied native documents: bounded, anonymous, inert document frame;
   never mount the SPA or authenticated navigation. Native denials remain generic.
 - All families use the existing light/dark theme, system sans fallback, flat

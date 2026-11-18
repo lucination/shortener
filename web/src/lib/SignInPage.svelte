@@ -111,7 +111,7 @@
   }
   .si-page > header {
     font:
-      400 13px/1.5 system-ui,
+      400 14px/1.5 system-ui,
       sans-serif;
   }
   .si-main {
@@ -127,14 +127,12 @@
     border-radius: var(--dl-radius);
     background: var(--dl-panel);
   }
-  :global(#storybook-root .si-page h1),
   .si-page h1 {
     font-size: 20px;
     font-weight: 600;
     letter-spacing: -0.4px;
     line-height: 1.5;
   }
-  :global(#storybook-root .si-page .si-intro),
   .si-intro {
     margin-top: 4px;
     color: var(--dl-muted);
@@ -174,7 +172,6 @@
     flex: 1;
     background: var(--dl-faint);
   }
-  :global(#storybook-root .si-page .si-cancel),
   .si-page .si-cancel {
     background: transparent;
     border-color: transparent;

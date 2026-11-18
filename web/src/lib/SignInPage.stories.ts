@@ -3,7 +3,7 @@ import SignInHarness from "./story-harness/SignInHarness.svelte";
 const meta = {
   title: "Access/Sign in",
   component: SignInHarness,
-  parameters: { layout: "fullscreen" },
+  parameters: { layout: "fullscreen", workspaceScope: false },
 } satisfies Meta<typeof SignInHarness>;
 export default meta;
 type Story = StoryObj<typeof meta>;

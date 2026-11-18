@@ -92,9 +92,8 @@ try {
             })),
             status: [...table.querySelectorAll(".link-status")].map((s) => ({
               label: s.textContent,
-              span: rect(s),
-              dot: rect(s.querySelector(".status-dot")),
-              text: rect(s.lastElementChild),
+              badge: rect(s),
+              cell: rect(s.closest("td")),
             })),
             font: getComputedStyle(table).fontFamily,
           };
@@ -140,13 +139,13 @@ try {
               assert.equal(actions.length, 6);
               for (const cell of actions) {
                 assert.ok(
-                  cell.width <= 34,
+                  cell.width <= 38,
                   `Action not compact: ${cell.width}`,
                 );
                 assert.equal(cell.icon.width, 16);
                 assert.equal(cell.icon.height, 16);
-                assert.equal(cell.button.width, 28);
-                assert.equal(cell.button.height, 28);
+                assert.equal(cell.button.width, 32);
+                assert.equal(cell.button.height, 32);
               }
               const group = geometry.headers[5];
               assert.ok(Math.abs(group.x - actions[0].x) <= 1);
@@ -163,9 +162,9 @@ try {
           for (const s of geometry.status)
             assert.ok(
               Math.abs(
-                s.dot.y + s.dot.height / 2 - s.text.y - s.text.height / 2,
+                s.badge.y + s.badge.height / 2 - s.cell.y - s.cell.height / 2,
               ) <= 1,
-              "status dot centered",
+              "status badge vertically centered",
             );
           assert.deepEqual(
             geometry.status.map((s) => s.label),
@@ -189,8 +188,8 @@ try {
             );
             for (const b of geometry.bulk) {
               assert.equal(b.text, "");
-              assert.equal(b.width, 28);
-              assert.equal(b.height, 28);
+              assert.equal(b.width, 32);
+              assert.equal(b.height, 32);
               assert.equal(b.icon.width, 16);
               assert.equal(b.y, geometry.bulk[0].y);
               assert.ok(

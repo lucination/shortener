@@ -172,7 +172,7 @@ try {
       }));
       assert(geometry.page <= width, JSON.stringify(geometry));
       assert.equal(geometry.root, width);
-      assert.equal(geometry.heading, "15px");
+      assert.equal(geometry.heading, "16px");
       assert.match(geometry.font, /system-ui/);
       const primary = await page.locator(".so-apply").evaluate((node) => {
         const probe = document.createElement("span");
@@ -198,8 +198,8 @@ try {
       const controls = await dateControls(page);
       assert.equal(controls.native.length, 10);
       for (const input of controls.inputs) {
-        assert.equal(input.height, 28);
-        assert.equal(input.size, "12px");
+        assert.equal(input.height, 32);
+        assert.equal(input.size, "13px");
         assert(input.width >= 136);
         assert(input.scrollWidth <= input.clientWidth);
       }
@@ -208,7 +208,7 @@ try {
           assert.equal(native.width, "14px");
           assert.equal(native.height, "14px");
         } else {
-          assert.equal(native.size, "12px");
+          assert.equal(native.size, "13px");
           assert.deepEqual(native.padding, ["0px", "0px", "0px", "0px"]);
         }
       }

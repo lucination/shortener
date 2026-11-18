@@ -2,13 +2,13 @@
 @import "./lib/styles/presentation.css";
 @source './';
 @source '../.storybook';
-:is(.app-shell, #storybook-root) .copy-address {
+.app-shell .copy-address {
   height: auto;
   padding: 0;
   border: 0;
   background: transparent;
 }
-:is(.app-shell, #storybook-root) .copy-address:hover {
+.app-shell .copy-address:hover {
   color: var(--dl-primary);
 }
 @theme {
@@ -21,7 +21,7 @@
 :root {
   color-scheme: light dark;
   font:
-    400 13px/1.5 system-ui,
+    400 14px/1.5 system-ui,
     sans-serif;
   font-variant-numeric: tabular-nums;
 }
@@ -33,66 +33,61 @@ body {
 * {
   box-sizing: border-box;
 }
-:is(.app-shell, #storybook-root) {
-  font:
-    400 13px/1.5 system-ui,
-    sans-serif;
-}
-:is(.app-shell, #storybook-root) :is(h1, h2, h3, p) {
+.app-shell :is(h1, h2, h3, p) {
   margin: 0;
   text-transform: none;
   letter-spacing: normal;
 }
-:is(.app-shell, #storybook-root) h1 {
+.app-shell h1 {
   font:
-    600 15px/1.5 system-ui,
+    600 16px/1.5 system-ui,
     sans-serif;
 }
-:is(.app-shell, #storybook-root) :is(h2, h3) {
+.app-shell :is(h2, h3) {
   font:
-    600 13px/1.5 system-ui,
+    600 14px/1.5 system-ui,
     sans-serif;
 }
-:is(.app-shell, #storybook-root) :is(strong, b) {
+.app-shell :is(strong, b) {
   font-weight: 600;
 }
-:is(.app-shell, #storybook-root) :is(button, input, select, textarea) {
+.app-shell :is(button, input, select, textarea) {
   font:
-    400 12px/20px system-ui,
+    400 13px/20px system-ui,
     sans-serif;
   color: var(--dl-text);
   background: var(--dl-input);
   border: 1px solid var(--dl-line);
   border-radius: 4px;
-  padding: 2px 9px;
+  padding: 5px 10px;
   min-width: 0;
   max-width: 100%;
-  height: 28px;
+  height: 32px;
 }
-:is(.app-shell, #storybook-root) button {
+.app-shell button {
   background: var(--dl-two);
   cursor: pointer;
   white-space: nowrap;
 }
-:is(.app-shell, #storybook-root) button:hover:not(:disabled) {
+.app-shell button:hover:not(:disabled) {
   border-color: var(--dl-primary);
 }
-:is(.app-shell, #storybook-root) button:disabled {
+.app-shell button:disabled {
   opacity: 0.5;
   cursor: default;
 }
-:is(.app-shell, #storybook-root) input[type="checkbox"] {
+.app-shell input[type="checkbox"] {
   width: 14px;
   height: 14px;
   padding: 0;
   accent-color: var(--dl-primary);
 }
-:is(.app-shell, #storybook-root) textarea {
+.app-shell textarea {
   width: 100%;
   height: 100px;
   resize: vertical;
 }
-:is(.app-shell, #storybook-root) .btn-primary {
+.app-shell .btn-primary {
   background: var(--dl-primary);
   color: var(--dl-on-primary);
   border-color: var(--dl-primary);
@@ -104,7 +99,7 @@ a {
 }
 code {
   font:
-    12px/1.5 ui-monospace,
+    13px/1.5 ui-monospace,
     monospace;
 }
 .app-shell {
@@ -117,7 +112,7 @@ code {
 .si-page > header {
   position: relative;
   isolation: isolate;
-  min-height: 48px;
+  min-height: 52px;
   margin: 0 -14px;
   padding: 10px 14px;
 }
@@ -180,7 +175,7 @@ code {
 }
 .muted {
   color: var(--dl-muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 .box-frame {
   border: 1px solid var(--dl-line);
@@ -197,7 +192,7 @@ code {
 .field {
   display: grid;
   gap: 4px;
-  font-size: 12px;
+  font-size: 13px;
   min-width: 0;
 }
 .field :is(input, select) {
@@ -233,7 +228,7 @@ code {
   border-bottom: 1px solid var(--dl-faint);
 }
 .grid-table th {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--dl-muted);
   background: var(--dl-bg);
@@ -255,31 +250,33 @@ code {
   display: block;
   margin: 0 auto;
 }
-:is(.app-shell, #storybook-root) .icon-button {
+.app-shell .icon-button {
   display: inline-grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   background: transparent;
   border-color: transparent;
   color: var(--dl-muted);
 }
+/* Link state badge: success tone when enabled, muted when disabled. */
 .link-status {
-  display: flex;
-  align-items: center;
-}
-.status-dot {
   display: inline-block;
-  flex-shrink: 0;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--dl-success);
-  margin-right: 6px;
+  padding: 0 8px;
+  border: 1px solid color-mix(in oklch, var(--dl-success) 40%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--dl-success) 12%, transparent);
+  color: color-mix(in oklch, var(--dl-success) 75%, var(--dl-text));
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 20px;
+  vertical-align: middle;
 }
-.status-dot.off {
-  background: var(--dl-muted);
+.link-status.off {
+  border-color: var(--dl-line);
+  background: var(--dl-faint);
+  color: var(--dl-muted);
 }
 .error {
   color: var(--dl-danger);
@@ -322,7 +319,7 @@ code {
   place-items: center;
   padding: 16px;
 }
-:is(.app-shell, #storybook-root) .focused-backdrop {
+.app-shell .focused-backdrop {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -427,7 +424,7 @@ code {
 }
 .management-identity > a {
   width: fit-content;
-  font-size: 12px;
+  font-size: 13px;
 }
 .management-page > section {
   min-width: 0;

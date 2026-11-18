@@ -178,10 +178,8 @@
                     >{:else}<code>{row.address}</code>{/if}</td
                 ><td class="compact-cell">{row.clicks.toLocaleString()}</td><td
                   class="compact-cell"
-                  ><span class="link-status"
-                    ><span class:off={!row.enabled} class="status-dot"
-                    ></span><span>{row.enabled ? "Enabled" : "Disabled"}</span
-                    ></span
+                  ><span class:off={!row.enabled} class="link-status"
+                    >{row.enabled ? "Enabled" : "Disabled"}</span
                   ></td
                 >{#if mode === "manage"}{#each actions as action}<td
                       class="action-cell"

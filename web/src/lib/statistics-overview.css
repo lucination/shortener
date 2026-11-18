@@ -5,13 +5,13 @@
   min-width: 0;
   container-type: inline-size;
   font:
-    400 13px/1.5 system-ui,
+    400 14px/1.5 system-ui,
     sans-serif;
   font-variant-numeric: tabular-nums;
 }
 .statistics-overview small {
   font:
-    400 11px/1.5 system-ui,
+    400 12px/1.5 system-ui,
     sans-serif;
   color: var(--dl-muted);
 }
@@ -27,7 +27,7 @@
 }
 .so-link-name {
   margin-top: 4px !important;
-  font-size: 12px;
+  font-size: 13px;
   overflow-wrap: anywhere;
 }
 .so-datebar {
@@ -39,7 +39,7 @@
 .so-datebar label {
   display: grid;
   gap: 4px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--dl-muted);
   min-width: 0;
 }
@@ -47,7 +47,7 @@
   width: 144px;
 }
 /* Keep native editing/picker behavior, without the browser's extra date inset. */
-:is(.app-shell, #storybook-root) .so-datebar input[type="date"] {
+.app-shell .so-datebar input[type="date"] {
   min-width: 136px;
   font-variant-numeric: tabular-nums;
 }
@@ -80,7 +80,7 @@
 
 .so-scope,
 .so-observed {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--dl-muted);
 }
 .so-observed {
@@ -102,7 +102,7 @@
   border-radius: 4px;
 }
 .so-total > span {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--dl-muted);
 }
 .statistics-overview .so-total strong {
@@ -127,25 +127,25 @@
   margin-bottom: 12px;
 }
 .so-detail-row {
-  min-height: 28px;
+  min-height: 32px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--dl-muted);
 }
 .so-detail-row strong {
   color: var(--dl-text);
-  font-size: 12px;
+  font-size: 13px;
 }
 .so-detail-row small {
   white-space: nowrap;
 }
-:is(.app-shell, #storybook-root) .so-detail-row button {
-  height: 24px;
+.app-shell .so-detail-row button {
+  height: 28px;
   padding: 0 6px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .so-plot {
   display: grid;
@@ -156,7 +156,7 @@
 .so-y-axis {
   position: relative;
   color: var(--dl-muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 .so-y-axis span {
   position: absolute;
@@ -194,7 +194,7 @@
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--dl-muted);
 }
 .so-x-axis {
@@ -218,7 +218,7 @@
   justify-content: space-between;
   align-items: start;
   gap: 12px;
-  font-size: 12px;
+  font-size: 13px;
 }
 .so-rank-title > span {
   min-width: 0;
@@ -252,7 +252,7 @@
   justify-items: start;
   gap: 12px;
   min-height: 276px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--dl-muted);
 }
 .so-state {
@@ -282,7 +282,7 @@
     gap: 6px;
   }
   .so-total small {
-    font-size: 10px;
+    font-size: 11px;
   }
   .so-datebar label {
     flex: 1 1 136px;
