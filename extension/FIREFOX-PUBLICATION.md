@@ -5,7 +5,7 @@ published by a local build. Mozilla validation, review and listing approval are
 separate from upload; a successful workflow is not proof of public availability.
 Chrome and Safari publication are deliberately not implemented here.
 
-The package remains **0.1.7** during verification-harness repair, with stable GUID
+The current candidate is **0.1.8**, with stable GUID
 `shortener-companion-v2@shortener.invalid`, for the explicitly approved replacement
 Mozilla publisher account. The public display name remains **Aditya**. The owner
 has replaced the protected environment credentials; no credential values are
@@ -15,8 +15,9 @@ This is a **new listing**, not an account transfer or an update path for existin
 installations. Do not reuse the deleted GUID or recreate/move any old release tag.
 The new transaction still requires authenticated publisher/GUID/version preflight,
 same-run native and reviewer acceptance, attempt 1, and the developer-disabled hold.
-This is a main-only harness fix, not a release-tag retry. Hosted verification and
-native acceptance must pass before preparing a separately approved new release.
+The main-only harness repair passed hosted verification and native acceptance.
+This fresh candidate requires its own reviewed tag and same-run receipts; no
+failed release tag is retried or moved.
 
 ## Reproduce from source
 
@@ -314,10 +315,14 @@ The owner-selected Node 26.13.1 CI pin is unchanged.
 
 The fixture now allocates beneath `os.tmpdir()` instead of assuming a home cache.
 A normal-suite regression creates a fresh HOME without `.cache` and executes the
-real reconciliation CLI fixture through its publisher-failure assertions. Keep
-package **0.1.7** for this main-only repair and obtain successful hosted
-verification/native evidence before preparing a new release version or tag.
-Fresh same-run native/reviewer receipts and attempt-one admission remain required.
+real reconciliation CLI fixture through its publisher-failure assertions. The
+main-only repair at `3058a5b479667ac9876d3d0a33f9e670f0d7d0c1` passed hosted
+verification and native acceptance, including the real self-hosted reviewer setup
+and headed Firefox, in run
+https://github.com/lucination/shortener/actions/runs/44406195313 . That successful
+main run establishes the repair, not acceptance of new release bytes. The current
+candidate **0.1.8** requires a parent-reviewed `extension-v0.1.8` tag and fresh
+same-run native/reviewer receipts with attempt-one admission.
 The failed 0.1.5, 0.1.6 and 0.1.7 tags remain immutable; do not rerun or move them.
 The deleted GUID is permanently reserved; there is no old-install update path.
 These observations are not global absence
