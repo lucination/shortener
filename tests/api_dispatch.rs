@@ -50,8 +50,11 @@ fn world() -> World {
         .unwrap()
         .token;
     let admin = db.admin_session(&now).unwrap();
+    let mut state = AppState::new(db);
+    // Independent of whether the frontends have been built locally.
+    state.static_dir = "tests/data/no-static-build".into();
     World {
-        app: router(AppState::new(db)),
+        app: router(state),
         user: sessions.remove(0).1,
         admin,
         access,
@@ -244,7 +247,14 @@ fn render_body(status: u16, bytes: &[u8]) -> String {
         return "<empty>".into();
     }
     if status >= 400 {
-        return String::from_utf8_lossy(bytes).into_owned();
+        // Native documents inline critical CSS; presentation isn't dispatch.
+        let text = String::from_utf8_lossy(bytes);
+        return match (text.find("<style>"), text.find("</style>")) {
+            (Some(start), Some(end)) if start < end => {
+                format!("{}<style>…{}", &text[..start], &text[end..])
+            }
+            _ => text.into_owned(),
+        };
     }
     match serde_json::from_slice::<serde_json::Value>(bytes) {
         Ok(serde_json::Value::Object(map)) => {
