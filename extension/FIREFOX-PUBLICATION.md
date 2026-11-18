@@ -249,8 +249,11 @@ are synthetic contract tests, not captured live responses. Before another live
 attempt, inspect current authenticated GUID/version/upload state and existing
 Developer Hub validation details. Do not infer absence from anonymous or
 not-found-or-not-visible results, and do not bump a version to hide an unknown
-outcome. This preparation deliberately keeps **0.1.2**; the parent decides the
-next unused tag/version only after state reconciliation and independent review.
+outcome. Following explicit authorization for a fresh transaction after read-only
+reconciliation, the current candidate is **0.1.3**, for a parent-reviewed
+`extension-v0.1.3` tag and new attempt 1. These observations are not global absence
+proof: the normal authenticated publisher/GUID/version preflight remains mandatory.
+Previous uploads are neither reused nor deleted, and prior release tags remain immutable.
 Never rerun, move or delete an existing failed tag.
 
 The separate manual **Firefox AMO read-only reconciliation** workflow is retained.
