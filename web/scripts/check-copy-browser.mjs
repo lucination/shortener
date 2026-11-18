@@ -59,19 +59,21 @@ try {
       await page.goto("http://localhost:5173");
       const address = page.getByTitle("Copy short address").first();
       await address.waitFor();
-      const statuses = await page.locator(".status-dot").evaluateAll((dots) =>
-        dots.map((dot) => {
-          const marker = dot.getBoundingClientRect();
-          const cell = dot.closest("td").getBoundingClientRect();
-          return Math.abs(
-            marker.y + marker.height / 2 - cell.y - cell.height / 2,
-          );
-        }),
-      );
+      const statuses = await page
+        .locator(".link-status")
+        .evaluateAll((badges) =>
+          badges.map((dot) => {
+            const marker = dot.getBoundingClientRect();
+            const cell = dot.closest("td").getBoundingClientRect();
+            return Math.abs(
+              marker.y + marker.height / 2 - cell.y - cell.height / 2,
+            );
+          }),
+        );
       assert.equal(statuses.length, 2);
       assert(
         statuses.every((offset) => offset <= 1),
-        `Uncentered status dots: ${statuses}`,
+        `Uncentered status badges: ${statuses}`,
       );
       await address.scrollIntoViewIfNeeded();
       const before = await page.locator("table").boundingBox();

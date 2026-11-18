@@ -2,7 +2,7 @@
 :root {
   color-scheme: light dark;
   font:
-    400 13px/1.5 system-ui,
+    400 14px/1.5 system-ui,
     sans-serif;
   --dl-bg: light-dark(oklch(0.985 0 0), oklch(0.21 0.006 285.885));
   --dl-panel: light-dark(oklch(1 0 0), oklch(0.274 0.006 286.033));
@@ -42,7 +42,7 @@ body {
 }
 h1 {
   font:
-    600 15px/1.5 system-ui,
+    600 16px/1.5 system-ui,
     sans-serif;
 }
 h1,
@@ -53,16 +53,16 @@ p {
 .field {
   display: grid;
   gap: 4px;
-  font-size: 12px;
+  font-size: 13px;
   min-width: 0;
 }
 input,
 button {
   font:
-    400 12px/20px system-ui,
+    400 13px/20px system-ui,
     sans-serif;
-  height: 28px;
-  padding: 2px 9px;
+  height: 32px;
+  padding: 5px 10px;
   border: 1px solid var(--dl-line);
   border-radius: 4px;
   color: var(--dl-text);
