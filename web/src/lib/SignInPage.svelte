@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Link, KeyRound } from "@lucide/svelte";
+  import { KeyRound } from "@lucide/svelte";
   import type { SignInState } from "./sign-in";
   import "./styles/presentation.css";
   let {
@@ -28,13 +28,11 @@
 </script>
 
 <svelte:head><title>Sign in · {appName}</title></svelte:head>
-<div class="si-page">
-  <header class="dl-appbar">
-    <div class="dl-brand">
-      <span class="dl-mark"><Link size={14} /></span>{appName}
-    </div>
+<main class="si-page">
+  <header class="toolbar spread">
+    <strong>{appName}</strong>
   </header>
-  <main class="si-main">
+  <div class="si-main">
     <section class="si-panel">
       <h1>Sign in</h1>
       <p class="si-intro">Enter your email to receive a sign-in link.</p>
@@ -97,16 +95,24 @@
           >{/if}
       </div>
     </section>
-  </main>
-</div>
+  </div>
+</main>
 
 <style>
   .si-page {
+    max-width: 1440px;
+    margin: auto;
+    padding: 0 14px;
     background: var(--dl-bg);
     color: var(--dl-text);
     min-height: 100dvh;
     display: flex;
     flex-direction: column;
+  }
+  .si-page > header {
+    font:
+      400 13px/1.5 system-ui,
+      sans-serif;
   }
   .si-main {
     flex: 1;

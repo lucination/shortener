@@ -183,7 +183,7 @@
       }
     : undefined}
 >
-  {#if page.kind === "not-found"}<section class="public-page stack">
+  {#if page.kind === "not-found"}<section class="public-page stack box-frame">
       <h1>Link not found</h1>
       <p>This link is unavailable.</p>
       <a href="/">Back to links</a>

@@ -17,7 +17,7 @@
   } = $props();
 </script>
 
-<section class="public-page stack">
+<section class="public-page stack box-frame">
   <strong>{appName}</strong>
   {#if page.kind === "not-found"}<h1>Link not found.</h1>
     <p>
