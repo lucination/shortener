@@ -59,6 +59,14 @@
     );
     position = { top, left };
   };
+  // Follow the trigger while the page or table scrolls; a scroll that lands
+  // just after opening (scroll-into-view, momentum) must not dismiss it.
+  const follow = () => {
+    if (!open) return;
+    const rect = trigger.getBoundingClientRect();
+    if (rect.bottom < 0 || rect.top > window.innerHeight) close(false);
+    else place();
+  };
   const show = async (focus: "first" | "last") => {
     if (closeActive && closeActive !== dismiss) closeActive();
     closeActive = dismiss;
@@ -66,12 +74,16 @@
     await tick();
     place();
     const list = entries();
-    (focus === "first" ? list[0] : list[list.length - 1])?.focus();
+    (focus === "first" ? list[0] : list[list.length - 1])?.focus({
+      preventScroll: true,
+    });
   };
   const move = (step: number) => {
     const list = entries();
     const index = list.indexOf(document.activeElement as HTMLButtonElement);
-    list[(index + step + list.length) % list.length]?.focus();
+    list[(index + step + list.length) % list.length]?.focus({
+      preventScroll: true,
+    });
   };
   const onTriggerKey = (event: KeyboardEvent) => {
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -105,9 +117,10 @@
     if (open && !root.contains(event.target as Node)) close(false);
   }}
   onscrollcapture={(event) => {
-    if (open && !(menu && menu.contains(event.target as Node))) close(false);
+    const target = event.target;
+    if (!(menu && target instanceof Node && menu.contains(target))) follow();
   }}
-  onresize={() => close(false)}
+  onresize={follow}
 />
 <div
   class="row-menu"

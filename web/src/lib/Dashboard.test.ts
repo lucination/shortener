@@ -236,6 +236,24 @@ it("supports keyboard navigation, Escape, outside click and a single open menu",
   expect(v.queryByRole("menu")).toBeNull();
 });
 
+it("follows scrolls while its trigger is visible and closes once it leaves", async () => {
+  const v = render(Dashboard, { state: { kind: "ready", value: rows } });
+  const trigger = v.getByRole("button", { name: "More actions for Link 1" });
+  let top = 100;
+  trigger.getBoundingClientRect = () =>
+    ({ top, bottom: top + 32, left: 0, right: 32 }) as DOMRect;
+  await fireEvent.click(trigger);
+  await tick();
+  // A scroll arriving just after opening (scroll-into-view) keeps it open.
+  await fireEvent.scroll(document);
+  await fireEvent(window, new Event("resize"));
+  expect(v.getByRole("menu")).toBeTruthy();
+  expect(v.getByRole("menu").style.top).toBe("136px");
+  top = -200;
+  await fireEvent.scroll(document);
+  expect(v.queryByRole("menu")).toBeNull();
+});
+
 it("keeps read-only rows free of actions", () => {
   const v = render(Dashboard, {
     state: { kind: "ready", value: rows },
