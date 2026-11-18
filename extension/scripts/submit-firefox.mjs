@@ -3,6 +3,7 @@ import { JwtApiAuth } from "../node_modules/web-ext/lib/util/submit-addon.js";
 import { releaseContext } from "./release-context.mjs";
 import { createAmoReadOnlyGet } from "./amo-read.mjs";
 import { assertFreshListing, assertHeldSubmission, verifySubmissionTree, runWebExtSign } from "./web-ext-release.mjs";
+import { validateAmoMetadata, MetadataAdmissionError } from "./amo-metadata-policy.mjs";
 
 let stage="admission";
 try {
@@ -14,6 +15,8 @@ try {
   }
   const tree=verifySubmissionTree(process.cwd());
   const metadata=JSON.parse(readFileSync("amo-metadata.json"));
+  stage="metadata-admission";
+  validateAmoMetadata(metadata);
   if(tree.guid!=="shortener-companion@shortener.invalid" || tree.version!==context.version || metadata.is_disabled!==true || "privacy_policy" in metadata)
     throw new Error("Official CLI listing inputs require the stable GUID, admitted version and developer hold");
   stage="preflight";
@@ -29,6 +32,7 @@ try {
   await assertHeldSubmission(get,{...tree,publisherId});
   console.log(JSON.stringify({version:context.version,channel:"listed",outcome:"submitted-developer-disabled",sourceAttached:true,privacyPolicyApplied:false,screenshotsApplied:false,manualDeveloperHubCompletionRequired:true,approvalOrPublicAvailabilityClaimed:false}));
 } catch(error) {
+  if(error instanceof MetadataAdmissionError)console.error(JSON.stringify(error.diagnostic));
   const status=error instanceof Error?/^AMO GET HTTP ([1-5]\d{2});/u.exec(error.message)?.[1]:undefined;
   console.error(JSON.stringify({stage,httpStatus:status?Number(status):null,outcome:"stopped",instruction:"Inspect sanitized CLI diagnostics and AMO uploads/add-on/version before any further write. No automatic resume or retry."}));
   process.exitCode=1;

@@ -134,6 +134,34 @@ accepted source archive. ZIP headers, entry order and compression differ: we do
 not claim the repacked upload has the deterministic native ZIP container hash.
 The reproducible native ZIP and source archive hashes remain authoritative inputs.
 
+### Metadata length admission before upload
+
+AMO approval notes are a **string limited to 3,000 Unicode code points**, not
+5,000 characters. The pinned provider
+[Version model](https://github.com/mozilla/addons-server/blob/6e31cf033455eeaf68c5e6b689f5f917f9faf69f/src/olympia/versions/models.py#L309-L313)
+declares `TextField(max_length=3000)`; its writable
+[DeveloperVersionSerializer](https://github.com/mozilla/addons-server/blob/6e31cf033455eeaf68c5e6b689f5f917f9faf69f/src/olympia/addons/serializers.py#L469-L530)
+and AMO model-serializer mixin inherit/enforce that limit. An isolated execution
+of the actual pinned field, mixin and get_fields with the provider-pinned Django
+5.2.19 / DRF 3.18.3 accepted 2,999/3,000 code points and rejected 3,001 and the
+former 5,274-character note with `max_length`. It also verified astral Unicode
+counting. This is a field-level oracle, not a captured production response or
+full AMO server deployment.
+
+`node scripts/check-amo-metadata.mjs` is a secret-free local check and the first
+verify-job gate. The same validation runs in the publisher before authenticated
+preflight or CLI invocation. It requires a primitive string, counts code points
+without trimming or truncating approved text, and emits only field/code/limit/
+actual-count diagnostics. This admission currently targets approval_notes;
+it is not a claim to validate every AMO metadata rule.
+
+The concise submitted note stays below 2,000 characters and points to the
+**Self-hosted reviewer setup** section in this attached document. The complete
+tested setup, commands and UI controls are preserved there rather than dropped
+or sent as an over-limit field. Actual pinned-CLI loopback tests cover the
+provider-derived 2,999/3,000/3,001 boundary and sanitized nested field rejection.
+They do not upload to AMO or treat constructed responses as live observations.
+
 ### Required Developer Hub completion after the CLI
 
 This is **not** a manual-first-listing path: the official CLI creates the listing.
@@ -245,13 +273,16 @@ directory. Preserve useful IDs privately, not in public source control.
 The HTTP 400 from the former custom adapter has no retained provider body, so its
 cause is **unknown**. This migration does not retroactively diagnose it. Loopback
 fixtures prove real CLI PUT/source behavior and safe field/code diagnostics; they
-are synthetic contract tests, not captured live responses. Before another live
+are synthetic contract tests, not captured live responses. The later official-CLI
+approval_notes field failure is explained by the confirmed 3,000-character limit
+above; the former 5,274-character value fails locally before any new upload.
+Before another live
 attempt, inspect current authenticated GUID/version/upload state and existing
 Developer Hub validation details. Do not infer absence from anonymous or
 not-found-or-not-visible results, and do not bump a version to hide an unknown
-outcome. Following explicit authorization for a fresh transaction after read-only
-reconciliation, the current candidate is **0.1.3**, for a parent-reviewed
-`extension-v0.1.3` tag and new attempt 1. These observations are not global absence
+outcome. After correcting that proven field defect, the current candidate is
+**0.1.4**, for a parent-reviewed
+`extension-v0.1.4` tag and new attempt 1. These observations are not global absence
 proof: the normal authenticated publisher/GUID/version preflight remains mandatory.
 Previous uploads are neither reused nor deleted, and prior release tags remain immutable.
 Never rerun, move or delete an existing failed tag.
@@ -344,6 +375,43 @@ pass does not accept later source or package changes. Every revision, including
 UI restyles, must produce its own successful same-run, hash-bound native receipt. Source/unit/syntax checks
 are not reported as native toolbar or clipboard acceptance. Do not weaken the
 manifest minimum or label a failed startup as a pass.
+
+## Self-hosted reviewer setup
+
+The complete tested setup is preserved here; AMO receives only the concise pointer and checklist.
+
+Shortener Companion is a client for a self-hosted service, not a developer-operated shortening service. No hosted demo or shared login/token is supplied. Reviewers can create their own local instance and account.
+
+SERVER SETUP: From the attached source archive root, use Docker with Compose and OpenSSL on a native amd64/arm64 machine. The source archive does not contain the server sources: the included local-only extension/reviewer-compose.yaml pulls the immutable image ghcr.io/lucination/shortener@sha256:77b47988296ee9dca25f3f4deba84e4fd7064922d8823ca4e6b73a5597266d6a (public server revision 783feaa68db35792e3b4b3570f73c4ee56a67113). Free local port 80 and port 8025 first; Docker must be allowed to bind loopback port 80. This keeps the service origin and emitted short URLs at http://localhost with no missing port. No Rust or server build is required.
+
+```sh
+export ADMIN_TOKEN="$(openssl rand -hex 32)"
+export ANALYTICS_SECRET="$(openssl rand -hex 32)"
+docker compose -f extension/reviewer-compose.yaml config --quiet
+docker compose -f extension/reviewer-compose.yaml up -d --wait
+```
+
+Retain ADMIN_TOKEN locally (inspect it with printenv ADMIN_TOKEN in that same shell) for the admin sign-in below. Do not share or commit it. The recipe explicitly permits plaintext SMTP only on the isolated local Compose network to Mailpit. It is not a public deployment recipe. The secret-free hosted reviewer smoke executes admin/account creation, Mailpit sign-in, token issuance, the actual production extension HTTP adapter, the emitted short URL redirect, revocation and cleanup against this pinned image. The separate native Firefox job tests actual toolbar/clipboard interactions. No developer credentials are needed for either test.
+
+ACCOUNT: Open http://localhost/_/ in desktop Firefox and sign in using your generated ADMIN_TOKEN. Choose Users -> Add user, enter an address you choose in Email address and press Confirm. No deliverable or personal email address is required: all mail stays in local Mailpit. Open http://localhost/, enter that same address in Email and press Send sign-in link. Open http://localhost:8025 and open the captured message's sign-in link in the same Firefox profile. No passkey enrollment is required.
+
+TOKEN: In the signed-in workspace open Account -> Access tokens. Set Token name to Firefox review, retain the default expiry (90 days), press Create access token and Copy token. Save the one-time value before leaving Account. This dedicated create-only token is not the administrator token or a session cookie.
+
+EXTENSION: Install the submitted add-on in desktop Firefox 140 or newer and accept Firefox's declared data-transmission consent (browsing activity, website content/page title, authentication information/access token). Open Settings (also available through about:addons -> Shortener Companion -> Preferences). Set Service URL to http://localhost and Access token to your newly issued token; press Save and allow the localhost host permission. HTTP is accepted only for loopback. Non-local hosting requires an HTTPS origin without a path. Credentials are stored locally, not synced.
+
+REVIEW: Open an ordinary HTTP(S) page (not about:, an AMO page or another protected Firefox page) and invoke the toolbar action. Opening the popup sends its URL/title and the token only to the configured service via POST /api/links, creates one link and attempts to copy its URL. If automatic clipboard access is denied, use Copy URL. Clicking the page title copies an HTML hyperlink with URL-only plaintext; it does not navigate. Copy Markdown is a separate explicit plaintext action; native Markdown MIME is optional and capability-dependent. Copy retries within the same popup do not create more links. Reopening the popup creates another link, so check the service's Links workspace after any uncertain request outcome. The emitted short address can be opened directly in this local port-80 setup.
+
+CLEANUP: Forget settings removes local credentials and host access, not server tokens/links. Use Account -> Access tokens -> Revoke for the review token. Run docker compose -f extension/reviewer-compose.yaml down to stop the local instance; do not add -v unless deliberately deleting this disposable instance's saved data.
+
+SERVER SOURCE: Public source and README are at https://github.com/lucination/shortener/tree/783feaa68db35792e3b4b3570f73c4ee56a67113 . For optional inspection in a separate directory:
+```sh
+git clone https://github.com/lucination/shortener.git shortener-review
+cd shortener-review
+git checkout --detach 783feaa68db35792e3b4b3570f73c4ee56a67113
+```
+Run that checkout command inside shortener-review. This full server checkout is separate from the extension-only archive and not required to run its immutable image.
+
+ADD-ON SOURCE: TypeScript sources, exact dependency lock, deterministic source-build instructions, the local reviewer Compose recipe and clean public listing screenshots are attached. See extension/FIREFOX-PUBLICATION.md, Reproduce from source. Rebuilding the add-on needs no Rust, Docker or service credentials. Screenshots are actual native Firefox captures; the popup's local test address is visibly redacted. Android runtime/UI acceptance is not claimed. Lucide icons retain their bundled ISC/Feather notices.
 
 ## Official references
 

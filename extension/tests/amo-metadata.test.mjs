@@ -18,8 +18,13 @@ test("first listed submission explicitly supplies AMO v5 localized name and per-
 
 test("private reviewer notes give pinned self-hosted setup, not nonexistent hosted credentials", async () => {
   const notes = metadata.version.approval_notes;
+  assert.ok(Array.from(notes).length<2000);
+  assert.ok(notes.includes(pkg.version));
+  assert.ok(notes.includes("extension/FIREFOX-PUBLICATION.md"));
+  assert.ok(notes.includes("Self-hosted reviewer setup"));
+  const fullInstructions = await readFile(new URL("../FIREFOX-PUBLICATION.md",import.meta.url),"utf8");
   for (const text of [
-    pkg.version, "git clone https://github.com/lucination/shortener.git",
+    "git clone https://github.com/lucination/shortener.git",
     "git checkout --detach 783feaa68db35792e3b4b3570f73c4ee56a67113",
     'export ADMIN_TOKEN="$(openssl rand -hex 32)"',
     'export ANALYTICS_SECRET="$(openssl rand -hex 32)"',
@@ -31,7 +36,7 @@ test("private reviewer notes give pinned self-hosted setup, not nonexistent host
     "Copy token", "Service URL", "http://localhost", "Access token",
     "Save", "Copy URL", "Copy Markdown", "Forget settings", "Revoke",
     "source archive does not contain the server", "immutable image", "port 80",
-  ]) assert.ok(notes.includes(text), `missing reviewer instruction: ${text}`);
+  ]) assert.ok(fullInstructions.includes(text), `missing attached reviewer instruction: ${text}`);
   assert.doesNotMatch(notes, /short_at_[0-9a-f]{64}/u);
   const settings = await readFile(new URL("../static/settings.html", import.meta.url), "utf8");
   for (const label of ["Service URL", "Access token", "Forget settings"])
