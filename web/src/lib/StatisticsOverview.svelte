@@ -18,23 +18,14 @@
     range,
     detail,
     onday,
-    onrange,
-    onapply,
-    onback,
-    onperiod,
-    period = "custom",
-    label,
+    onretry,
   }: {
     state: Resource<StatsView>;
+    /** Requested period, used only when a response omits its own. */
     range: DateRange;
-    label: string;
     detail: DayDetail;
     onday: (action: DayAction) => void;
-    onrange: (range: DateRange) => void;
-    onapply: () => void;
-    onback: () => void;
-    onperiod?: (days: number) => void;
-    period?: string;
+    onretry: () => void;
   } = $props();
   const format = (value: number) => value.toLocaleString("en-US");
   const metrics = [
@@ -154,48 +145,11 @@
   </section>
 {/snippet}
 
-<section class="statistics-overview">
-  <header class="so-heading">
-    <div>
-      <h1>Link statistics</h1>
-      <p class="so-link-name">{label}</p>
-    </div>
-    <button onclick={onback}>Back to links</button>
-  </header>
-  <div class="so-datebar">
-    {#if onperiod}<label
-        >Period<select
-          value={period}
-          onchange={(e) => onperiod?.(Number(e.currentTarget.value))}
-          ><option value="28">28 days</option><option value="14">14 days</option
-          ><option value="7">7 days</option><option value="custom" disabled
-            >Custom dates</option
-          ></select
-        ></label
-      >{/if}
-    <label
-      >From<input
-        type="date"
-        value={range.from}
-        oninput={(e) => onrange({ ...range, from: e.currentTarget.value })}
-      /></label
-    >
-    <label
-      >To<input
-        type="date"
-        value={range.to}
-        oninput={(e) => onrange({ ...range, to: e.currentTarget.value })}
-      /></label
-    ><button class="so-apply btn-primary" onclick={onapply}>Apply dates</button>
-  </div>
-  <p class="so-scope">
-    Dates are inclusive, in UTC. Clicks count human redirects, not unique
-    visitors.
-  </p>
+<div class="so-overview">
   {#if state.kind === "pending"}<div class="so-state">Loading statistics…</div>
   {:else if state.kind === "error"}<div class="so-state so-error">
       <p>{state.message}</p>
-      <button onclick={onapply}>Retry dates</button>
+      <button onclick={onretry}>Retry dates</button>
     </div>
   {:else}{@const stats = state.value}
     <p class="so-observed">
@@ -209,4 +163,4 @@
         )}{/each}
     </div>
   {/if}
-</section>
+</div>

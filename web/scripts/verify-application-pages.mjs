@@ -87,7 +87,7 @@ const cases = [
   ["account", "/", "Account"],
   ["create", "/", "New link"],
   ["import", "/", "Import links"],
-  ["events", "/", "Click events"],
+  ["events", "/notes/statistics#events", "Link statistics"],
   ["editor", "/notes/edit", "Edit link"],
   ["statistics", "/notes/statistics", "Link statistics"],
   ["user-sign-in", "/", "Sign in"],
@@ -176,8 +176,6 @@ try {
             await page
               .getByRole("button", { name: "Import / paste", exact: true })
               .click();
-          if (name === "events")
-            await page.getByTitle("View events", { exact: true }).click();
           if (["admin-links", "admin-usage", "admin-events"].includes(name))
             await page
               .getByRole("button", { name: heading, exact: true })
@@ -292,7 +290,7 @@ try {
           if (geometry.dialog) {
             await page
               .getByRole("button", {
-                name: name === "events" ? "Back to links" : "Cancel",
+                name: "Cancel",
                 exact: true,
               })
               .click();

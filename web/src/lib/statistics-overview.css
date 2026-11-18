@@ -271,6 +271,42 @@
   padding-block: 12px;
   color: var(--dl-muted);
 }
+/* One applied date range above two views of the same traffic. */
+.so-tabs {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  border-bottom: 1px solid var(--dl-line);
+}
+.statistics-overview .so-tabs [role="tab"] {
+  height: auto;
+  margin-bottom: -1px;
+  padding: 6px 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--dl-muted);
+  font-weight: 500;
+}
+.statistics-overview .so-tabs [role="tab"]:hover:not([aria-selected="true"]) {
+  border-bottom-color: var(--dl-line);
+  color: var(--dl-text);
+}
+.statistics-overview .so-tabs [role="tab"][aria-selected="true"] {
+  border-bottom-color: var(--dl-primary);
+  color: var(--dl-text);
+}
+.so-panel,
+.so-overview {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.so-panel .so-observed {
+  padding-top: 0;
+  border-top: 0;
+}
 @container (max-width: 700px) {
   .so-all-breakdowns {
     grid-template-columns: minmax(0, 1fr);

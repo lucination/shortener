@@ -1006,30 +1006,30 @@ PUT /api/links/1  [bearer+user] -> 401 | content-type: application/json | {"code
 PUT /api/links/1  [bearer-session] -> 401 | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
 PUT /api/links/1  [bearer-malformed] -> 401 | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
 PUT /api/links/1  [basic] -> 401 | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
-GET /api/links/1/events  [none] -> 401 | content-type: application/json | {"code":"unauthorized","message":"authentication required"}
-GET /api/links/1/events  [user] -> 200 | content-type: application/json | keys=["items", "total"]
-GET /api/links/1/events  [admin] -> 403 | content-type: application/json | {"code":"forbidden","message":"wrong authentication authority"}
-GET /api/links/1/events  [user+admin] -> 200 | content-type: application/json | keys=["items", "total"]
-GET /api/links/1/events  [user-no-origin] -> 200 | content-type: application/json | keys=["items", "total"]
-GET /api/links/1/events  [user-evil-origin] -> 200 | content-type: application/json | keys=["items", "total"]
-GET /api/links/1/events  [bearer] -> 401 | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
-GET /api/links/1/events  [bearer-no-origin] -> 401 | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
-GET /api/links/1/events  [bearer+user] -> 401 | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
-GET /api/links/1/events  [bearer-session] -> 401 | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
-GET /api/links/1/events  [bearer-malformed] -> 401 | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
-GET /api/links/1/events  [basic] -> 401 | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
-GET /api/links/1/events?from=2020-02-01&to=2020-01-01  [none] -> 401 | content-type: application/json | {"code":"unauthorized","message":"authentication required"}
-GET /api/links/1/events?from=2020-02-01&to=2020-01-01  [user] -> 422 | content-type: application/json | {"code":"validation","message":"invalid date range"}
-GET /api/links/1/events?from=2020-02-01&to=2020-01-01  [admin] -> 403 | content-type: application/json | {"code":"forbidden","message":"wrong authentication authority"}
-GET /api/links/1/events?from=2020-02-01&to=2020-01-01  [user+admin] -> 422 | content-type: application/json | {"code":"validation","message":"invalid date range"}
-GET /api/links/1/events?from=2020-02-01&to=2020-01-01  [user-no-origin] -> 422 | content-type: application/json | {"code":"validation","message":"invalid date range"}
-GET /api/links/1/events?from=2020-02-01&to=2020-01-01  [user-evil-origin] -> 422 | content-type: application/json | {"code":"validation","message":"invalid date range"}
-GET /api/links/1/events?from=2020-02-01&to=2020-01-01  [bearer] -> 401 | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
-GET /api/links/1/events?from=2020-02-01&to=2020-01-01  [bearer-no-origin] -> 401 | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
-GET /api/links/1/events?from=2020-02-01&to=2020-01-01  [bearer+user] -> 401 | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
-GET /api/links/1/events?from=2020-02-01&to=2020-01-01  [bearer-session] -> 401 | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
-GET /api/links/1/events?from=2020-02-01&to=2020-01-01  [bearer-malformed] -> 401 | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
-GET /api/links/1/events?from=2020-02-01&to=2020-01-01  [basic] -> 401 | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
+GET /api/links/1/events  [none] -> 401 | cache-control: no-store | content-type: application/json | {"code":"unauthorized","message":"authentication required"}
+GET /api/links/1/events  [user] -> 200 | cache-control: no-store | content-type: application/json | keys=["items", "total"]
+GET /api/links/1/events  [admin] -> 403 | cache-control: no-store | content-type: application/json | {"code":"forbidden","message":"wrong authentication authority"}
+GET /api/links/1/events  [user+admin] -> 200 | cache-control: no-store | content-type: application/json | keys=["items", "total"]
+GET /api/links/1/events  [user-no-origin] -> 200 | cache-control: no-store | content-type: application/json | keys=["items", "total"]
+GET /api/links/1/events  [user-evil-origin] -> 200 | cache-control: no-store | content-type: application/json | keys=["items", "total"]
+GET /api/links/1/events  [bearer] -> 401 | cache-control: no-store | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
+GET /api/links/1/events  [bearer-no-origin] -> 401 | cache-control: no-store | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
+GET /api/links/1/events  [bearer+user] -> 401 | cache-control: no-store | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
+GET /api/links/1/events  [bearer-session] -> 401 | cache-control: no-store | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
+GET /api/links/1/events  [bearer-malformed] -> 401 | cache-control: no-store | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
+GET /api/links/1/events  [basic] -> 401 | cache-control: no-store | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
+GET /api/links/1/events?from=2020-02-01&to=2020-01-01  [none] -> 401 | cache-control: no-store | content-type: application/json | {"code":"unauthorized","message":"authentication required"}
+GET /api/links/1/events?from=2020-02-01&to=2020-01-01  [user] -> 422 | cache-control: no-store | content-type: application/json | {"code":"validation","message":"invalid date range"}
+GET /api/links/1/events?from=2020-02-01&to=2020-01-01  [admin] -> 403 | cache-control: no-store | content-type: application/json | {"code":"forbidden","message":"wrong authentication authority"}
+GET /api/links/1/events?from=2020-02-01&to=2020-01-01  [user+admin] -> 422 | cache-control: no-store | content-type: application/json | {"code":"validation","message":"invalid date range"}
+GET /api/links/1/events?from=2020-02-01&to=2020-01-01  [user-no-origin] -> 422 | cache-control: no-store | content-type: application/json | {"code":"validation","message":"invalid date range"}
+GET /api/links/1/events?from=2020-02-01&to=2020-01-01  [user-evil-origin] -> 422 | cache-control: no-store | content-type: application/json | {"code":"validation","message":"invalid date range"}
+GET /api/links/1/events?from=2020-02-01&to=2020-01-01  [bearer] -> 401 | cache-control: no-store | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
+GET /api/links/1/events?from=2020-02-01&to=2020-01-01  [bearer-no-origin] -> 401 | cache-control: no-store | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
+GET /api/links/1/events?from=2020-02-01&to=2020-01-01  [bearer+user] -> 401 | cache-control: no-store | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
+GET /api/links/1/events?from=2020-02-01&to=2020-01-01  [bearer-session] -> 401 | cache-control: no-store | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
+GET /api/links/1/events?from=2020-02-01&to=2020-01-01  [bearer-malformed] -> 401 | cache-control: no-store | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
+GET /api/links/1/events?from=2020-02-01&to=2020-01-01  [basic] -> 401 | cache-control: no-store | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
 GET /api/links/1/stats  [none] -> 401 | cache-control: no-store | content-type: application/json | {"code":"unauthorized","message":"authentication required"}
 GET /api/links/1/stats  [user] -> 200 | cache-control: no-store | content-type: application/json | keys=["bots", "countries", "daily", "devices", "from", "humans", "link_id", "previews", "redirects", "referrers", "to"]
 GET /api/links/1/stats  [admin] -> 403 | cache-control: no-store | content-type: application/json | {"code":"forbidden","message":"wrong authentication authority"}
@@ -1102,18 +1102,18 @@ GET /api/links/1/unknown  [bearer+user] -> 401 | content-type: application/json 
 GET /api/links/1/unknown  [bearer-session] -> 401 | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
 GET /api/links/1/unknown  [bearer-malformed] -> 401 | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
 GET /api/links/1/unknown  [basic] -> 401 | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
-POST /api/links/1/events  [none] -> 401 | content-type: application/json | {"code":"unauthorized","message":"authentication required"}
-POST /api/links/1/events  [user] -> 404 | content-type: application/json | {"code":"not_found","message":"unknown API route"}
-POST /api/links/1/events  [admin] -> 403 | content-type: application/json | {"code":"forbidden","message":"wrong authentication authority"}
-POST /api/links/1/events  [user+admin] -> 404 | content-type: application/json | {"code":"not_found","message":"unknown API route"}
+POST /api/links/1/events  [none] -> 401 | cache-control: no-store | content-type: application/json | {"code":"unauthorized","message":"authentication required"}
+POST /api/links/1/events  [user] -> 404 | cache-control: no-store | content-type: application/json | {"code":"not_found","message":"unknown API route"}
+POST /api/links/1/events  [admin] -> 403 | cache-control: no-store | content-type: application/json | {"code":"forbidden","message":"wrong authentication authority"}
+POST /api/links/1/events  [user+admin] -> 404 | cache-control: no-store | content-type: application/json | {"code":"not_found","message":"unknown API route"}
 POST /api/links/1/events  [user-no-origin] -> 403 | content-type: application/json | {"code":"origin","message":"same-origin request required"}
 POST /api/links/1/events  [user-evil-origin] -> 403 | content-type: application/json | {"code":"origin","message":"same-origin request required"}
-POST /api/links/1/events  [bearer] -> 401 | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
+POST /api/links/1/events  [bearer] -> 401 | cache-control: no-store | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
 POST /api/links/1/events  [bearer-no-origin] -> 403 | content-type: application/json | {"code":"origin","message":"same-origin request required"}
-POST /api/links/1/events  [bearer+user] -> 401 | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
-POST /api/links/1/events  [bearer-session] -> 401 | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
-POST /api/links/1/events  [bearer-malformed] -> 401 | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
-POST /api/links/1/events  [basic] -> 401 | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
+POST /api/links/1/events  [bearer+user] -> 401 | cache-control: no-store | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
+POST /api/links/1/events  [bearer-session] -> 401 | cache-control: no-store | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
+POST /api/links/1/events  [bearer-malformed] -> 401 | cache-control: no-store | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
+POST /api/links/1/events  [basic] -> 401 | cache-control: no-store | content-type: application/json | {"code":"unauthorized","message":"create-only access token required"}
 GET /api/unknown  [none] -> 401 | content-type: application/json | {"code":"unauthorized","message":"authentication required"}
 GET /api/unknown  [user] -> 404 | content-type: application/json | {"code":"not_found","message":"unknown API route"}
 GET /api/unknown  [admin] -> 403 | content-type: application/json | {"code":"forbidden","message":"wrong authentication authority"}

@@ -1,19 +1,38 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import Analytics from "../Analytics.svelte";
   import ManagementFrame from "../ManagementFrame.svelte";
-  import { recentRange, selectedPeriod } from "../statistics";
-  import { defaultRange, fixtureStatistics } from "./statistics-fixtures";
-  import type { DateRange, Resource, StatsView } from "../view-models";
+  import { recentRange, selectedPeriod, validRange } from "../statistics";
+  import {
+    defaultRange,
+    fixtureEventRows,
+    fixtureStatistics,
+  } from "./statistics-fixtures";
+  import type {
+    DateRange,
+    EventsView,
+    Resource,
+    StatisticsTab,
+    StatsView,
+  } from "../view-models";
   let {
     scenario = "ready",
-  }: { scenario?: "ready" | "empty" | "pending" | "error" } = $props();
+    initialTab = "overview",
+  }: {
+    scenario?: "ready" | "empty" | "pending" | "error";
+    initialTab?: StatisticsTab;
+  } = $props();
   const clock = new Date("2026-11-14T12:00:00Z");
   let range = $state<DateRange>({ ...defaultRange });
   let applied = $state<DateRange>({ ...defaultRange });
-  let resource = $derived<Resource<StatsView>>(
-    !/^\d{4}-\d{2}-\d{2}$/.test(applied.from) ||
-      !/^\d{4}-\d{2}-\d{2}$/.test(applied.to) ||
-      applied.from > applied.to
+  let tab = $state<StatisticsTab>(untrack(() => initialTab));
+  /** Both views observe the same applied range; no request is made. */
+  function observe<T>(
+    noun: string,
+    empty: T,
+    ready: (range: DateRange) => T,
+  ): Resource<T> {
+    return !validRange(applied)
       ? {
           kind: "error",
           reason: "validation",
@@ -24,25 +43,34 @@
         : scenario === "error"
           ? {
               kind: "error",
-              message:
-                "Statistics could not be loaded. Retry without changing the link.",
+              message: `${noun} could not be loaded. Retry without changing the link.`,
             }
           : {
               kind: "ready",
-              value:
-                scenario === "empty"
-                  ? {
-                      range: applied,
-                      human: 0,
-                      bot: 0,
-                      preview: 0,
-                      days: [],
-                      countries: [],
-                      devices: [],
-                      referrers: [],
-                    }
-                  : fixtureStatistics(applied),
-            },
+              value: scenario === "empty" ? empty : ready(applied),
+            };
+  }
+  let stats = $derived<Resource<StatsView>>(
+    observe(
+      "Statistics",
+      {
+        range: applied,
+        human: 0,
+        bot: 0,
+        preview: 0,
+        days: [],
+        countries: [],
+        devices: [],
+        referrers: [],
+      },
+      fixtureStatistics,
+    ),
+  );
+  let events = $derived<Resource<EventsView>>(
+    observe("Events", { range: applied, rows: [] }, (range) => ({
+      range: { ...range },
+      rows: fixtureEventRows(range),
+    })),
   );
 </script>
 
@@ -54,7 +82,7 @@
   }}
 >
   <Analytics
-    view={{ kind: "stats", label: "Field notes", state: resource }}
+    view={{ label: "Field notes", tab, stats, events }}
     {range}
     period={selectedPeriod(range, clock)}
     onrange={(value) => (range = value)}
@@ -63,5 +91,6 @@
       range = recentRange(days, clock);
       applied = { ...range };
     }}
+    ontab={(value) => (tab = value)}
   />
 </ManagementFrame>

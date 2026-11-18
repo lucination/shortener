@@ -7,6 +7,9 @@ await mkdir(evidence, { recursive: true });
 const index = await (await fetch(`${base}/index.json`)).json();
 const entries = Object.values(index.entries);
 assert(entries.some((entry) => entry.id === "workspace-statistics--overview"));
+assert(entries.some((entry) => entry.id === "workspace-statistics--events"));
+// Creator events are a view of the canonical statistics page, not a modal story.
+assert(!entries.some((entry) => /^analytics-events/.test(entry.id)));
 for (const entry of entries)
   assert(
     !/design-language|statistics-directions|creator-pages|Creator pages|Workbench|Precision\/|comparison|TrendFirst|CompactExplorer/i.test(
@@ -297,6 +300,41 @@ try {
           ),
         );
       }
+      await page.goto(
+        `${base}/iframe.html?id=workspace-statistics--events&viewMode=story`,
+        { waitUntil: "networkidle" },
+      );
+      await page.getByRole("tab", { name: "Events", selected: true }).waitFor();
+      assert.equal(await page.locator(".so-panel tbody tr").count(), 25);
+      await page.getByLabel("From", { exact: true }).fill("2026-11-09");
+      await page.getByLabel("To", { exact: true }).fill("2026-11-09");
+      await page.getByRole("button", { name: "Apply dates" }).click();
+      await page
+        .getByText("2026-11-09 — 2026-11-09 · UTC", { exact: true })
+        .waitFor();
+      assert(
+        (
+          await page
+            .locator(".so-panel tbody tr td:first-child")
+            .allInnerTexts()
+        ).every((text) => text.startsWith("2026-11-09")),
+      );
+      await page.getByRole("tab", { name: "Overview" }).click();
+      assert.equal(await page.locator("[data-day]").count(), 1);
+      await page.getByRole("tab", { name: "Overview" }).press("ArrowRight");
+      assert.equal(
+        await page.evaluate(() => document.activeElement?.textContent),
+        "Events",
+      );
+      assert(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      );
+      await page.screenshot({
+        path: `${evidence}/events-${width}-${colorScheme}.png`,
+        fullPage: true,
+      });
       await page.goto(
         `${base}/iframe.html?id=access-sign-in--sign-in&viewMode=story`,
         { waitUntil: "networkidle" },

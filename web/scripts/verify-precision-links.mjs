@@ -155,7 +155,10 @@ try {
     .click();
   await page.getByRole("heading", { name: "Links", exact: true }).waitFor();
   await edited.getByTitle("View events", { exact: true }).click();
-  await page.getByRole("dialog").waitFor();
+  await page.getByRole("tab", { name: "Events", selected: true }).waitFor();
+  assert.equal(await page.getByRole("dialog").count(), 0);
+  assert(new URL(page.url()).pathname.endsWith("/statistics"));
+  assert.equal(new URL(page.url()).hash, "#events");
   await page
     .getByRole("button", { name: "Back to links", exact: true })
     .click();
@@ -173,7 +176,7 @@ try {
     observations,
     persistence: true,
     createEditDelete: true,
-    statsPageAndEventsDialog: true,
+    statsPageAndEventsView: true,
     errors,
   };
   await writeFile(

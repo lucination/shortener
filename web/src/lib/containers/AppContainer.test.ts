@@ -39,6 +39,15 @@ it("uses exact same-origin short-code URLs for statistics and edit actions", asy
   expect(navigateTo).toHaveBeenLastCalledWith(
     `/${simulatedLinks[0].addresses[0].short_code}/edit`,
   );
+  // Events is a view of the native statistics page, selected by a fragment.
+  await fireEvent.click(v.getByTitle("View events"));
+  expect(navigateTo).toHaveBeenLastCalledWith(
+    `/${simulatedLinks[0].addresses[0].short_code}/statistics#events`,
+  );
+  expect(v.container.querySelector(".focused-dialog")).toBeNull();
+  expect(
+    fetcher.mock.calls.some(([input]) => String(input).includes("/events")),
+  ).toBe(false);
 });
 it("keeps per-link bulk failures beside the affected confirmation instead of claiming success", async () => {
   const fetcher = vi.fn<typeof fetch>(async (input, init) => {

@@ -17,9 +17,10 @@ it("analytics emits a bounded date range query", async () => {
   const onrange = vi.fn();
   const v = render(Analytics, {
     view: {
-      kind: "stats",
       label: "Field notes",
-      state: {
+      tab: "overview",
+      events: { kind: "pending" },
+      stats: {
         kind: "ready",
         value: {
           human: 12,

@@ -2,14 +2,14 @@ import { expect, it } from "vitest";
 import { fireEvent, render } from "@testing-library/svelte";
 import StatisticsOverview from "./StatisticsOverview.svelte";
 import AnalyticsStory from "./story-harness/AnalyticsStory.svelte";
-import { snapshots } from "./story-harness/statistics-fixtures";
+import {
+  fixtureEventLimit,
+  snapshots,
+} from "./story-harness/statistics-fixtures";
 const controls = {
-  label: "Notes",
   detail: { kind: "idle" } as const,
   onday: () => {},
-  onrange: () => {},
-  onapply: () => {},
-  onback: () => {},
+  onretry: () => {},
 };
 it("scales discrete daily counts against labeled integer ticks including zero", () => {
   const stats = {
@@ -156,4 +156,26 @@ it("uses the actual application's primary-control style for Apply dates", () => 
       .getByRole("button", { name: "Apply dates" })
       .classList.contains("btn-primary"),
   ).toBe(true);
+});
+
+it("story events view filters the same fixture observations by the applied range", async () => {
+  const v = render(AnalyticsStory, { initialTab: "events" });
+  const days = () =>
+    [...v.container.querySelectorAll("tbody tr td:first-child")].map((cell) =>
+      cell.textContent!.slice(0, 10),
+    );
+  expect(days()).toHaveLength(fixtureEventLimit);
+  await fireEvent.input(v.getByLabelText("From"), {
+    target: { value: "2026-11-09" },
+  });
+  await fireEvent.input(v.getByLabelText("To"), {
+    target: { value: "2026-11-09" },
+  });
+  await fireEvent.click(v.getByRole("button", { name: "Apply dates" }));
+  expect(v.getByText("2026-11-09 — 2026-11-09 · UTC")).toBeTruthy();
+  expect(days().length).toBeGreaterThan(0);
+  expect(days().every((day) => day === "2026-11-09")).toBe(true);
+  await fireEvent.click(v.getByRole("tab", { name: "Overview" }));
+  expect(v.getByText("2026-11-09 — 2026-11-09 · UTC")).toBeTruthy();
+  expect(v.container.querySelectorAll("[data-day]")).toHaveLength(1);
 });

@@ -58,6 +58,7 @@ const directory = "test-results/management";
 await mkdir(directory, { recursive: true });
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
 const results = [];
+let ownedEventsPath = "";
 const hostAdmissionProbes = JSON.parse(
   process.env.MANAGEMENT_HOST_PROBES || "[]",
 );
@@ -338,6 +339,108 @@ try {
         path: `${directory}/statistics-${width}-${colorScheme}.png`,
         fullPage: true,
       });
+      // Events is a view of the same native page and applied observation.
+      const viewRequests = [];
+      const recordView = (request) => {
+        const url = new URL(request.url());
+        if (/^\/api\/links\/\d+\/(stats|events)$/.test(url.pathname))
+          viewRequests.push(`${url.pathname.split("/").at(-1)}${url.search}`);
+      };
+      page.on("request", recordView);
+      const overviewObserved = await page.locator(".so-observed").innerText();
+      const tab = (name) =>
+        page.getByRole("tab", { name, exact: true, selected: true });
+      await page.getByRole("tab", { name: "Events", exact: true }).click();
+      await tab("Events").waitFor();
+      assert.equal(new URL(page.url()).hash, "#events");
+      assert.equal(new URL(page.url()).pathname, "/Note-A/statistics");
+      await page.getByTestId("events-observed").waitFor();
+      assert.equal(
+        await page.getByTestId("events-observed").innerText(),
+        overviewObserved,
+      );
+      assert.equal(await page.locator(".so-panel tbody tr").count(), 3);
+      await page
+        .getByRole("cell", { name: /^Firefox/ })
+        .first()
+        .waitFor();
+      assert.equal(await page.locator(".focused-dialog").count(), 0);
+      assert.equal(await page.locator(".so-total").count(), 0);
+      assert.equal(viewRequests.length, 1);
+      assert.match(viewRequests[0], /^events\?from=/);
+      const eventsPath = await page.evaluate(
+        () =>
+          performance
+            .getEntriesByType("resource")
+            .map((entry) => new URL(entry.name).pathname)
+            .find((path) => path.endsWith("/events")) ?? "",
+      );
+      assert.match(eventsPath, /^\/api\/links\/\d+\/events$/);
+      ownedEventsPath = eventsPath;
+      const ownEvents = await context.request.get(
+        `${base}${eventsPath}?from=2000-01-01&to=2100-01-01`,
+      );
+      assert.equal(ownEvents.status(), 200);
+      assert.equal(ownEvents.headers()["cache-control"], "no-store");
+      // A new applied range reloads only the visible view.
+      await page.getByLabel("From", { exact: true }).fill("2020-01-01");
+      await page.getByLabel("To", { exact: true }).fill("2020-01-07");
+      assert.equal(
+        await page.getByTestId("events-observed").innerText(),
+        overviewObserved,
+      );
+      await page
+        .getByRole("button", { name: "Apply dates", exact: true })
+        .click();
+      await page
+        .getByText("2020-01-01 — 2020-01-07 · UTC", { exact: true })
+        .waitFor();
+      await page.getByText("No retained events in this range.").waitFor();
+      assert.deepEqual(viewRequests.slice(1), [
+        "events?from=2020-01-01&to=2020-01-07",
+      ]);
+      await page.getByRole("tab", { name: "Overview", exact: true }).click();
+      await tab("Overview").waitFor();
+      assert.equal(new URL(page.url()).hash, "");
+      await page.getByText("No redirects in this date range.").waitFor();
+      assert.equal(viewRequests.at(-1), "stats?from=2020-01-01&to=2020-01-07");
+      await page
+        .getByRole("tab", { name: "Overview", exact: true })
+        .press("ArrowRight");
+      await tab("Events").waitFor();
+      assert.equal(
+        await page.evaluate(() => document.activeElement?.textContent),
+        "Events",
+      );
+      assert.equal(viewRequests.length, 3, "loaded views are not refetched");
+      // The fragment survives reload without reaching the native authorizer.
+      assert.equal((await page.reload()).status(), 200);
+      await tab("Events").waitFor();
+      await page
+        .getByRole("cell", { name: /^Firefox/ })
+        .first()
+        .waitFor();
+      assert.equal(viewRequests.at(-1).split("?")[0], "events");
+      assert(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      );
+      await page.screenshot({
+        path: `${directory}/events-${width}-${colorScheme}.png`,
+        fullPage: true,
+      });
+      // The links-table events action opens this view by full navigation.
+      await page.getByText("Back to links", { exact: false }).first().click();
+      await page.waitForURL(base + "/");
+      await page.getByTitle("View events").last().click();
+      await page.waitForURL(`${base}/Note-A/statistics#events`);
+      await tab("Events").waitFor();
+      await page
+        .getByRole("cell", { name: /^Firefox/ })
+        .first()
+        .waitFor();
+      page.off("request", recordView);
       await page.getByText("Back to links", { exact: false }).first().click();
       await page.getByTitle("Edit link").last().click();
       await page.waitForURL(`${base}/Note-A/edit`);
@@ -441,12 +544,29 @@ try {
     const context = await browser.newContext();
     if (value) await context.addCookies([{ name, value, url: base }]);
     const page = await context.newPage();
-    for (const suffix of ["statistics", "edit"]) {
-      assert.equal((await page.goto(`${base}/Note-A/${suffix}`)).status(), 404);
+    const apiRequests = [];
+    page.on("request", (request) => {
+      if (new URL(request.url()).pathname.startsWith("/api/"))
+        apiRequests.push(request.url());
+    });
+    for (const suffix of ["statistics", "edit", "statistics#events"]) {
+      const response = await page.goto(`${base}/Note-A/${suffix}`);
+      assert.equal(response.status(), 404);
+      assert.equal(response.headers()["cache-control"], "no-store");
       await page.getByText("Link not found", { exact: true }).waitFor();
       assert.equal((await page.reload()).status(), 404);
       assert.equal(await page.getByText("Send sign-in link").count(), 0);
+      assert.equal(await page.getByRole("tab").count(), 0);
+      assert.equal(await page.locator("script").count(), 0);
     }
+    assert.deepEqual(apiRequests, [], `${name}: denial fetches nothing`);
+    // The events API itself stays owner-scoped and uncacheable for denials.
+    const foreign = await context.request.get(
+      `${base}${ownedEventsPath}?from=2000-01-01&to=2100-01-01`,
+    );
+    assert.notEqual(foreign.status(), 200);
+    assert.equal(foreign.headers()["cache-control"], "no-store");
+    assert.doesNotMatch(await foreign.text(), /Firefox|192\.0\.2\.1/);
     await context.close();
   }
   await writeFile(
@@ -456,6 +576,7 @@ try {
         status: "PASS",
         results,
         unauthorizedNative404: true,
+        eventsView: true,
         hostAdmissionProbes,
       },
       null,

@@ -71,9 +71,10 @@ it("renders one screen heading for the separate administrator link view", () => 
 it("retains Clicks as the primary metric label without workspace chrome", () => {
   const v = render(Analytics, {
     view: {
-      kind: "stats",
       label: "Field notes",
-      state: {
+      tab: "overview",
+      events: { kind: "pending" },
+      stats: {
         kind: "ready",
         value: {
           human: 12,

@@ -140,6 +140,22 @@ async fn creator_gets_native_statistics_shell_without_recording_a_visit() {
         stats.1.get("cache-control").and_then(|v| v.to_str().ok()),
         Some("no-store")
     );
+    // The page's events view uses the same owner-scoped, uncacheable authority.
+    let events = get(
+        app.clone(),
+        &format!(
+            "/api/links/{}/events?from=2000-01-01&to=2100-01-01",
+            link.id
+        ),
+        &cookie,
+        "localhost:3000",
+    )
+    .await;
+    assert_eq!(events.0, StatusCode::OK);
+    assert_eq!(
+        events.1.get("cache-control").and_then(|v| v.to_str().ok()),
+        Some("no-store")
+    );
     assert_eq!(
         get(app, "/Note-A/edit", &cookie, "localhost:3000").await.0,
         StatusCode::OK
@@ -276,6 +292,19 @@ async fn management_pages_hide_every_denial_and_override_static_files() {
         .await;
         assert!(!r.0.is_success());
         assert!(!String::from_utf8_lossy(&r.2).contains("humans"));
+        let r = get(
+            app.clone(),
+            &format!(
+                "/api/links/{}/events?from=2000-01-01&to=2100-01-01",
+                link.id
+            ),
+            c,
+            "localhost:3000",
+        )
+        .await;
+        assert!(!r.0.is_success());
+        assert_eq!(r.1["cache-control"], "no-store");
+        assert!(!String::from_utf8_lossy(&r.2).contains("occurred_at"));
     }
     db.delete_link(owner, link.id, &now).unwrap();
     for suffix in ["statistics", "edit"] {

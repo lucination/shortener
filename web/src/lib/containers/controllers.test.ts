@@ -15,7 +15,6 @@ import { AuthController } from "./auth.svelte";
 import { CommandController, commandSuccess } from "./commands.svelte";
 import { LinksController } from "./links.svelte";
 import { importSummary } from "./import.svelte";
-import { validRange, initialRange } from "./analytics.svelte";
 import { simulatedLinks } from "../fixtures";
 
 afterEach(() => vi.useRealTimers());
@@ -305,14 +304,5 @@ it("import summary keeps only failed source rows and names physical rows", () =>
   expect(summary.outcome).toEqual({
     kind: "error",
     message: "Row 2: created · Row 4: Reserved",
-  });
-});
-
-it("analytics ranges are inclusive ISO days ending today", () => {
-  expect(validRange({ from: "2026-11-01", to: "2026-11-01" })).toBe(true);
-  expect(validRange({ from: "2026-11-02", to: "2026-11-01" })).toBe(false);
-  expect(initialRange(new Date("2026-11-18T12:00:00Z"))).toEqual({
-    from: "2026-11-12",
-    to: "2026-11-18",
   });
 });

@@ -343,9 +343,6 @@ code {
   background: var(--dl-panel);
   color: var(--dl-text);
 }
-.focused-dialog.wide {
-  width: min(840px, calc(100vw - 32px));
-}
 .focused-dialog :is(h1, h2, p),
 .box-frame :is(h1, h2, p) {
   overflow-wrap: anywhere;

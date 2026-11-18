@@ -14,6 +14,11 @@ export function completeDays(
   });
 }
 
+const isoDay = /^\d{4}-\d{2}-\d{2}$/;
+/** An inclusive range of ISO days that the date draft may apply. */
+export const validRange = (range: DateRange): boolean =>
+  isoDay.test(range.from) && isoDay.test(range.to) && range.from <= range.to;
+
 /** UTC-inclusive presets; the adapter supplies the clock observation. */
 export function recentRange(days: number, now: Date): DateRange {
   const to = now.toISOString().slice(0, 10);

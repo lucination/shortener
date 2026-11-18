@@ -1,10 +1,7 @@
 <script lang="ts">
   import { onMount, type Snippet } from "svelte";
-  let {
-    children,
-    onclose,
-    wide = false,
-  }: { children: Snippet; onclose: () => void; wide?: boolean } = $props();
+  let { children, onclose }: { children: Snippet; onclose: () => void } =
+    $props();
   let dialog: HTMLDialogElement;
   onMount(() => {
     dialog
@@ -29,7 +26,7 @@
     title="Close dialog"
     onclick={onclose}
   ></button>
-  <dialog open class="focused-dialog dl-modal" class:wide bind:this={dialog}>
+  <dialog open class="focused-dialog dl-modal" bind:this={dialog}>
     {@render children()}
   </dialog>
 </div>

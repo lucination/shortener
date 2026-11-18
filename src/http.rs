@@ -357,8 +357,9 @@ fn api_sync(s: &AppState, method: &Method, path: &str, h: &HeaderMap, body: &[u8
         .split('?')
         .next()
         .and_then(|p| p.strip_prefix("/api/links/"))
-        .is_some_and(|tail| tail.split('/').nth(1) == Some("stats"))
+        .is_some_and(|tail| matches!(tail.split('/').nth(1), Some("stats" | "events")))
     {
+        // Both views of the creator statistics page, including denials.
         response.headers_mut().insert(
             header::CACHE_CONTROL,
             axum::http::HeaderValue::from_static("no-store"),

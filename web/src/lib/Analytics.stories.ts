@@ -1,4 +1,3 @@
-import Analytics from "./Analytics.svelte";
 import AnalyticsStory from "./story-harness/AnalyticsStory.svelte";
 import type { Meta, StoryObj } from "@storybook/sveltekit";
 const meta = {
@@ -12,3 +11,7 @@ export const Overview: Story = {};
 export const Empty: Story = { args: { scenario: "empty" } };
 export const Loading: Story = { args: { scenario: "pending" } };
 export const Failed: Story = { args: { scenario: "error" } };
+export const Events: Story = { args: { initialTab: "events" } };
+export const EventsEmpty: Story = {
+  args: { scenario: "empty", initialTab: "events" },
+};

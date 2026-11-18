@@ -1,6 +1,6 @@
 <script lang="ts">
   import { copyAddress, type CopyAddress } from "../adapters/clipboard";
-  import { managementUrl } from "../management";
+  import { managementUrl, statisticsHash } from "../management";
   import { appName } from "../adapters/branding";
   import { onMount, onDestroy, flushSync } from "svelte";
   import AppShell, { type Section } from "../AppShell.svelte";
@@ -8,7 +8,6 @@
   import FocusedModal from "../presentation/FocusedModal.svelte";
   import LinkEditor from "../LinkEditor.svelte";
   import BulkImport from "../BulkImport.svelte";
-  import Analytics from "../Analytics.svelte";
   import AccountPanel from "../AccountPanel.svelte";
   import AuthPanel from "../AuthPanel.svelte";
   import PublicPage from "../PublicPage.svelte";
@@ -17,7 +16,7 @@
   import Toast from "../Toast.svelte";
   import { createApi, type Api } from "../adapters/api";
   import { failureOutcome } from "../resource";
-  import type { LinkAction, DateRange } from "../view-models";
+  import type { LinkAction } from "../view-models";
   import { Generation } from "./generation";
   import { SessionState, unauthorized } from "./session.svelte";
   import { PageOutcome } from "./outcome.svelte";
@@ -28,11 +27,6 @@
   import { CommandController, type Command } from "./commands.svelte";
   import { EditorController } from "./editor.svelte";
   import { ImportController } from "./import.svelte";
-  import {
-    AnalyticsController,
-    initialRange,
-    validRange,
-  } from "./analytics.svelte";
 
   let {
     api = createApi(fetch),
@@ -44,14 +38,7 @@
     navigateTo?: (path: string) => void;
   } = $props();
 
-  type Page =
-    | "links"
-    | "editor"
-    | "import"
-    | "analytics"
-    | "account"
-    | "auth"
-    | "not-found";
+  type Page = "links" | "editor" | "import" | "account" | "auth" | "not-found";
   let page: Page = $state("links");
 
   // Shared authorities. The generation fences every stale completion; each
@@ -94,7 +81,6 @@
     ...effects,
     active: () => page === "import",
   });
-  const analytics = new AnalyticsController(effects);
 
   onDestroy(() => {
     account.abandon();
@@ -192,39 +178,25 @@
     const notice = await editor.save();
     if (notice) await loadLinks(notice);
   }
-  async function loadAnalytics(
-    id: number,
-    label: string,
-    kind: "stats" | "events",
-    range: DateRange,
-  ) {
-    if (!validRange(range)) {
-      outcome.fail("Choose a valid inclusive date range.", "validation");
-      return;
-    }
-    setPage("analytics");
-    await analytics.load(id, label, kind, range);
-  }
   async function action(action: LinkAction, id: number) {
     if (!links.actionable) return;
     const link = links.find(id);
     if (!link) return;
-    if (action === "edit" || action === "stats") {
+    if (action === "edit" || action === "stats" || action === "events") {
+      // Statistics and events are views of one native creator page; the
+      // `#events` fragment selects a view without reaching the server.
       const code = link.addresses[0]?.short_code;
       const path =
         code && managementUrl(code, action === "edit" ? "edit" : "statistics");
-      if (path) navigateTo(path);
+      if (path)
+        navigateTo(
+          action === "events" ? `${path}${statisticsHash("events")}` : path,
+        );
     } else if (action === "copy") await links.copyAddress(id);
     else if (action === "delete") beginCommand({ kind: "delete-link", id });
     else if (action === "toggle") {
       if (await links.toggle(id)) await loadLinks("Link updated.");
-    } else
-      await loadAnalytics(
-        id,
-        link.title || `Link #${id}`,
-        "events",
-        initialRange(),
-      );
+    }
   }
 </script>
 
@@ -326,27 +298,6 @@
           onfile={(file) => importer.readFile(file)}
           onsubmit={() => importer.submit()}
           oncancel={() => loadLinks()}
-        /></FocusedModal
-      >
-    {:else if page === "analytics"}<FocusedModal
-        onclose={() => loadLinks()}
-        wide
-        ><Analytics
-          view={analytics.view}
-          range={analytics.range}
-          onrange={(range) => {
-            if (page === "analytics") analytics.setRange(range);
-          }}
-          onapply={() => {
-            if (page === "analytics")
-              void loadAnalytics(
-                analytics.id,
-                analytics.view.label,
-                analytics.view.kind,
-                analytics.range,
-              );
-          }}
-          onback={() => loadLinks()}
         /></FocusedModal
       >
     {:else if page === "account" && account.user}<AccountPanel

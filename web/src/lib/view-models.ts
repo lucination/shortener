@@ -106,9 +106,24 @@ export type EventRow = Readonly<{
   device: string;
   classification: "human" | "bot" | "preview";
 }>;
-export type AnalyticsView =
-  | { kind: "stats"; label: string; state: Resource<StatsView> }
-  | { kind: "events"; label: string; state: Resource<readonly EventRow[]> };
+export type EventsView = Readonly<{
+  /** Period of the observed request, independent of unsaved date controls. */
+  range: DateRange;
+  rows: readonly EventRow[];
+}>;
+/** The two views of one link's traffic on its native statistics page. */
+export type StatisticsTab = "overview" | "events";
+/**
+ * One link's statistics page: a single applied observation shown as either
+ * the overview or its retained events. Each view's resource belongs to the
+ * same applied date range.
+ */
+export type AnalyticsView = Readonly<{
+  label: string;
+  tab: StatisticsTab;
+  stats: Resource<StatsView>;
+  events: Resource<EventsView>;
+}>;
 export type UserRow = Readonly<{
   id: number;
   email: string;

@@ -1,4 +1,4 @@
-import type { DateRange, StatsView } from "../view-models";
+import type { DateRange, EventRow, StatsView } from "../view-models";
 // Independent, deterministic response-shaped fixtures; no allocation of aggregates to days.
 const makeSnapshot = (
   from: string,
@@ -109,6 +109,50 @@ const observations = fixtureEvents.map((event, index) => ({
   devices: categoryAt(source.devices, index),
   referrers: categoryAt(source.referrers, index),
 }));
+/** Story display bound for the events view; the real API bounds a page at 1000 rows. */
+export const fixtureEventLimit = 25;
+const agents = [
+  [
+    "Firefox",
+    "Linux",
+    "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Firefox/120.0",
+  ],
+  [
+    "Chrome",
+    "macOS",
+    "Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/131.0",
+  ],
+  ["Safari", "iOS", "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0) Safari/604.1"],
+] as const;
+/**
+ * The newest retained fixture observations in `range` as event rows: the same
+ * filtered events that produce the statistics, never a separate invented set.
+ */
+export function fixtureEventRows(range: DateRange): EventRow[] {
+  return observations
+    .map((event, index) => ({ event, index }))
+    .filter(({ event }) => event.day >= range.from && event.day <= range.to)
+    .reverse()
+    .slice(0, fixtureEventLimit)
+    .map(({ event, index }) => {
+      const [browser, os, ua] = agents[index % agents.length];
+      const second = index % 86400;
+      return {
+        id: index + 1,
+        at: `${event.day}T${new Date(second * 1000).toISOString().slice(11, 19)}Z`,
+        link: "#1",
+        ip: `192.0.2.${(index % 254) + 1}`,
+        ua,
+        referrer: event.referrers,
+        country: event.countries,
+        city: "Unknown",
+        browser,
+        os,
+        device: event.devices,
+        classification: event.kind,
+      };
+    });
+}
 export function fixtureStatistics(range: DateRange): StatsView {
   const events = observations.filter(
     (event) => event.day >= range.from && event.day <= range.to,

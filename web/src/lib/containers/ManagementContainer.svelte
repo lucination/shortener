@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { recentRange, selectedPeriod } from "../statistics";
+  import { recentRange, selectedPeriod, validRange } from "../statistics";
   import { onMount, untrack } from "svelte";
   import { createApi, type Api } from "../adapters/api";
-  import { managementPath } from "../management";
-  import { linkDraft, statsView } from "../mappings";
+  import { managementPath, statisticsHash, statisticsTab } from "../management";
+  import { eventRow, linkDraft, statsView } from "../mappings";
   import { parseDraft } from "../adapters/draft";
   import { failureOutcome, resultResource } from "../resource";
   import type { Link } from "../generated";
@@ -12,6 +12,7 @@
     AnalyticsView,
     DateRange,
     Outcome,
+    StatisticsTab,
   } from "../view-models";
   import Analytics from "../Analytics.svelte";
   import LinkEditor from "../LinkEditor.svelte";
@@ -38,8 +39,14 @@
   let outcome: Outcome = $state({ kind: "idle" });
   let confirmation: "none" | "remove-password" = $state("none");
   let clock = $state(untrack(() => now()));
+  /** Draft dates; `observed` is the applied range every view belongs to. */
   let range: DateRange = $state(untrack(() => recentRange(7, clock)));
+  let observed: DateRange = untrack(() => range);
+  // `generation` fences page loads, saves and observation replacement.
+  // Within one observation each view's request is fenced by its own token.
   let generation = 0;
+  let views = 0;
+  let requested: Record<StatisticsTab, number> = { overview: 0, events: 0 };
   const back = () => navigate("/");
   const denied = (error: import("../adapters/api").ApiError) =>
     error.kind === "http" && [401, 403, 404].includes(error.status);
@@ -78,45 +85,98 @@
         kind: "statistics",
         link,
         view: {
-          kind: "stats",
           label: link.title || route.code,
-          state: { kind: "pending" },
+          tab: statisticsTab(location.hash),
+          stats: { kind: "pending" },
+          events: { kind: "pending" },
         },
       };
-      await loadStats();
+      await apply();
     }
   }
-  async function loadStats() {
+  /**
+   * Replaces the applied observation with the draft range. Advancing the page
+   * generation fences every older stats/events request; only the visible view
+   * is requested now, the other when it is first shown.
+   */
+  async function apply() {
     if (page.kind !== "statistics") return;
-    if (
-      !/^\d{4}-\d{2}-\d{2}$/.test(range.from) ||
-      !/^\d{4}-\d{2}-\d{2}$/.test(range.to) ||
-      range.from > range.to
-    ) {
+    if (!validRange(range)) {
       outcome = {
         kind: "error",
         message: "Choose a valid inclusive date range.",
       };
       return;
     }
-    const target = page;
-    const request = ++generation;
+    ++generation;
+    observed = { ...range };
+    requested = { overview: 0, events: 0 };
     outcome = { kind: "idle" };
-    page = { ...target, view: { ...target.view, state: { kind: "pending" } } };
-    const result = await api.stats(target.link.id, range);
-    if (request !== generation) return;
-    if (result.kind === "failed" && denied(result.error)) {
-      page = { kind: "not-found" };
-      return;
-    }
     page = {
-      ...target,
+      ...page,
       view: {
-        kind: "stats",
-        label: target.view.label,
-        state: resultResource(result, statsView),
+        ...page.view,
+        stats: { kind: "pending" },
+        events: { kind: "pending" },
       },
     };
+    await show(page.view.tab);
+  }
+  /** Loads `tab` for the applied observation unless already requested. */
+  async function show(tab: StatisticsTab) {
+    if (page.kind !== "statistics" || requested[tab]) return;
+    const owner = generation;
+    const request = ++views;
+    requested = { ...requested, [tab]: request };
+    const id = page.link.id;
+    const dates = observed;
+    const current = () => owner === generation && requested[tab] === request;
+    if (tab === "overview") {
+      const result = await api.stats(id, dates);
+      if (!current() || page.kind !== "statistics") return;
+      if (result.kind === "failed" && denied(result.error)) {
+        page = { kind: "not-found" };
+        return;
+      }
+      page = {
+        ...page,
+        view: { ...page.view, stats: resultResource(result, statsView) },
+      };
+    } else {
+      const result = await api.events(id, dates);
+      if (!current() || page.kind !== "statistics") return;
+      if (result.kind === "failed" && denied(result.error)) {
+        page = { kind: "not-found" };
+        return;
+      }
+      page = {
+        ...page,
+        view: {
+          ...page.view,
+          events: resultResource(result, (value) => ({
+            range: dates,
+            rows: value.items.map(eventRow),
+          })),
+        },
+      };
+    }
+  }
+  /** Switches views without replacing the observation; the URL fragment never reaches the server. */
+  function select(tab: StatisticsTab) {
+    if (page.kind !== "statistics" || page.view.tab === tab) return;
+    page = { ...page, view: { ...page.view, tab } };
+    history.replaceState(
+      history.state,
+      "",
+      `${location.pathname}${location.search}${statisticsHash(tab)}`,
+    );
+    void show(tab);
+  }
+  function retryEvents() {
+    if (page.kind !== "statistics") return;
+    requested = { ...requested, events: 0 };
+    page = { ...page, view: { ...page.view, events: { kind: "pending" } } };
+    void show("events");
   }
   async function save() {
     if (page.kind !== "edit" || outcome.kind === "pending") return;
@@ -167,8 +227,12 @@
     else outcome = failureOutcome(result.error);
   }
   onMount(() => {
+    // A typed or followed `#events` fragment selects a view in place.
+    const hashed = () => select(statisticsTab(location.hash));
+    window.addEventListener("hashchange", hashed);
     void load();
     return () => {
+      window.removeEventListener("hashchange", hashed);
       generation++;
     };
   });
@@ -200,13 +264,15 @@
         view={page.view}
         {range}
         onrange={(value) => (range = value)}
-        onapply={loadStats}
+        onapply={apply}
         period={selectedPeriod(range, clock)}
         onperiod={(days) => {
           clock = now();
           range = recentRange(days, clock);
-          void loadStats();
+          void apply();
         }}
+        ontab={select}
+        onretryevents={retryEvents}
         onback={back}
       />
     {:else}<LinkEditor

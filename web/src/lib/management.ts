@@ -1,3 +1,4 @@
+import type { StatisticsTab } from "./view-models";
 export type ManagementPath = Readonly<{
   code: string;
   kind: "statistics" | "edit";
@@ -31,3 +32,8 @@ export function managementUrl(
 ): string | null {
   return safeCode(code) ? `/${code}/${kind}` : null;
 }
+/** Client-only view selector: a fragment never reaches the native authorizer. */
+export const statisticsTab = (hash: string): StatisticsTab =>
+  hash === "#events" ? "events" : "overview";
+export const statisticsHash = (tab: StatisticsTab): string =>
+  tab === "events" ? "#events" : "";

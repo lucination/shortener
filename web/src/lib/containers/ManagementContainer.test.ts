@@ -2,7 +2,7 @@ import { it, expect, vi, afterEach } from "vitest";
 import { render, waitFor, fireEvent } from "@testing-library/svelte";
 import ManagementContainer from "./ManagementContainer.svelte";
 import { createApi } from "../adapters/api";
-import { simulatedLinks, simulatedStats } from "../fixtures";
+import { simulatedEvents, simulatedLinks, simulatedStats } from "../fixtures";
 afterEach(() => history.replaceState(null, "", "/"));
 it("loads a direct statistics page through the real adapter without a modal", async () => {
   const link = simulatedLinks[0];
@@ -223,4 +223,213 @@ it("keeps a preset selected when the adapter clock crosses a UTC day after mount
     expect(v.getByText("2026-11-02 — 2026-11-15 · UTC")).toBeTruthy(),
   );
   expect((v.getByLabelText("Period") as HTMLSelectElement).value).toBe("14");
+});
+
+const eventsFetcher = (
+  link: (typeof simulatedLinks)[number],
+  hold?: (url: URL) => Promise<Response> | undefined,
+) =>
+  vi.fn<typeof fetch>(async (input) => {
+    const url = new URL(String(input), "http://localhost");
+    const held = hold?.(url);
+    if (held) return held;
+    if (url.pathname === "/api/links")
+      return new Response(JSON.stringify({ items: [link], total: 1 }));
+    const from = url.searchParams.get("from")!,
+      to = url.searchParams.get("to")!;
+    if (url.pathname.endsWith("/events"))
+      return new Response(
+        JSON.stringify({
+          items: simulatedEvents,
+          total: simulatedEvents.length,
+        }),
+      );
+    return new Response(
+      JSON.stringify({
+        ...simulatedStats,
+        from,
+        to,
+        daily: [
+          {
+            date: from,
+            humans: 3,
+            bots: 0,
+            previews: 0,
+            redirects: 3,
+            daily_unique: 3,
+          },
+        ],
+      }),
+    );
+  });
+const paths = (fetcher: ReturnType<typeof eventsFetcher>) =>
+  fetcher.mock.calls.map(([input]) => String(input));
+
+it("shows events as a lazily loaded view of the same applied range and keeps the fragment client-side", async () => {
+  const link = simulatedLinks[0];
+  history.replaceState(null, "", `/${link.addresses[0].short_code}/statistics`);
+  const fetcher = eventsFetcher(link);
+  const v = render(ManagementContainer, {
+    api: createApi(fetcher),
+    now: () => new Date("2026-11-14T12:00:00Z"),
+  });
+  await waitFor(() => expect(v.getByTestId("human-total")).toBeTruthy());
+  expect(paths(fetcher).some((path) => path.includes("/events"))).toBe(false);
+  const overview = v.getByRole("tab", { name: "Overview" });
+  const events = v.getByRole("tab", { name: "Events" });
+  expect(overview.getAttribute("aria-selected")).toBe("true");
+  expect(events.getAttribute("aria-selected")).toBe("false");
+  // Pin a day; a view switch and a completed events request do not reset it.
+  await fireEvent.click(v.container.querySelector('[data-day="2026-11-08"]')!);
+  await fireEvent.click(events);
+  expect(location.hash).toBe("#events");
+  expect(location.pathname).toBe(`/${link.addresses[0].short_code}/statistics`);
+  await waitFor(() =>
+    expect(v.getByTestId("events-observed").textContent).toContain(
+      "2026-11-08 — 2026-11-14 · UTC",
+    ),
+  );
+  expect(v.getByRole("tabpanel").getAttribute("aria-labelledby")).toBe(
+    "statistics-tab-events",
+  );
+  expect(v.container.querySelectorAll("tbody tr")).toHaveLength(
+    simulatedEvents.length,
+  );
+  expect(v.container.querySelector(".focused-dialog")).toBeNull();
+  expect(paths(fetcher).at(-1)).toContain(
+    `/api/links/${link.id}/events?from=2026-11-08&to=2026-11-14`,
+  );
+  await fireEvent.click(v.getByRole("tab", { name: "Overview" }));
+  expect(location.hash).toBe("");
+  expect(v.getByTestId("day-detail").textContent).toContain("2026-11-08");
+  // Returning to a loaded view in the same observation does not refetch.
+  await fireEvent.click(v.getByRole("tab", { name: "Events" }));
+  expect(
+    paths(fetcher).filter((path) => path.includes("/events")),
+  ).toHaveLength(1);
+  // A new applied range replaces the observation: only the visible view loads.
+  await fireEvent.input(v.getByLabelText("From"), {
+    target: { value: "2026-11-01" },
+  });
+  expect(v.getByTestId("events-observed").textContent).toContain("2026-11-08");
+  await fireEvent.click(v.getByRole("button", { name: "Apply dates" }));
+  await waitFor(() =>
+    expect(v.getByTestId("events-observed").textContent).toContain(
+      "2026-11-01 — 2026-11-14 · UTC",
+    ),
+  );
+  expect(paths(fetcher).at(-1)).toContain(
+    "events?from=2026-11-01&to=2026-11-14",
+  );
+  expect(paths(fetcher).filter((path) => path.includes("/stats"))).toHaveLength(
+    1,
+  );
+  await fireEvent.click(v.getByRole("tab", { name: "Overview" }));
+  await waitFor(() =>
+    expect(v.getByText("2026-11-01 — 2026-11-14 · UTC")).toBeTruthy(),
+  );
+  expect(v.queryByTestId("day-detail")).toBeNull();
+  expect(paths(fetcher).at(-1)).toContain(
+    "stats?from=2026-11-01&to=2026-11-14",
+  );
+});
+
+it("opens the events view directly from #events and follows fragment changes", async () => {
+  const link = simulatedLinks[0];
+  history.replaceState(
+    null,
+    "",
+    `/${link.addresses[0].short_code}/statistics#events`,
+  );
+  const fetcher = eventsFetcher(link);
+  const v = render(ManagementContainer, {
+    api: createApi(fetcher),
+    now: () => new Date("2026-11-14T12:00:00Z"),
+  });
+  await waitFor(() => expect(v.getByTestId("events-observed")).toBeTruthy());
+  expect(
+    v.getByRole("tab", { name: "Events" }).getAttribute("aria-selected"),
+  ).toBe("true");
+  expect(paths(fetcher).some((path) => path.includes("/stats"))).toBe(false);
+  history.replaceState(null, "", location.pathname);
+  window.dispatchEvent(new HashChangeEvent("hashchange"));
+  await waitFor(() => expect(v.getByTestId("human-total")).toBeTruthy());
+  expect(
+    v.getByRole("tab", { name: "Overview" }).getAttribute("aria-selected"),
+  ).toBe("true");
+});
+
+it("fences a stale events response behind a newer applied range", async () => {
+  const link = simulatedLinks[0];
+  history.replaceState(
+    null,
+    "",
+    `/${link.addresses[0].short_code}/statistics#events`,
+  );
+  let release!: (response: Response) => void;
+  let first = true;
+  const fetcher = eventsFetcher(link, (url) => {
+    if (!url.pathname.endsWith("/events") || !first) return undefined;
+    first = false;
+    return new Promise<Response>((resolve) => (release = resolve));
+  });
+  const v = render(ManagementContainer, {
+    api: createApi(fetcher),
+    now: () => new Date("2026-11-14T12:00:00Z"),
+  });
+  await waitFor(() => expect(v.getByText("Loading events…")).toBeTruthy());
+  await fireEvent.change(v.getByLabelText("Period"), {
+    target: { value: "28" },
+  });
+  await waitFor(() =>
+    expect(v.getByTestId("events-observed").textContent).toContain(
+      "2026-10-18 — 2026-11-14",
+    ),
+  );
+  release(new Response(JSON.stringify({ items: [], total: 0 })));
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(v.getByTestId("events-observed").textContent).toContain("2026-10-18");
+  expect(v.container.querySelectorAll("tbody tr")).toHaveLength(
+    simulatedEvents.length,
+  );
+});
+
+it("retries a failed events view alone and hides the page after a denied events request", async () => {
+  const link = simulatedLinks[0];
+  history.replaceState(
+    null,
+    "",
+    `/${link.addresses[0].short_code}/statistics#events`,
+  );
+  let attempt = 0;
+  const fetcher = eventsFetcher(link, (url) => {
+    if (!url.pathname.endsWith("/events")) return undefined;
+    attempt++;
+    if (attempt === 1)
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({ code: "unavailable", message: "Events paused" }),
+          { status: 503 },
+        ),
+      );
+    if (attempt === 3)
+      return Promise.resolve(
+        new Response(JSON.stringify({ code: "not_found", message: "x" }), {
+          status: 404,
+        }),
+      );
+    return undefined;
+  });
+  const v = render(ManagementContainer, {
+    api: createApi(fetcher),
+    now: () => new Date("2026-11-14T12:00:00Z"),
+  });
+  await waitFor(() => expect(v.getByText("Events paused")).toBeTruthy());
+  await fireEvent.click(v.getByRole("button", { name: "Retry events" }));
+  await waitFor(() => expect(v.getByTestId("events-observed")).toBeTruthy());
+  expect(paths(fetcher).some((path) => path.includes("/stats"))).toBe(false);
+  await fireEvent.click(v.getByRole("button", { name: "Apply dates" }));
+  await waitFor(() => expect(v.getByText("Link not found")).toBeTruthy());
+  expect(v.queryByRole("tab")).toBeNull();
+  expect(v.container.querySelector("tbody")).toBeNull();
 });
