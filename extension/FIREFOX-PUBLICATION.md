@@ -5,7 +5,7 @@ published by a local build. Mozilla validation, review and listing approval are
 separate from upload; a successful workflow is not proof of public availability.
 Chrome and Safari publication are deliberately not implemented here.
 
-The current candidate is **0.1.5**, with new stable GUID
+The current candidate is **0.1.6**, with new stable GUID
 `shortener-companion-v2@shortener.invalid`, for the explicitly approved replacement
 Mozilla publisher account. The public display name remains **Aditya**. The owner
 has replaced the protected environment credentials; no credential values are
@@ -294,8 +294,13 @@ not-found-or-not-visible results, and do not bump a version to hide an unknown
 outcome. After correcting that proven field defect, the prior candidate was
 **0.1.4**, with `extension-v0.1.4` and attempt 1. That historical candidate is
 not the current release: the owner subsequently approved a different Mozilla
-account and deleted the old listing. Candidate **0.1.5** uses the new GUID above
-and requires a parent-reviewed `extension-v0.1.5` tag and its own attempt 1.
+account and deleted the old listing. Version **0.1.5** stopped at publisher-name
+preflight before invoking the upload CLI. After the publisher corrected the
+public display name, read-only reconciliation verified both publisher checks,
+found no visible GUID/version record, and enumerated zero account uploads.
+These observations are not a global GUID-availability guarantee. Candidate
+**0.1.6** uses the same new GUID and requires a parent-reviewed
+`extension-v0.1.6` tag and its own attempt 1. The failed 0.1.5 tag is immutable.
 The deleted GUID is permanently reserved; there is no old-install update path.
 These observations are not global absence
 proof: the normal authenticated publisher/GUID/version preflight remains mandatory.

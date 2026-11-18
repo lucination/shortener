@@ -9,6 +9,7 @@ import { createAmoReadOnlyGet } from "../scripts/amo-read.mjs";
 const sensitive = "private-person@example.invalid private-token private-profile-id";
 const profile = { id: 7, display_name: "Aditya" };
 const guid = "shortener-companion-v2@shortener.invalid";
+const version = JSON.parse(readFileSync(new URL("../package.json", import.meta.url))).version;
 const owned = { guid, authors: [{ id: 7, name: "Aditya" }], is_disabled: true };
 const scenarios = [
   ["name", { profile: { id: 7, display_name: sensitive } }, "publisher_display_name_mismatch", "publisher-profile", { expectedNameMatches: false, publisherIdValid: true }],
@@ -42,7 +43,7 @@ import { registerHooks } from "node:module";
 // No native/reviewer receipt is created or accepted by this test.
 if (process.env.AMO_DIAGNOSTIC_ENTRY === "submit") registerHooks({
   load(url, context, nextLoad) {
-    if (url.endsWith("/scripts/release-context.mjs")) return {format:"module",shortCircuit:true,source:'export function releaseContext(){return {ok:true,version:"0.1.5"};}'};
+    if (url.endsWith("/scripts/release-context.mjs")) return {format:"module",shortCircuit:true,source:'export function releaseContext(){return {ok:true,version:${JSON.stringify(version)}};}'};
     const loaded = nextLoad(url, context);
     // Fence the writer even if a future regression wrongly admits this fixture.
     if (url.endsWith("/scripts/web-ext-release.mjs")) return { ...loaded, source: loaded.source.toString() + '\\nrunWebExtSign = () => { throw new Error("Synthetic fixture forbids CLI invocation"); };' };
@@ -65,7 +66,7 @@ globalThis.fetch = async (url, init) => {
     const fixture = { profile, addon: null, existing: null, page: { count: 0, next: null, results: [] }, ...change };
     const result = spawnSync(process.execPath, ["--import", preload, new URL(`../scripts/${entry === "submit" ? "submit" : "reconcile"}-firefox.mjs`, import.meta.url).pathname], {
       encoding: "utf8", timeout: 5000, cwd: new URL("../", import.meta.url),
-      env: { PATH: process.env.PATH, HOME: homedir(), GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main", GITHUB_REPOSITORY: "lucination/shortener", WEB_EXT_API_KEY: "synthetic-key", WEB_EXT_API_SECRET: "synthetic-secret", AMO_RECONCILE_VERSION: "0.1.5", AMO_DIAGNOSTIC_ENTRY: entry, AMO_DIAGNOSTIC_FIXTURE: JSON.stringify(fixture), AMO_DIAGNOSTIC_CALLS: callsFile },
+      env: { PATH: process.env.PATH, HOME: homedir(), GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main", GITHUB_REPOSITORY: "lucination/shortener", WEB_EXT_API_KEY: "synthetic-key", WEB_EXT_API_SECRET: "synthetic-secret", AMO_RECONCILE_VERSION: version, AMO_DIAGNOSTIC_ENTRY: entry, AMO_DIAGNOSTIC_FIXTURE: JSON.stringify(fixture), AMO_DIAGNOSTIC_CALLS: callsFile },
     });
     assert.equal(result.status, 1, result.stderr);
     const diagnostic = JSON.parse(result.stderr.trim());
