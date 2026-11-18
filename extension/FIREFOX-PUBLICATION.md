@@ -5,7 +5,7 @@ published by a local build. Mozilla validation, review and listing approval are
 separate from upload; a successful workflow is not proof of public availability.
 Chrome and Safari publication are deliberately not implemented here.
 
-The current candidate is **0.1.7**, with new stable GUID
+The package remains **0.1.7** during verification-harness repair, with stable GUID
 `shortener-companion-v2@shortener.invalid`, for the explicitly approved replacement
 Mozilla publisher account. The public display name remains **Aditya**. The owner
 has replaced the protected environment credentials; no credential values are
@@ -15,6 +15,8 @@ This is a **new listing**, not an account transfer or an update path for existin
 installations. Do not reuse the deleted GUID or recreate/move any old release tag.
 The new transaction still requires authenticated publisher/GUID/version preflight,
 same-run native and reviewer acceptance, attempt 1, and the developer-disabled hold.
+This is a main-only harness fix, not a release-tag retry. Hosted verification and
+native acceptance must pass before preparing a separately approved new release.
 
 ## Reproduce from source
 
@@ -300,15 +302,23 @@ preflight before invoking the upload CLI. After the publisher corrected the
 public display name, read-only reconciliation verified both publisher checks,
 found no visible GUID/version record, and enumerated zero account uploads.
 These observations are not a global GUID-availability guarantee. The
-`extension-v0.1.6` run failed verification; native acceptance, release admission
-and submission were skipped, so that run made no AMO write. Its Node 22
-reproduction log reported 168 passed and zero failed tests, while the command
-session returned exit 1. The actual failure cause remains unproven; selecting a
-new runtime is not a diagnosis of that discrepancy. The owner explicitly chose
-Node 26.13.1 for all Firefox CI jobs, matching the successful local runtime.
-Candidate **0.1.7** uses the same new GUID and requires a parent-reviewed
-`extension-v0.1.7` tag, fresh same-run native/reviewer receipts and its own attempt
-1. The failed 0.1.5 and 0.1.6 tags remain immutable; do not rerun or move them.
+`extension-v0.1.6` and `extension-v0.1.7` runs failed verification; native
+acceptance, release admission and submission were skipped, so neither run made
+an AMO write. CI logs identified the diagnostics fixture's `mkdtemp` failure:
+`ENOENT` because `$HOME/.cache` did not exist. A warm local home already had that
+parent directory and masked the assumption. This is a test-harness filesystem
+prerequisite defect, not a demonstrated Node 22 failure. The earlier Node 22
+reproduction log reported 168 passed and zero failed tests while its command
+session returned exit 1; that separate evidence is retained, not rewritten.
+The owner-selected Node 26.13.1 CI pin is unchanged.
+
+The fixture now allocates beneath `os.tmpdir()` instead of assuming a home cache.
+A normal-suite regression creates a fresh HOME without `.cache` and executes the
+real reconciliation CLI fixture through its publisher-failure assertions. Keep
+package **0.1.7** for this main-only repair and obtain successful hosted
+verification/native evidence before preparing a new release version or tag.
+Fresh same-run native/reviewer receipts and attempt-one admission remain required.
+The failed 0.1.5, 0.1.6 and 0.1.7 tags remain immutable; do not rerun or move them.
 The deleted GUID is permanently reserved; there is no old-install update path.
 These observations are not global absence
 proof: the normal authenticated publisher/GUID/version preflight remains mandatory.

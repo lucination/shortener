@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
-import { homedir } from "node:os";
+import { mkdtempSync, mkdirSync, existsSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { createAmoReadOnlyGet } from "../scripts/amo-read.mjs";
 
@@ -31,7 +31,7 @@ const runs = scenarios.map(scenario => ["reconcile", ...scenario]).concat(
    ["submit", "existing-guid", { addon: {} }, "existing_guid", "exact-guid-and-version"]],
 );
 for (const [entry, name, change, failureCode, phase, publisherChecks] of runs) test(`actual ${entry} CLI classifies ${name} without leaking provider values`, () => {
-  const dir = mkdtempSync(join(homedir(), ".cache/amo-diagnostic-"));
+  const dir = mkdtempSync(join(tmpdir(), "amo-diagnostic-"));
   try {
     const callsFile = join(dir, "calls.jsonl");
     const preload = join(dir, "fixture.mjs");
@@ -100,4 +100,29 @@ test("diagnostic mapper copies only exact local allowlist classes; unknown error
   assert.deepEqual(amoFailureDiagnostic(new Error(sensitive)), { failureCode: "unknown", httpStatus: null });
   assert.deepEqual(amoFailureDiagnostic(new Error("AMO GET HTTP 403; stop and reconcile, do not retry")), { failureCode: "get_http_error", httpStatus: 403 });
   assert.deepEqual(amoFailureDiagnostic(new Error("AMO GET HTTP 403; " + sensitive)), { failureCode: "unknown", httpStatus: null });
+});
+
+
+test("diagnostics fixture supports a fresh HOME without a cache directory", () => {
+  const dir = mkdtempSync(join(tmpdir(), "amo-fresh-home-"));
+  try {
+    const home = join(dir, "home");
+    const temp = join(dir, "tmp");
+    mkdirSync(home);
+    mkdirSync(temp);
+    assert.equal(existsSync(join(home, ".cache")), false);
+    // Select only the existing GET-only fixture: it executes the production
+    // reconciliation CLI and asserts publisher classification, with no recursion.
+    const result = spawnSync(process.execPath, [
+      "--test", "--test-name-pattern=^actual reconcile CLI classifies name without leaking provider values$",
+      new URL(import.meta.url).pathname,
+    ], {
+      cwd: new URL("../", import.meta.url), encoding: "utf8", timeout: 10000,
+      env: { PATH: process.env.PATH, HOME: home, TMPDIR: temp },
+    });
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.match(result.stdout, /actual reconcile CLI classifies name without leaking provider values/u);
+    assert.doesNotMatch(result.stdout + result.stderr, /ENOENT/u);
+    assert.equal(existsSync(join(home, ".cache")), false, "fixture must not need or create a home cache");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });
