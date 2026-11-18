@@ -10,15 +10,23 @@ execFileSync(
   [`${root}node_modules/typescript/bin/tsc`, "-p", `${root}tsconfig.json`],
   { stdio: "inherit" },
 );
+const icons = Object.fromEntries(
+  [16, 32, 48, 96, 128].map((size) => [size, `icons/icon-${size}.png`]),
+);
 const base = {
   manifest_version: 3,
+  icons,
   name: "Shortener Companion",
   version,
   description:
     "Shorten the current page and copy its address or formatted title link.",
   permissions: ["activeTab", "storage", "clipboardWrite"],
   optional_host_permissions: ["https://*/*", "http://*/*"],
-  action: { default_popup: "popup.html", default_title: "Shorten this page" },
+  action: {
+    default_popup: "popup.html",
+    default_title: "Shorten this page",
+    default_icon: icons,
+  },
   commands: {
     _execute_action: {
       suggested_key: { default: "Ctrl+Shift+Y", mac: "Command+Shift+Y" },

@@ -376,6 +376,46 @@ try {
     '.unified-extensions-item-action-button[data-extensionid="' + id + '"]';
   if (!(await visibleChromeBox(actionSelector)))
     await clickChromeControl("#unified-extensions-button");
+  // Pin through Firefox's actual Extensions-menu UI in this disposable profile.
+  // No private toolbar module/import or production profile customization.
+  const onToolbar = () =>
+    driver.executeScript(
+      `const action=document.querySelector(arguments[0]);return !!action?.closest('#nav-bar');`,
+      actionSelector,
+    );
+  if (!(await onToolbar())) {
+    const menuSelector =
+      ".unified-extensions-item:has(" +
+      actionSelector +
+      ") .unified-extensions-item-menu-button";
+    await clickChromeControl(menuSelector);
+    await clickChromeControl(".unified-extensions-context-menu-pin-to-toolbar");
+    await wait(
+      onToolbar,
+      "Native Pin to Toolbar did not place the action in the navigation toolbar",
+    );
+    execFileSync("xdotool", ["key", "Escape"]);
+  }
+  assert.equal(
+    requests.length,
+    0,
+    "Pinning the icon must not invoke the shortening action",
+  );
+  receipt.toolbarIcon = await driver.executeScript(
+    `
+    const action=document.querySelector(arguments[0]);
+    const nodes=[action,...action.querySelectorAll('image,img,.toolbarbutton-icon')];
+    const sources=nodes.flatMap(e=>{const s=getComputedStyle(e);return [e.getAttribute('src'),s.listStyleImage,s.getPropertyValue('--webextension-toolbar-image'),s.getPropertyValue('--webextension-toolbar-image-2x')];}).filter(Boolean);
+    return {onToolbar:!!action.closest('#nav-bar'),packagedSources:sources.filter(s=>s.includes('icons/icon-'))};
+  `,
+    actionSelector,
+  );
+  assert.equal(receipt.toolbarIcon.onToolbar, true);
+  assert.ok(
+    receipt.toolbarIcon.packagedSources.length > 0,
+    "Toolbar must reference actual packaged PNG, not the default puzzle icon",
+  );
+  pass("toolbar-icon");
   await clickChromeControl(actionSelector);
   receipt.activation = "real native toolbar/Extensions-menu action";
   await wait(

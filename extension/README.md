@@ -169,3 +169,21 @@ format; browser evidence records actual native readback or a truthful skip.
 The separate **Copy Markdown** button intentionally writes escaped Markdown link
 syntax into plaintext for Markdown editors. It shares the title/URL copy guard,
 never creates another link, and does not change normal title-copy plaintext.
+
+## Extension icon
+
+The icon reuses the app's existing Lucide Link mark (`SignInPage.svelte`) and
+current primary blue, not a new logo or external art. `static/icons/shortener.svg`
+is the reusable source. Transparent RGBA PNGs at 16/32/48/96/128 are committed and
+shared by the manifest/application action across packages. Their existing Lucide
+license notice remains in THIRD-PARTY-NOTICES.txt.
+
+Normal builds and AMO source reproduction copy the committed PNGs unchanged;
+no image renderer or browser installation is needed to build the package.
+Optional regeneration uses the already exact-locked Playwright Chromium:
+`node scripts/generate-icons.mjs` after installing that browser with Playwright's
+CLI. No additional runtime dependency or icon service is introduced.
+
+Use the browser's Pin to Toolbar control if its default extension placement hides
+the button. Native Firefox acceptance uses that real UI in a disposable profile
+and captures the actual packaged toolbar icon together with the restyled popup.

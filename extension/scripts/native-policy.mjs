@@ -2,6 +2,7 @@ export const nativeChecks = Object.freeze([
   "settings-save",
   "host-grant",
   "native-toolbar",
+  "toolbar-icon",
   "active-tab-request",
   "bearer-without-cookie",
   "plain-clipboard",
