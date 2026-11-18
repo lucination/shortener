@@ -77,6 +77,10 @@ policy and metadata. The extension never collects background browsing history.
    production extension HTTP adapter, emitted redirect, revocation and cleanup.
    It does not claim browser UI automation of the server account forms.
 
+### Privacy disclosure
+
+Shortener Companion connects only to the self-hosted Shortener instance you configure. When you shorten a page, its URL and title are sent to that instance using your access token. The instance address and token are stored locally in your browser. The extension developer receives no data or telemetry. Data stored by your instance is under your control.
+
 ### Complete initial-listing transaction
 
 The v5 create API requires explicit localized `name`, `summary`, categories and
@@ -95,6 +99,16 @@ the add-on. This is a publication fence, not a claim to delay AMO's review queue
 
 The adapter PATCHes `{privacy_policy: <approved localized text>}` to
 `addons/addon/{guid}/eula_policy/` and reads its exact unsanitized value back.
+Every AMO JSON response has a **1 MiB decoded-body admission limit**. These
+requests read single-target profile/listing/version/upload-status/policy/preview
+metadata, not the uploaded ZIP/PNG bodies; 1 MiB is our conservative client
+budget, not a claimed AMO maximum. An excessive declared Content-Length rejects
+before body reads. Streaming accounting also bounds automatically decompressed
+fetch bytes when length is absent, understated or compressed. The same 30-second
+request deadline covers headers and body reads. Overflow, timeout, interrupted
+streams, invalid UTF-8 and malformed JSON cancel/release the response and stop
+with sanitized reconciliation guidance; body/parser/transport errors and token
+values are never echoed. Error/404 bodies are cancelled without parsing.
 It uploads each approved PNG to `previews/` as multipart `image`/`position`, then
 PATCHes translated caption/position separately (AMO forbids captions in that
 multipart upload). It waits only through bounded GET polling for exact preview

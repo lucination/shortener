@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 const implementation = await import("../scripts/amo-listing.mjs").catch(() => ({}));
+const approvedDisclosure = "Shortener Companion connects only to the self-hosted Shortener instance you configure. When you shorten a page, its URL and title are sent to that instance using your access token. The instance address and token are stored locally in your browser. The extension developer receives no data or telemetry. Data stored by your instance is under your control.";
 
 test("AMO listing adapter is implemented", () => {
   assert.equal(typeof implementation.submitListed, "function");
@@ -10,7 +11,7 @@ test("AMO listing adapter is implemented", () => {
 
 function fixture(fault) {
   const calls = [];
-  const metadata = { name: { "en-US": "Shortener Companion" }, summary: { "en-US": "summary" }, description: { "en-US": "description" }, categories: { firefox: ["other"] }, privacy_policy: { "en-US": "approved policy" }, version: { license: "all-rights-reserved", approval_notes: "review setup" } };
+  const metadata = { name: { "en-US": "Shortener Companion" }, summary: { "en-US": "summary" }, description: { "en-US": "description" }, categories: { firefox: ["other"] }, privacy_policy: { "en-US": approvedDisclosure }, version: { license: "all-rights-reserved", approval_notes: "review setup" } };
   let disabled = true;
   const version = { version: "0.1.0", channel: "listed", source: "source.zip", license: { slug: "all-rights-reserved" }, approval_notes: "review setup" };
   const previews = [];
@@ -79,10 +80,10 @@ test("HTTP adapter makes exact policy JSON request and rejects uncertain writes 
     assert.equal(url, "https://addons.mozilla.org/api/v5/addons/addon/test/eula_policy/");
     assert.equal(init.method, "PATCH"); assert.equal(init.redirect, "error");
     assert.equal(init.headers.Authorization, "JWT test-auth");
-    assert.deepEqual(JSON.parse(init.body), { privacy_policy: { "en-US": "approved" } });
+    assert.deepEqual(JSON.parse(init.body), { privacy_policy: { "en-US": approvedDisclosure } });
     throw new Error("echoed-secret-must-not-escape");
   } });
-  await assert.rejects(() => api("PATCH", "addons/addon/test/eula_policy/", { privacy_policy: { "en-US": "approved" } }), error => /outcome unknown/.test(error.message) && !/echoed-secret/.test(error.message));
+  await assert.rejects(() => api("PATCH", "addons/addon/test/eula_policy/", { privacy_policy: { "en-US": approvedDisclosure } }), error => /outcome unknown/.test(error.message) && !/echoed-secret/.test(error.message));
   assert.equal(count, 1);
 });
 
@@ -91,6 +92,11 @@ test("source archive contains exactly the approved public assets and runnable re
   const entries = JSON.parse(execFileSync("python3", ["-c", 'import zipfile,json; z=zipfile.ZipFile("dist/firefox-source.zip"); print(json.dumps(z.namelist()))'], { cwd: new URL("../", import.meta.url), encoding: "utf8" }));
   assert.deepEqual(entries.filter(p => p.startsWith("extension/listing/")), ["extension/listing/assets.json", "extension/listing/popup.png", "extension/listing/settings.png"]);
   assert.ok(entries.includes("extension/reviewer-compose.yaml"));
+  const archived = JSON.parse(execFileSync("python3", ["-c", 'import zipfile,json; z=zipfile.ZipFile("dist/firefox-source.zip"); m=json.loads(z.read("extension/amo-metadata.json")); print(json.dumps({"policy":m["privacy_policy"]["en-US"],"doc":z.read("extension/FIREFOX-PUBLICATION.md").decode()}))'], { cwd: new URL("../", import.meta.url), encoding: "utf8" }));
+  const metadata = JSON.parse(readFileSync(new URL("../amo-metadata.json", import.meta.url)));
+  assert.equal(metadata.privacy_policy["en-US"], approvedDisclosure);
+  assert.equal(archived.policy, approvedDisclosure);
+  assert.ok(archived.doc.includes(approvedDisclosure), "source bundle documentation must preserve exact requested disclosure");
   const manifest = readFileSync(new URL("../listing/assets.json", import.meta.url), "utf8");
   assert.doesNotMatch(manifest, /\/home\/|localhost:\d|127\.0\.0\.1|short_at_/);
 });
