@@ -6,6 +6,7 @@ files = []
 for path in ['extension/src', 'extension/static', 'extension/scripts', 'extension/tests', 'contracts/bindings']:
     files.extend(p for p in (root / path).rglob('*') if p.is_file())
 files.extend(root / p for p in ['extension/listing/assets.json', 'extension/listing/popup.png', 'extension/listing/settings.png'])
+files.append(root / '.github/workflows/firefox-reconcile.yml')
 files.extend(root / p for p in ['web/src/lib/styles/presentation.css', 'extension/package.json', 'extension/package-lock.json', 'extension/tsconfig.json', 'extension/README.md', 'extension/FIREFOX-PUBLICATION.md', 'extension/amo-metadata.json', 'extension/reviewer-compose.yaml', '.github/workflows/firefox.yml'])
 output = root / 'extension/dist/firefox-source.zip'
 with zipfile.ZipFile(output, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
