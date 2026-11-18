@@ -1,5 +1,10 @@
 import { chromium } from "@playwright/test";
 import assert from "node:assert/strict";
+// Secondary row actions live in the row's More actions menu.
+const rowAction = async (row, name) => {
+  await row.getByRole("button", { name: /^More actions for / }).click();
+  await row.page().getByRole("menuitem", { name, exact: true }).click();
+};
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 const base = process.env.PRECISION_BASE || "http://localhost:6012";
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
@@ -109,7 +114,7 @@ try {
           .click();
         const row = page.locator("tr").filter({ hasText: title });
         await row.waitFor();
-        await row.getByTitle("Delete link", { exact: true }).click();
+        await rowAction(row, "Delete link");
         await page
           .getByRole("button", { name: "Confirm", exact: true })
           .click();
@@ -154,13 +159,13 @@ try {
     .getByRole("button", { name: "Back to links", exact: true })
     .click();
   await page.getByRole("heading", { name: "Links", exact: true }).waitFor();
-  await edited.getByTitle("View events", { exact: true }).click();
+  await rowAction(edited, "View events");
   await page.getByRole("dialog").waitFor();
   await page
     .getByRole("button", { name: "Back to links", exact: true })
     .click();
   await page.getByRole("heading", { name: "Links", exact: true }).waitFor();
-  await edited.getByTitle("Delete link", { exact: true }).click();
+  await rowAction(edited, "Delete link");
   await page.getByRole("dialog").waitFor();
   await page.getByRole("button", { name: "Confirm", exact: true }).click();
   await page

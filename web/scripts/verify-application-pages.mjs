@@ -176,8 +176,13 @@ try {
             await page
               .getByRole("button", { name: "Import / paste", exact: true })
               .click();
-          if (name === "events")
-            await page.getByTitle("View events", { exact: true }).click();
+          if (name === "events") {
+            await page
+              .getByRole("button", { name: /^More actions for / })
+              .first()
+              .click();
+            await page.getByRole("menuitem", { name: "View events" }).click();
+          }
           if (["admin-links", "admin-usage", "admin-events"].includes(name))
             await page
               .getByRole("button", { name: heading, exact: true })

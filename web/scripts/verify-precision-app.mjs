@@ -1,6 +1,11 @@
 // Run only against an admitted task-local backend and explicitly seeded test user.
 import { chromium } from "@playwright/test";
 import assert from "node:assert/strict";
+// Secondary row actions live in the row's More actions menu.
+const rowAction = async (row, name) => {
+  await row.getByRole("button", { name: /^More actions for / }).click();
+  await row.page().getByRole("menuitem", { name, exact: true }).click();
+};
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 let nativeDestinationServer;
@@ -89,9 +94,7 @@ try {
         (l) => l.title === "Control persistence proof",
       );
       owned.push(main.id);
-      await row("Control persistence proof")
-        .getByTitle("Copy address", { exact: true })
-        .click();
+      await rowAction(row("Control persistence proof"), "Copy address");
       assert.equal(
         await page.evaluate(() => navigator.clipboard.readText()),
         `https://${main.addresses[0].domain}/${alias}`,
@@ -272,9 +275,7 @@ try {
           await click("Back to links");
         }
       await page.setViewportSize({ width: 1440, height: 900 });
-      await row("Edited control proof")
-        .getByTitle("View events", { exact: true })
-        .click();
+      await rowAction(row("Edited control proof"), "View events");
       await page.getByRole("cell", { name: /^Firefox/ }).waitFor();
       await click("Back to links");
     },

@@ -86,7 +86,12 @@ try {
           const root = document.querySelector("#storybook-root");
           const rows = [...root.querySelectorAll("tbody tr")];
           const buttons = rows.map((row) =>
-            [...row.querySelectorAll("button[data-action]")].map((button) => {
+            // Statistics, Edit, then the row's More actions trigger.
+            [
+              ...row.querySelectorAll(
+                ".row-actions > button, .row-actions [aria-haspopup]",
+              ),
+            ].map((button) => {
               const r = button.getBoundingClientRect();
               const svg = button.querySelector("svg")?.getBoundingClientRect();
               return {
@@ -96,7 +101,7 @@ try {
                 width: r.width,
                 height: r.height,
                 svg: svg ? { width: svg.width, height: svg.height } : null,
-                cell: button.parentElement.tagName,
+                cell: button.closest("td")?.tagName,
               };
             }),
           );
@@ -130,10 +135,10 @@ try {
           };
         });
         assert(
-          measure.buttons.every((row) => row.length === 6),
-          "Six dedicated actions per row",
+          measure.buttons.every((row) => row.length === 3),
+          "Statistics, Edit and More actions per row",
         );
-        for (let column = 0; column < 6; column++)
+        for (let column = 0; column < 3; column++)
           assert(
             Math.max(...measure.buttons.map((row) => row[column].x)) -
               Math.min(...measure.buttons.map((row) => row[column].x)) <
@@ -151,8 +156,8 @@ try {
             row.every(
               (button) =>
                 button.cell === "TD" &&
-                button.svg?.width === 16 &&
-                button.svg.height === 16,
+                button.height === 32 &&
+                [14, 16].includes(button.svg?.width),
             ),
           );
         }

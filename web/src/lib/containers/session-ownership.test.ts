@@ -83,7 +83,9 @@ for (const flow of ["admin", "logout", "global"] as const)
             await waitFor(() =>
               expect(
                 v.getByText(
-                  flow === "global" ? "No matching links" : "Raw click data",
+                  flow === "global"
+                    ? "Create your first short link"
+                    : "Raw click data",
                 ),
               ).toBeTruthy(),
             );

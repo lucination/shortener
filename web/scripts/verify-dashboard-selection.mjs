@@ -133,13 +133,15 @@ try {
                 };
               }),
             );
-          assert.equal(icons.length, 5);
+          // Visibly labelled bulk buttons; Delete last.
+          assert.deepEqual(
+            icons.map((icon) => icon.text),
+            ["Enable", "Disable", "Set expiration", "Set retention", "Delete"],
+          );
           for (const icon of icons) {
-            assert.equal(icon.width, 32);
             assert.equal(icon.height, 32);
-            assert.equal(icon.y, icons[0].y);
+            if (width >= 1280) assert.equal(icon.y, icons[0].y);
             assert.ok(icon.icon);
-            assert.equal(icon.text, "");
             assert.ok(icon.x >= 0 && icon.x + icon.width <= width);
           }
           const before = writes.length;

@@ -3,6 +3,7 @@ import { render, waitFor, fireEvent } from "@testing-library/svelte";
 import AppContainer from "./AppContainer.svelte";
 import { createApi } from "../adapters/api";
 import { simulatedLinks } from "../fixtures";
+import { chooseRowAction, rowMenuTriggers } from "../row-menu-testing";
 import { parseBulk } from "../bulk";
 import type { BulkInput } from "../generated";
 const user = {
@@ -117,10 +118,8 @@ for (const status of [200, 503])
           : list(),
     );
     const v = render(AppContainer, { api: createApi(fetcher) });
-    await waitFor(() =>
-      expect(v.getByRole("button", { name: "Delete link" })).toBeTruthy(),
-    );
-    await fireEvent.click(v.getByRole("button", { name: "Delete link" }));
+    await waitFor(() => expect(rowMenuTriggers().length).toBeGreaterThan(0));
+    await chooseRowAction(0, "Delete link");
     await fireEvent.click(v.getByRole("button", { name: "Confirm" }));
     await fireEvent.click(v.getByRole("button", { name: "Account" }));
     await waitFor(() => expect(v.getByText("Raw click data")).toBeTruthy());
