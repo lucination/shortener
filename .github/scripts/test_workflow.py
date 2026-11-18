@@ -23,6 +23,21 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn('npm ci --prefix admin --no-audit --no-fund', setup)
         self.assertIn('npm run check', checks)
 
+    def test_extension_locked_dependencies_are_installed_before_checks(self):
+        test_job = self.source.split('\n  test:\n', 1)[1].split('\n  native-image:\n', 1)[0]
+        commands = [shlex.split(line.strip()) for line in test_job.splitlines()
+                    if line.strip().startswith('npm ')]
+        extension_commands = [command for command in commands if 'extension' in command]
+        self.assertTrue(extension_commands, 'Must execute extension verification')
+        self.assertEqual(extension_commands[0],
+                         ['npm', 'ci', '--prefix', 'extension', '--ignore-scripts',
+                          '--no-audit', '--no-fund'],
+                         'Install locked extension-local devDependencies without lifecycle scripts before checks')
+        self.assertIn(['npm', 'run', 'check', '--prefix', 'extension'], extension_commands)
+        self.assertIn(['npm', 'test', '--prefix', 'extension'], extension_commands)
+        self.assertNotIn('continue-on-error:', test_job)
+        self.assertNotIn('secrets.', test_job)
+
     def test_every_action_is_pinned_to_a_full_commit(self):
         actions = re.findall(r'uses: ([^\s]+)', self.source)
         self.assertTrue(actions)

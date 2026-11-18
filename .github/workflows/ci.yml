@@ -54,6 +54,7 @@ jobs:
           npm run build
       - name: Companion extension types, behavior, packages and real Chromium clipboard
         run: |
+          npm ci --prefix extension --ignore-scripts --no-audit --no-fund
           npm run check --prefix extension
           npm test --prefix extension
           sudo apt-get update
